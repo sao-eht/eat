@@ -84,3 +84,58 @@ def read_g3mm(filename):
     table = pd.read_csv(filename, **g3mm_pandasargs)
     return table.dropna()
 
+# MICHAEL 3mm debiased closure amplitudes
+M3MMCA_FIELDS = [('time', float),] + \
+	[("site%d" % (i+1), int) for i in range(8)] + \
+	[field for i in range(4) for field in (("u%d" % (i+1), float), ("v%d" % (i+1), float))] + [
+	('camp', float),
+	('camp_err', float),
+]
+
+m3mmca_pandasargs = dict(
+    delim_whitespace=True,
+    skiprows=0,
+    header = None,
+    index_col=False,
+    names=[a[0] for a in M3MMCA_FIELDS]
+)
+
+def read_m3mmca(filename):
+    table = pd.read_csv(filename, **m3mmca_pandasargs)
+    return table.dropna()
+
+# ANDRE's blist for closure phase
+BLIST_FIELDS = [
+    ('year', int),
+    ('day', int),
+    ('hour', float),
+    ('source', str),
+    ('triangle', str),
+    ('cphase', float),
+    ('cphase_err', float),
+    ('u0', float),
+    ('u1', float),
+    ('u2', float),
+    ('v0', float),
+    ('v1', float),
+    ('v2', float),
+]
+
+blist_pandasargs = dict(
+    delim_whitespace=True,
+    comment='#',
+    skiprows=0,
+    header=None,
+    parse_dates={'datetime':[0,1,2]},
+    # index_col='datetime',
+    keep_date_col=True,
+    # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
+    date_parser=lambda years,days,hours: [datetime.datetime.strptime(x+y, '%Y%j')
+         + datetime.timedelta(hours=float(z)) for (x,y,z) in zip(years,days,hours)],
+    names=[a[0] for a in BLIST_FIELDS]
+)
+
+def read_blist(filename):
+    table = pd.read_csv(filename, **blist_pandasargs)
+    # return table.dropna()
+    return table
