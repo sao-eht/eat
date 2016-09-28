@@ -37,6 +37,7 @@ parser.add_argument('-c', '--columns', help='space separated default columns to 
 parser.add_argument('-a', '--add-columns', help='add these columns to the default list', nargs='*', default=None)
 parser.add_argument('-r', '--remove-columns', help='remove these columns from the default list', nargs='*', default=None)
 parser.add_argument('-n', '--no-auto', help='do not print autocorrelations', action="store_true")
+parser.add_argument('-s', '--sort-by', help='sort by these columns', nargs='*', default=None)
 parser.add_argument('--filter', help='filter is a python expression using column names evaluating to true if row is to be printed', default=None)
 args = parser.parse_args()
 
@@ -76,8 +77,14 @@ if 'mbd_unwrap' in columns:
     util.unwrap_mbd(a)
 if 'utime' in columns:
     util.add_utime(a)
+# convenience
+if 'timetag' in a and 'hour' not in a:
+    util.add_hour(a)
 
 if args.filter is not None:
     a = a[[eval(args.filter, row._asdict()) for row in a.itertuples()]]
+
+if args.sort_by is not None:
+    a = a.sort_values(args.sort_by)
 
 print a[columns].to_string(formatters=fmt.update(additional_fmt))
