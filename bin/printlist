@@ -1,0 +1,83 @@
+#!/usr/bin/env python
+
+from eat.io import hops, util
+import pandas as pd
+
+import argparse
+
+additional_fmt = {
+'mbd_unwrap':'{:,.5f}'.format
+}
+
+"""
+[alist v6] version root_id two extent_no duration length offset expt_no
+scan_id procdate year timetag scan_offset source baseline quality freq_code
+polarization lags amp snr resid_phas phase_snr datatype sbdelay mbdelay
+ambiguity delay_rate ref_elev rem_elev ref_az rem_az u v esdesp epoch ref_freq
+total_phas total_rate total_mbdelay total_sbresid srch_cotime noloss_cotime
+ra_hrs dec_deg resid_delay [alist v5] version root_id two extent_no duration
+length offset expt_no scan_id procdate year timetag scan_offset source
+baseline quality freq_code polarization lags amp snr resid_phas phase_snr
+datatype sbdelay mbdelay ambiguity delay_rate ref_elev rem_elev ref_az rem_az
+u v esdesp epoch ref_freq total_phas total_rate total_mbdelay total_sbresid
+srch_cotime noloss_cotime [tlist v6] version expt_no three scan_id year
+timetag scan_offset source freq_code lags triangle roots extents lengths
+duration offset scan_quality data_quality esdesp bis_amp bis_snr bis_phas
+datatype csbdelay cmbdelay ambiguity cdelay_rate elevations azimuths epoch
+ref_freq cotime
+"""
+
+parser = argparse.ArgumentParser(epilog=
+'[alist v6] ' + ' '.join(map(str, hops.ffields_v6)) + 
+' [alist v5] ' + ' '.join(map(str.format, hops.ffields_v5)) + 
+' [tlist v6] ' + ' '.join(map(str.format, hops.tfields_v6))
+)
+parser.add_argument('filename', nargs='+', help='alist txt file[s]')
+parser.add_argument('-c', '--columns', help='space separated default columns to print (optional)', nargs='*', default=None)
+parser.add_argument('-a', '--add-columns', help='add these columns to the default list', nargs='*', default=None)
+parser.add_argument('-r', '--remove-columns', help='remove these columns from the default list', nargs='*', default=None)
+parser.add_argument('-n', '--no-auto', help='do not print autocorrelations', action="store_true")
+parser.add_argument('--filter', help='filter is a python expression using column names evaluating to true if row is to be printed', default=None)
+args = parser.parse_args()
+
+# which kind of file are we looking at (may not close file until garbage collect?)
+firstline = (a for a in open('cphase_3429_difx_high.5sec.twrite.average')
+    if a[0] is not '*').next().rstrip().split()
+if(len(firstline) == len(hops.ffields_v6) and firstline[0] == '6'):
+    (readfun, fmt) = (hops.read_alist_v6, hops.fformatters_v6)
+    defaultcol = "scan_id timetag source baseline polarization amp snr resid_phas sbdelay mbdelay delay_rate".split()
+elif(len(firstline) == len(hops.ffields_v5) and firstline[0] == '5'):
+    (readfun, fmt) = (hops.read_alist_v5, hops.fformaters_v5)
+    defaultcol = "scan_id timetag source baseline polarization amp snr resid_phas sbdelay mbdelay delay_rate".split()
+elif(len(firstline) == len(hops.tfields_v6) and firstline[0] == '6'):
+    (readfun, fmt) = (hops.read_tlist_v6, hops.tformatters_v6)
+    defaultcol = "scan_id timetag source triangle duration bis_snr bis_phas cmbdelay cdelay_rate".split()
+else:
+    import sys
+    sys.exit('unrecognized format for first line of length %d: ' % len(firstline) + ' '.join(firstline))
+
+a = pd.concat([readfun(fname) for fname in args.filename], ignore_index=True)
+if args.columns is None:
+    columns = defaultcol
+else:
+    columns = args.columns
+if args.add_columns is not None:
+    columns += args.add_columns
+if args.remove_columns is not None:
+    for c in args.remove_columns:
+        columns.remove(c)
+
+if args.no_auto:
+    a = a[a.baseline.map(lambda x: x[0] != x[1])]
+
+if 'gmst' in columns:
+    util.add_gmst(a)
+if 'mbd_unwrap' in columns:
+    util.unwrap_mbd(a)
+if 'utime' in columns:
+    util.add_utime(a)
+
+if args.filter is not None:
+    a = a[[eval(args.filter, row._asdict()) for row in a.itertuples()]]
+
+print a[columns].to_string(formatters=fmt.update(additional_fmt))
