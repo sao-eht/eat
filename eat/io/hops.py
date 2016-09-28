@@ -5,12 +5,232 @@ if parse_version(pd.__version__) < parse_version('0.15.1dev'):
 import datetime
 import numpy as np
 import os
+import sys
+
+def condense_formats(fmtlist):
+    return map(lambda fmt: fmt if fmt.count('%') <= 1 else "%s", fmtlist)
+
+# from write_fsumm.c
+
+fformat_v5 = condense_formats("%1d %s 2 %2d %3d %3d %3d %4d %s %02d%03d-%02d%02d%02d %4d\
+ %03d-%02d%02d%02d %3d %-8s %s %c%c %c%02d %2s %4d %6.2f %#5.4g %5.1f %#5.4g %2s %6.3f %8.5f\
+ %6.4f %8.3f %4.1f %4.1f %5.1f %5.1f %7.4g %7.4g %06d %02d%02d %8.2f %5.1f %11.8f\
+ %13.6f %5.3f %3d %3d\n".replace(' 2 ', ' %d ').strip().split())
+
+fformat_v6 = condense_formats("%1d %s 2 %2d %3d %3d %3d %4d %8s %04d%03d-%02d%02d%02d\
+ %4d %03d-%02d%02d%02d %3d %32s %2s %c%c\
+ %c%02d %2s %5d\
+ %#13.8g %#13.8g %11.6f %#11.6g %2s\
+ %+12.9f %+12.9f %11.9f\
+ %+11.6f %5.2f %5.2f %6.2f %6.2f %7.4g %7.4g %06d\
+ %02d%02d %9.3f %10.6f %11.8f\
+ %13.6f %+9.6f %8d %8d %+10.6f %+10.6f %+13.10f\n".replace(' 2 ', ' %d ').strip().split())
+
+tformat_v6 = condense_formats("%1d %4d 3 %8s %4d %03d-%02d%02d%02d %3d %32s\
+ %c%c %4d %3s %20s %11s %14s\
+ %3d %3d  %c  %c %06d\
+ %10.3f %8.3f %+8.3f %2s %7.4f\
+ %8.5f %6.4f %9.5f %14s %11s\
+  %02d%02d %10.3f %7d\n".replace(' 3 ', ' %d ').strip().split())
+
+ffields_v5 = [a.strip() for a in """
+version,
+root_id,
+two,
+extent_no,
+duration,
+length,
+offset,
+expt_no,
+scan_id,
+procdate,
+year,
+timetag,
+scan_offset,
+source,
+baseline,
+quality,
+freq_code,
+polarization,
+lags,
+amp,
+snr,
+resid_phas,
+phase_snr,
+datatype,
+sbdelay,
+mbdelay,
+ambiguity,
+delay_rate,
+ref_elev,
+rem_elev,
+ref_az,
+rem_az,
+u,
+v,
+esdesp,
+epoch,
+ref_freq,
+total_phas,
+total_rate,
+total_mbdelay,
+total_sbresid,
+srch_cotime,
+noloss_cotime
+""".split(',')]
+
+ffields_v6 = [a.strip() for a in """
+version,
+root_id,
+two,
+extent_no,
+duration,
+length,
+offset,
+expt_no,
+scan_id,
+procdate,
+year,
+timetag,
+scan_offset,
+source,
+baseline,
+quality,
+freq_code,
+polarization,
+lags,
+amp,
+snr,
+resid_phas,
+phase_snr,
+datatype,
+sbdelay,
+mbdelay,
+ambiguity,
+delay_rate,
+ref_elev,
+rem_elev,
+ref_az,
+rem_az,
+u,
+v,
+esdesp,
+epoch,
+ref_freq,
+total_phas,
+total_rate,
+total_mbdelay,
+total_sbresid,
+srch_cotime,
+noloss_cotime,
+ra_hrs,
+dec_deg,
+resid_delay
+""".split(',')]
+
+tfields_v6 = [a.strip() for a in """
+version,
+expt_no,
+three,
+scan_id,
+year,
+timetag,
+scan_offset,
+source,
+freq_code,
+lags,
+triangle,
+roots,
+extents,
+lengths,
+duration,
+offset,
+scan_quality,
+data_quality,
+esdesp,
+bis_amp,
+bis_snr,
+bis_phas,
+datatype,
+csbdelay,
+cmbdelay,
+ambiguity,
+cdelay_rate,
+elevations,
+azimuths,
+epoch,
+ref_freq,
+cotime
+""".split(',')]
+
+fsumm_v5_pandasargs = dict(
+    delim_whitespace=True,
+    comment='*',
+    header=None,
+    dtype={15:str},
+    parse_dates={'datetime':[10,11]},
+    index_col='datetime',
+    keep_date_col=True,
+    # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
+    date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%y%j-%H%M%S') for (x,y) in zip(years,times)],
+    names=ffields_v5,
+)
+
+fsumm_v6_pandasargs = dict(
+    delim_whitespace=True,
+    comment='*',
+    header=None,
+    dtype={15:str},
+    parse_dates={'datetime':[10,11]},
+    index_col='datetime',
+    keep_date_col=True,
+    # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
+    date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%Y%j-%H%M%S') for (x,y) in zip(years,times)],
+    names=ffields_v6,
+)
+
+tsumm_pandasargs = dict(
+    delim_whitespace=True,
+    comment='*',
+    header=None,
+    dtype={15:str},
+)
+
+def read_alist_v5(filename):
+    table = pd.read_csv(filename, **fsumm_v5_pandasargs)
+    return table
+
+def read_alist_v6(filename):
+    table = pd.read_csv(filename, **fsumm_v6_pandasargs)
+    return table
+
+def read_tlist_v6(filename):
+    table = pd.read_csv(filename, names=tfields_v6, **tsumm_pandasargs)
+    return table
+
+fformatters_v5 = {col:lambda x, fmt=fmt: fmt % x for col,fmt in zip(ffields_v5, fformat_v5)}
+fformatters_v5['year'] = lambda x: '%s' % x # necessary because pandas parse_dates will keep date col as str (!?)
+fformatters_v6 = {col:lambda x, fmt=fmt: fmt % x for col,fmt in zip(ffields_v5, fformat_v5)}
+fformatters_v6['year'] = lambda x: '%s' % x # necessary because pandas parse_dates will keep date col as str (!?)
+tformatters_v6 = {col:lambda x, fmt=fmt: fmt % x for col,fmt in zip(tfields_v6, tformat_v6)}
+tformatters_v6['year'] = lambda x: '%s' % x # necessary because pandas parse_dates will keep date col as str (!?)
+
+def write_alist_v5(df, out=sys.stdout):
+    if type(out) is str:
+        out = open(out, 'w')
+    df.to_string(buf=out, columns=ffields_v5, formatters=formatters_v5, header=False, index=False)
+
+def write_alist_v6(df, out=sys.stdout):
+    if type(out) is str:
+        out = open(out, 'w')
+    df.to_string(buf=out, columns=ffields_v6, formatters=formatters_v6, header=False, index=False)
 
 # Taken from vlbidata.alist
 # Taken from Haystack's aformat.doc
 #       = ( (FIELD_NAME, TYPE_FUNC),
 #           ...
 #           )
+
 ALIST_FIELDS = (
     ('format', int),  # >=5 implies Mk4
     ('root', str),  # 6-char lower case
@@ -165,7 +385,8 @@ caltable_pandasargs = dict(
 # calibrated data will have u,v filled in
 def read_caltable(filename):
     table = pd.read_csv(filename, **caltable_pandasargs)
-    table.dropna(how="any", inplace=True)
+    # keep missing data (u,v coords still good)
+    # table.dropna(how="any", inplace=True)
     return table
 
 # network solution calibrated data 2013 by Michael
@@ -232,5 +453,83 @@ networksol_pandasargs = dict(
 def read_networksol(filename):
     table = pd.read_csv(filename, **networksol_pandasargs)
     table.dropna(how="any", inplace=True)
+    return table
+
+# modified networksol by Michael with model visibs and flag
+NETWORKSOL2_FIELDS = (
+    ('day', str), # day
+    ('hhmm', str),
+    ('source', str),
+    ('baseline', str),
+    ('u', float),
+    ('v', float),
+    ('uvmag', float),
+    ('sefd_1', float),
+    ('sefd_2', float),
+    ('calamp_apriori', float),
+    ('amp', float),
+    ('snr', float),
+    ('el_1', float),
+    ('el_2', float),
+    ('expt', int),
+    ('band', int),
+	('model', float),
+    ('gain_1', float),
+    ('gainerr_1', float),
+    ('gain_2', float),
+    ('gainerr_2', float),
+    ('chisq', float),
+    ('calamp_network', float),
+	('flag', int),
+#    ('syserr_fraction', float),
+)
+
+networksol2_pandasargs = dict(
+    delim_whitespace=True,
+    comment='#',
+    header=None,
+    parse_dates={'datetime':[0,1]},
+    keep_date_col=True,
+    date_parser=lambda dates,times: [x+y for (x,y) in zip(dates,times)],
+    names=[a[0] for a in NETWORKSOL2_FIELDS],
+    error_bad_lines=True,
+    warn_bad_lines=True,
+)
+
+def read_networksol2(filename):
+    table = pd.read_csv(filename, **networksol2_pandasargs)
+    table.dropna(how="any", inplace=True)
+    return table
+
+
+# aedit output produced by Vincent with channel-specific amplitudes
+# 30 channel mode
+#   1. path to fringe file (including experiment number, doy-hhmmss, baseline)
+#   2. source
+#   3. number of channels
+#   4. amplitude (times 10^{-4}) [technically, correlation coefficient]
+#   5. signal-to-noise ratio
+#   6-35. amplitudes in each of the channels
+BANDPASS_FIELDS = [
+    ('path', str),
+    ('source', str),
+    ('nchan', str),
+    ('amp', float),
+    ('snr', float),
+]
+
+bandpass_pandasargs = dict(
+    delim_whitespace=True,
+    comment='*',
+    header=None,
+)
+
+def read_bandpass(filename):
+    table = pd.read_csv(filename, **bandpass_pandasargs)
+    table.columns = [a[0] for a in BANDPASS_FIELDS] + \
+        ['amp_%d' % (i+1) for i in range(len(table.columns) - 5)]
+    table['experiment'], table['scan'], table['filename'] = \
+        zip(*table['path'].apply(lambda x: x.split('/')))
+    table['baseline'] = table['filename'].apply(lambda x: x[:2])
     return table
 
