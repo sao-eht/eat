@@ -145,8 +145,8 @@ extents,
 lengths,
 duration,
 offset,
-scan_quality,
-data_quality,
+scanqual,
+dataqual,
 esdesp,
 bis_amp,
 bis_snr,
@@ -167,6 +167,7 @@ fsumm_v5_pandasargs = dict(
     delim_whitespace=True,
     comment='*',
     header=None,
+    # fringe quality code
     dtype={15:str},
     parse_dates={'datetime':[10,11]},
     index_col='datetime',
@@ -193,7 +194,12 @@ tsumm_pandasargs = dict(
     delim_whitespace=True,
     comment='*',
     header=None,
-    dtype={15:str},
+    dtype={16:str, 17:str},
+    parse_dates={'datetime':[4,5]},
+    index_col='datetime',
+    keep_date_col=True,
+    # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
+    date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%Y%j-%H%M%S') for (x,y) in zip(years,times)],
 )
 
 def read_alist_v5(filename):
