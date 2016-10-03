@@ -15,6 +15,10 @@ isite = {f:i for i, flist in enumerate(sites) for f in flist}
 idish = {f:i for i, flist in enumerate(dishes) for f in flist}
 ifeed = {f:i for i, f in enumerate(feeds)}
 
+def get_alist_version(filename):
+    code = (a[0] for a in open(filename) if a[0].isdigit())
+    return int(code.next())
+
 # unwrap the MBD based on the 32 MHz ambiguity in HOPS, choose value closest to SBD
 def unwrap_mbd_old(df, mbd_ambiguity=None):
     if mbd_ambiguity is None:      # we may want to set this manually
