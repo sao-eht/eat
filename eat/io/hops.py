@@ -170,7 +170,7 @@ fsumm_v5_pandasargs = dict(
     # fringe quality code
     dtype={15:str},
     parse_dates={'datetime':[10,11]},
-    index_col='datetime',
+    # index_col='datetime',
     keep_date_col=True,
     # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
     date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%y%j-%H%M%S') for (x,y) in zip(years,times)],
@@ -183,7 +183,7 @@ fsumm_v6_pandasargs = dict(
     header=None,
     dtype={15:str},
     parse_dates={'datetime':[10,11]},
-    index_col='datetime',
+    # index_col='datetime',
     keep_date_col=True,
     # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
     date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%Y%j-%H%M%S') for (x,y) in zip(years,times)],
@@ -196,7 +196,7 @@ tsumm_pandasargs = dict(
     header=None,
     dtype={16:str, 17:str},
     parse_dates={'datetime':[4,5]},
-    index_col='datetime',
+    # index_col='datetime',
     keep_date_col=True,
     # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
     date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%Y%j-%H%M%S') for (x,y) in zip(years,times)],
@@ -224,12 +224,12 @@ tformatters_v6['year'] = lambda x: '%s' % x # necessary because pandas parse_dat
 def write_alist_v5(df, out=sys.stdout):
     if type(out) is str:
         out = open(out, 'w')
-    df.to_string(buf=out, columns=ffields_v5, formatters=formatters_v5, header=False, index=False)
+    df.to_string(buf=out, columns=ffields_v5, formatters=fformatters_v5, header=False, index=False)
 
 def write_alist_v6(df, out=sys.stdout):
     if type(out) is str:
         out = open(out, 'w')
-    df.to_string(buf=out, columns=ffields_v6, formatters=formatters_v6, header=False, index=False)
+    df.to_string(buf=out, columns=ffields_v6, formatters=fformatters_v6, header=False, index=False)
 
 # Taken from vlbidata.alist
 # Taken from Haystack's aformat.doc
