@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
-from eat.io import hops, util
+# ALIST cmd-line selecting and printing
+# 2016-10-11 Lindy Blackburn
+
+from eat.io import hops, util, misc
 import pandas as pd
+import numpy as np
 
 import argparse
 
@@ -38,28 +42,32 @@ parser.add_argument('-a', '--add-columns', help='add these columns to the defaul
 parser.add_argument('-r', '--remove-columns', help='remove these columns from the default list', nargs='*', default=None)
 parser.add_argument('-n', '--no-auto', help='do not print autocorrelations', action="store_true")
 parser.add_argument('-s', '--sort-by', help='sort by these columns', nargs='*', default=None)
-parser.add_argument('--filter', help='filter is a python expression using column names evaluating to true if row is to be printed', default=None)
+parser.add_argument('-f', '--filter', help='filter is a set of key value requirements: e.g. -f baseline GE source BLLAC', nargs='*', default=None)
+parser.add_argument('-e', '--expression', help='expression is a python expression to evaluate on each row which evaluates to true if row is to be kept', default=None)
 args = parser.parse_args()
 
 # which kind of file are we looking at (may not close file until garbage collect?)
-firstline = (a for a in open('cphase_3429_difx_high.5sec.twrite.average')
-    if a[0] is not '*').next().rstrip().split()
+firstline = (a for a in open(args.filename[0])
+    if a[0] is not '*').next().strip().split()
 if(len(firstline) == len(hops.ffields_v6) and firstline[0] == '6'):
     (readfun, fmt) = (hops.read_alist_v6, hops.fformatters_v6)
     defaultcol = "scan_id timetag source baseline polarization amp snr resid_phas sbdelay mbdelay delay_rate".split()
 elif(len(firstline) == len(hops.ffields_v5) and firstline[0] == '5'):
-    (readfun, fmt) = (hops.read_alist_v5, hops.fformaters_v5)
+    (readfun, fmt) = (hops.read_alist_v5, hops.fformatters_v5)
     defaultcol = "scan_id timetag source baseline polarization amp snr resid_phas sbdelay mbdelay delay_rate".split()
 elif(len(firstline) == len(hops.tfields_v6) and firstline[0] == '6'):
     (readfun, fmt) = (hops.read_tlist_v6, hops.tformatters_v6)
     defaultcol = "scan_id timetag source triangle duration bis_snr bis_phas cmbdelay cdelay_rate".split()
+elif(len(firstline) == len(misc.RLULIST_FIELDS) and firstline[0] == "#dd"):
+    (readfun, fmt) = (misc.read_rlulist, misc.rluformatters)
+    defaultcol = misc.RLULIST_FIELDS
 else:
-    import sys
-    sys.exit('unrecognized format for first line of length %d: ' % len(firstline) + ' '.join(firstline))
+    (readfun, fmt) = (misc.read_generic, dict())
+    defaultcol = None
 
 a = pd.concat([readfun(fname) for fname in args.filename], ignore_index=True)
 if args.columns is None:
-    columns = defaultcol
+    columns = defaultcol or a.columns
 else:
     columns = args.columns
 if args.add_columns is not None:
@@ -82,9 +90,17 @@ if 'timetag' in a and 'hour' not in a:
     util.add_hour(a)
 
 if args.filter is not None:
-    a = a[[eval(args.filter, row._asdict()) for row in a.itertuples()]]
+    if len(args.filter) % 2 != 0:
+        sys.exit("one (python expr) or 2N (key==val requirements) filter elements required")
+    keep = reduce(np.bitwise_and, ((a[key] == val for key, val in
+        zip(args.filter[::2], args.filter[1::2]))))
+    a = a[keep]
+
+if args.expression is not None:
+    a = a[[eval(args.expression, row._asdict()) for row in a.itertuples()]]
 
 if args.sort_by is not None:
     a = a.sort_values(args.sort_by)
 
-print a[columns].to_string(formatters=fmt.update(additional_fmt))
+fmt.update(additional_fmt)
+print a[columns].to_string(formatters=fmt)
