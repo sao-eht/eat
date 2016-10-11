@@ -1,5 +1,5 @@
-"""EHT tables
-"""
+# Auxiliary ASCII tables for EHT
+# 2016-10-11 Lindy Blackburn
 
 from pkg_resources import parse_version
 import pandas as pd
@@ -138,4 +138,33 @@ blist_pandasargs = dict(
 def read_blist(filename):
     table = pd.read_csv(filename, **blist_pandasargs)
     # return table.dropna()
+    return table
+
+# rusen's format for SGRA 2013 ampcal
+"""
+ #dd hhmm     src  bl        u                v           uv-distance    sefd1       sefd2   flux    \rou     snr   ele1  ele2 exp. L/H
+ 80 1204     SGRA FS     462693291.3     -80013877.9     469560754.9   12532.00   19458.36  2.862   1.68     9.17  20.1  26.6 3424 1
+"""
+RLULIST_FIELDS = "day hhmm source baseline u v uvmag ref_sefd rem_sefd flux rou snr elev1 elev2 expt_no band".split()
+
+rluformat = "%3d %4d %12s %2s %12.1f %12.1f %12.1f %8.2f %8.2f %5.3f %4.2f %4.2f %4.1f %4.1f %4d %1d".split()
+rluformatters = {col:lambda x, fmt=fmt: fmt % x for col,fmt in zip(RLULIST_FIELDS, rluformat)}
+
+rlulist_pandasargs = dict(
+    delim_whitespace=True,
+    skiprows=1,
+    header=None,
+    names=RLULIST_FIELDS,
+)
+
+def read_rlulist(filename):
+    table = pd.read_csv(filename, **rlulist_pandasargs)
+    return table
+
+generic_pandasargs = dict(
+    delim_whitespace = True,
+)
+
+def read_generic(filename):
+    table = pd.read_csv(filename, **generic_pandasargs)
     return table

@@ -1,3 +1,6 @@
+# EHT table misc support utilities
+# 2016-10-11 Lindy Blackburn
+
 from pkg_resources import parse_version
 import pandas as pd
 if parse_version(pd.__version__) < parse_version('0.15.1dev'):
@@ -8,9 +11,11 @@ import os
 
 # stations grouped according to having related fringe parameters
 sites = ['DEFG', 'JPQ', 'ST', 'A']
+states = ['C', 'H', 'Z', 'A']
 dishes = ['DE', 'FG', 'J', 'PQ', 'ST', 'A']
 feeds = [l for l in "DEFGJPQSTA"]
 # reverse index of lookup for single dish station code
+site2state = {site:state for (sitelist, state) in zip(sites, states) for site in sitelist}
 isite = {f:i for i, flist in enumerate(sites) for f in flist}
 idish = {f:i for i, flist in enumerate(dishes) for f in flist}
 ifeed = {f:i for i, f in enumerate(feeds)}
@@ -32,6 +37,11 @@ def unwrap_mbd(df):
     offset = np.fmod(df.sbdelay - df.mbdelay + 1.5*mbd_ambiguity, df.ambiguity)
     df['mbd_unwrap'] = df.sbdelay - offset + 0.5*mbd_ambiguity
 
+# rewrap the MBD based on the 32 MHz ambiguity, choose value within +/-ambiguity window
+def rewrap_mbd(df):
+    mbd_ambiguity = 1. / 32. # us
+    df['mbdelay'] = np.fmod(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
+
 # add statistical error from fitting straight lines here, note no systematics!
 # this is re-derived and close in spirit to the code in fourfit/fill_208.c
 # but there are small different factors, not sure what is origin of the fourfit eqns
@@ -49,7 +59,10 @@ def add_utime(df):
 
 # add hour if HOPS timetag available
 def add_hour(df):
-    df['hour'] = df.timetag.apply(lambda x: float(x[4:6]) + float(x[6:8])/60. + float(x[8:10])/3600.)
+    if 'timetag' in df:
+        df['hour'] = df.timetag.apply(lambda x: float(x[4:6]) + float(x[6:8])/60. + float(x[8:10])/3600.)
+    elif 'hhmm' in df:
+        df['hour'] = df.hhmm.apply(lambda x: float(x[0:2]) + float(x[2:4])/60.)
 
 # add GMST column to data frame with 'datetime' field
 def add_gmst(df):
@@ -78,3 +91,11 @@ def uvdict(filename):
             (u, v) = (-u, -v)
         uvdict[(day, hhmm, bl)] = (u, v)
     return uvdict
+
+# unwrap short to positive int in multiples from 1e6 to 1024e6
+def short2int(short):
+    import ctypes
+    short2int.lookup = getattr(short2int, 'lookup', 
+        {ctypes.c_short(i*1000000).value:i*1000000 for i in range(1024)})
+    return short2int.lookup[short]
+
