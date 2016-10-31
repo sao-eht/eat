@@ -56,7 +56,7 @@ scans = sorted(set(a.scan_id))
 
 # loop over all scans and overwrite with new solution
 # for scan in scans:
-for scan in []:
+for scan in scans:
     idx = g.groups[scan]
     # skip if only one baseline (avoid warning)
     if len(idx) < 2:
@@ -84,5 +84,5 @@ g = a.groupby('timetag')
 
 for (scan, b) in g:
     for c in b.itertuples():
-        print("if scan %s and baseline %s sb_win %8.5f %8.5f mb_win %8.5f %8.5f" %
-            (c.timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay))
+        print("if scan %s and baseline %s sb_win %8.5f %8.5f mb_win %8.5f %8.5f dr_win %14.11f %14.11f" %
+            (c.timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate))
