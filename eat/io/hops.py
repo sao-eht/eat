@@ -1,3 +1,6 @@
+# I/O routines for HOPS ASCII tables
+# 2016-10-11 Lindy Blackburn
+
 from pkg_resources import parse_version
 import pandas as pd
 if parse_version(pd.__version__) < parse_version('0.15.1dev'):
@@ -231,6 +234,11 @@ def write_alist_v6(df, out=sys.stdout):
         out = open(out, 'w')
     df.to_string(buf=out, columns=ffields_v6, formatters=fformatters_v6, header=False, index=False)
 
+def write_tlist_v6(df, out=sys.stdout):
+    if type(out) is str:
+        out = open(out, 'w')
+    df.to_string(buf=out, columns=tfields_v6, formatters=tformatters_v6, header=False, index=False)
+
 # Taken from vlbidata.alist
 # Taken from Haystack's aformat.doc
 #       = ( (FIELD_NAME, TYPE_FUNC),
@@ -450,7 +458,9 @@ networksol_pandasargs = dict(
     header=None,
     parse_dates={'datetime':[0,1]},
     keep_date_col=True,
-    date_parser=lambda dates,times: [x+y for (x,y) in zip(dates,times)],
+    # date_parser=lambda dates,times: [x+y for (x,y) in zip(dates,times)],
+    date_parser=lambda day,hhmm: [datetime.datetime.strptime(
+        '13' + '%03d' % int(x) + '%04d' % int(y), '%y%j%H%M') for (x,y) in zip(day,hhmm)],
     names=[a[0] for a in NETWORKSOL_FIELDS],
     error_bad_lines=True,
     warn_bad_lines=True,

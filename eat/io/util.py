@@ -11,14 +11,18 @@ import os
 
 # stations grouped according to having related fringe parameters
 sites = ['DEFG', 'JPQ', 'ST', 'A']
-states = ['C', 'H', 'Z', 'A']
+locations = ['C', 'H', 'Z', 'A']
 dishes = ['DE', 'FG', 'J', 'PQ', 'ST', 'A']
 feeds = [l for l in "DEFGJPQSTA"]
 # reverse index of lookup for single dish station code
-site2state = {site:state for (sitelist, state) in zip(sites, states) for site in sitelist}
+site2loc = {site:location for (sitelist, location) in zip(sites, locations) for site in sitelist}
 isite = {f:i for i, flist in enumerate(sites) for f in flist}
 idish = {f:i for i, flist in enumerate(dishes) for f in flist}
 ifeed = {f:i for i, f in enumerate(feeds)}
+
+def istrivial(triangle):
+    locs = set((site2loc[s] for s in triangle))
+    return len(locs) < 3
 
 def get_alist_version(filename):
     code = (a[0] for a in open(filename) if a[0].isdigit())
@@ -69,8 +73,14 @@ def add_gmst(df):
     from astropy import time
     g = df.groupby('datetime')
     (timestamps, indices) = zip(*g.groups.iteritems())
-    times_unix = 1e-9*np.array(
-        timestamps).astype('float') # note one float64 is not [ns] precision
+    # this broke in pandas 0.9 with API changes
+    if type(timestamps[0]) is np.datetime64: # pandas < 0.9
+        times_unix = 1e-9*np.array(
+            timestamps).astype('float') # note one float64 is not [ns] precision
+    elif type(timestamps[0]) is pd.tslib.Timestamp:
+        times_unix = np.array([1e-9 * t.value for t in timestamps]) # will be int64's
+    else:
+        raise Exception("do not know how to convert timestamp of type " + repr(type(timestamps[0])))
     times_gmst = time.Time(
         times_unix, format='unix').sidereal_time('mean', 'greenwich').hour # vectorized
     df['gmst'] = 0. # initialize new column
@@ -91,11 +101,4 @@ def uvdict(filename):
             (u, v) = (-u, -v)
         uvdict[(day, hhmm, bl)] = (u, v)
     return uvdict
-
-# unwrap short to positive int in multiples from 1e6 to 1024e6
-def short2int(short):
-    import ctypes
-    short2int.lookup = getattr(short2int, 'lookup', 
-        {ctypes.c_short(i*1000000).value:i*1000000 for i in range(1024)})
-    return short2int.lookup[short]
 
