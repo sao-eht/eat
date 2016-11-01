@@ -14,10 +14,9 @@ from argparse import Namespace
 
 # unwrap short to positive int in multiples from 1e6 to 1024e6
 def short2int(short):
-    import ctypes
-    short2int.lookup = getattr(short2int, 'lookup',
-        {ctypes.c_short(i*1000000).value:i*1000000 for i in range(1024)})
     return short2int.lookup[short]
+
+short2int.lookup = {ctypes.c_short(i*1000000).value:i*1000000 for i in range(1024)}
 
 def mk4time(time):
     return datetime.datetime.strptime("%d-%03d %02d:%02d:%02d.%06d" %
@@ -40,6 +39,48 @@ def pop230(b):
             data230[i,j,:] = np.frombuffer(q, dtype=np.complex128, count=-1)[::flip][:nspec/2]
     return data230
 
+# some HOPS channel parameter info
+# same function as HOPS param_struct (unfortunately)
+def params(b):
+    if type(b) is str:
+        name = b
+        b = mk4.mk4fringe(b)
+    else:
+        name = b.id.contents.name
+    ref_freq = b.t205.contents.ref_freq
+    # dimensions
+    (nchan, nap, nspec) = (b.n212, b.t212[0].contents.nap, b.t230[0].contents.nspec_pts)
+    # channel indexing
+    clabel = [q.ffit_chan_id for q in b.t205.contents.ffit_chan[:nchan]]
+    cidx = [q.channels[0] for q in b.t205.contents.ffit_chan[:nchan]]
+    cinfo = [b.t203[0].channels[i] for i in cidx] # channel info
+    # fourfit delay and rate solution
+    sbd = b.t208.contents.resid_sbd
+    mbd = b.t208.contents.resid_mbd
+    amb = b.t208.contents.ambiguity
+    offset = np.fmod(sbd - mbd + 1.5*amb, amb)
+    delay = (sbd - offset + 0.5*amb) # unwrap to be close to SBD, us
+    rate = b.t208.contents.resid_rate # us/s
+    snr = b.t208.contents.snr
+    # time vector and rotator
+    T = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds()
+    # ref_time = mk4time(b.t205.contents.start) + T/2. # place reference time in middle
+    ap = T / nap
+    dtvec = ap * np.arange(nap) - (T-ap)/2.
+    trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate
+    # frequency matrix (channel, spectrum) and rotator
+    fedge = np.array([1e-6 * ch.ref_freq for ch in cinfo])
+    fs = np.array([short2int(ch.sample_rate) for ch in cinfo])
+    bw = 1e-6 * fs/2. # to MHz
+    foffset = np.array([(2*bwn/nspec) * np.arange(0.5, nspec/2) +
+        (-bwn if ch.refsb == 'L' else bwn) for (ch, bwn) in zip (cinfo, bw)])
+    dfvec = (fedge[:,None] + foffset) - ref_freq
+    frot = np.exp(-1j * delay * dfvec * 2*np.pi)
+    return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec,
+        code=clabel, sbd=sbd, mbd=mbd, delay=delay, rate=rate, snr=snr, T=T,
+        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, fs=fs, bw=bw, dfvec=dfvec, frot=frot)
+
+# some unstructured channel info for quick printing
 def chaninfo(b):
     if type(b) is str:
         b = mk4.mk4fringe(b)
@@ -168,57 +209,58 @@ def findfringe(fringefile, kind=230, res=4, showx=6, showy=6, center=None,
     putil.tag('%.3f ns' % delay[j], loc='lower left', framealpha=0.75)
     putil.tag('%.3f ps/s' % rate[i], loc='lower right', framealpha=0.75)
 
+# average over many files, please make sure frequency setup is the same
 # delay, rate: [us, and us/s], if None use fourfit soln
 # ap is messy to derive from fringe files (fourfit pulls it from ovex)
 # df: decimation factor in frequency for better SNR
-def spectrum(b, ncol=4, delay=None, rate=None, df=1, figsize=None):
-    import ctypes
-    lookup = {ctypes.c_short(i*1000000).value:i*1000000 for i in range(1024)}
-    if type(b) is str:
-        b = mk4.mk4fringe(b)
-    # fourfit reference frequency MHz, should be in middle of band
-    ref_freq = b.t205.contents.ref_freq
-    # size of type_230 record series
-    (nchan, nap, nspec) = (b.n212, b.t212[0].contents.nap, b.t230[0].contents.nspec_pts)
-    # fourfit channel index into the vex channel defs, generally frequency orders the data
-    clabel = [q.ffit_chan_id for q in b.t205.contents.ffit_chan[:nchan]]
-    cidx = [q.channels[0] for q in b.t205.contents.ffit_chan[:nchan]]
-    cinfo = [b.t203[0].channels[i] for i in cidx] # channel info
-    if delay is None: # auto set MBD from fourfit fringe solution
-        sbd = b.t208.contents.resid_sbd
-        mbd = b.t208.contents.resid_mbd 
-        amb = b.t208.contents.ambiguity
-        offset = np.fmod(sbd - mbd + 1.5*amb, amb)
-        delay = (sbd - offset + 0.5*amb) # unwrap to be close to SBD, us
-    if rate is None: # auto set delay rate from fourfit fringe solution
-        rate = b.t208.contents.resid_rate # us/s
-    # loop over all channels in fourfit order
-    nrow = np.int((float(nchan) / ncol) + 0.5)
-    v = pop230(b) # visib spectral data
-    # rotate according to rate and collapse in time
-    T = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds()
-    ap = T / nap
-    dtvec = ap * np.arange(nap) - (T-ap)/2.
-    trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate
-    vs = (v*trot[None,:,None]).sum(axis=1)
+# df: decimation factor in time if timeseires==True
+def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
+             timeseries=False, centerphase=None, snrweight=True):
+    if not hasattr(bs, '__iter__'):
+        if centerphase is None:
+            centerphase = False
+        bs = [bs,]
+    else:
+        if centerphase is None:
+            centerphase = True
+    vs = None
+    for b in bs:
+        if type(b) is str:
+            print b
+            b = mk4.mk4fringe(b)
+        if b.t208.contents.snr < snrthr:
+            print "snr %.2f, skipping" % b.t208.contents.snr
+            continue
+        if not bool(b.t230[0]):
+            print "skipping no t230"
+            continue
+        v = pop230(b)   # visib array (nchan, nap, nspec/2)
+        p = params(b) # channel and fringe parameters
+        nrow = bool(timeseries) + np.int((float(p.nchan) / ncol) + 0.5)
+        delay = p.delay if delay is None else delay
+        rate = p.rate if rate is None else rate
+        trot = np.exp(-1j * rate * p.dtvec * 2*np.pi*p.ref_freq)
+        frot = np.exp(-1j * delay * p.dfvec * 2*np.pi)
+        vrot = v * trot[None,:,None] * frot[:,None,:]
+        if centerphase: # rotate out the average phase over all channels
+            crot = vrot.sum()
+            crot = crot / np.abs(crot)
+            vrot = vrot * crot.conj()
+        if timeseries:
+            vs = (0 if vs is None else vs) + vrot
+        else:
+            # stack in time (will work for different T) and add back axis
+            vs = (0 if vs is None else vs) + vrot.sum(axis=1)[:,None]
+    if vs is None: # no files read (snr too low)
+        return
     import matplotlib.pyplot as plt
     from ..plots import util as putil
     from matplotlib.offsetbox import AnchoredText
-    for n in range(nchan):
-        code = clabel[n]
-        ch = cinfo[n]
-        fedge = 1e-6 * ch.ref_freq # to MHz
-        fs = lookup[ch.sample_rate]
-        bw = 1e-6 * fs/2. # to MHz
-        (row, col) = np.unravel_index(n, (nrow, ncol))
-        foffset = (2*bw/nspec) * np.arange(0.5, nspec/2) + (-bw if ch.refsb == 'L' else bw)
-        dfvec = (fedge + foffset) - ref_freq
-        frot = np.exp(-1j * delay * dfvec * 2*np.pi)
-        spec = vs[n] * frot
-        spec = spec.reshape((-1, df)).sum(axis=1)
+    for n in range(p.nchan):
+        spec = vs[n].sum(axis=0) # sum over time
+        spec = spec.reshape((-1, df)).sum(axis=1) # re-bin over frequencies
         ax1 = locals().get('ax1')
         ax1 = plt.subplot(nrow, ncol, 1+n, sharey=ax1, sharex=ax1)
-        # plot
         amp = np.abs(spec)
         phase = np.angle(spec)
         plt.plot(amp, 'b.-')
@@ -228,13 +270,45 @@ def spectrum(b, ncol=4, delay=None, rate=None, df=1, figsize=None):
         ax2.set_yticklabels([])
         ax2.set_xticklabels([])
         putil.rmgaps(1.0, 2.0)
-        ax2.add_artist(AnchoredText(code, loc=1, frameon=False, borderpad=0))
-        # ax2.set_ylim()
+        ax2.add_artist(AnchoredText(p.code[n], loc=1, frameon=False, borderpad=0))
     plt.subplots_adjust(wspace=0, hspace=0)
     ax1.set_yticklabels([])
     ax1.set_xticklabels([])
     ax1.set_xlim(-0.5, -0.5+len(spec))
+    if timeseries:
+        nt = len(p.dtvec)
+        dt = min(dt, nt)
+        nt = nt - np.fmod(nt, dt) # fit time segments after decimation
+        v = vs[:,:nt,:] # clip to multiple of dt
+        t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1)
+        v = v.sum(axis=(0,2)).reshape((-1, dt)).sum(axis=1) # sum over channel and spectral points
+        amp = np.abs(v)
+        phase = np.angle(v)
+        plt.subplot(nrow, 1, nrow)
+        plt.plot(t, amp, 'b.-')
+        plt.gca().set_yticklabels([])
+        plt.twinx()
+        plt.plot(t, phase, 'r.-')
+        plt.ylim(-np.pi, np.pi)
+        plt.gca().set_yticklabels([])
+        putil.rmgaps(1e6, 2.0)
+        plt.xlim(-p.T/2., p.T/2.)
     if figsize is None:
         plt.setp(plt.gcf(), figwidth=8, figheight=8.*float(nrow)/ncol)
     else:
         plt.setp(plt.gcf(), figwidth=figsize[0], figheight=figsize[1])
+
+# rotate vs based on delay and rate and plot a 2D vector plot of complex visib
+def vecplot(vs, dtvec, dfvec, delay, rate, ref_freq, dt=1, df=1):
+    trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq)
+    frot = np.exp(-1j * delay * dfvec * 2*np.pi)
+    vrot = vs*trot[:,None]*frot[None,:]
+    (nt, nf) = vrot.shape
+    nt = nt - np.fmod(nt, dt) # fit time segments after decimation
+    vrot = vrot[:nt,:]
+    vrot = vrot.reshape((nt/dt, dt, nf/df, df))
+    vrot = vrot.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
+    plt.plot([0,0], [vrot.re, vrot.im], 'b.-', alpha=0.25)
+    vtot = np.sum(vrot) / len(vrot.ravel())
+    plt.plot([0,0], [vtot.re, vtot.im], 'r.-', lw=2, ms=4, alpha=1.0)
+
