@@ -28,6 +28,7 @@ def mk4time(time):
         "%Y-%j %H:%M:%S.%f")
 
 # populate the type_212 visib data into array
+# (nap, nchan)
 def pop212(b):
     if type(b) is str:
         b = mk4.mk4fringe(b)
@@ -40,6 +41,7 @@ def pop212(b):
     return v.T
 
 # populate the type_230 visib data into array automatically detect sideband
+# (nchan, nap, nspec)
 def pop230(b):
     if type(b) is str:
         b = mk4.mk4fringe(b)
@@ -57,6 +59,8 @@ def pop230(b):
 
 # some HOPS channel parameter info
 # same function as HOPS param_struct (unfortunately)
+# frot and trot rotate opposite the detected fringe location
+# i.e. they subtract the delay, rate under multiplication
 def params(b):
     if type(b) is str:
         name = b
@@ -87,19 +91,22 @@ def params(b):
     trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate
     # frequency matrix (channel, spectrum) and rotator
     fedge = np.array([1e-6 * ch.ref_freq for ch in cinfo])
-    fs = np.array([short2int(ch.sample_rate) for ch in cinfo])
-    bw = 1e-6 * fs/2. # to MHz
+    flip = np.array([-1 if ch.refsb == 'L' else 1 for ch in cinfo])
+    bw = np.array([0.5e-6 * short2int(ch.sample_rate) for ch in cinfo])
     if nspec:
-        foffset = np.array([(2*bwn/nspec) * np.arange(0.5, nspec/2) +
-            (-bwn if ch.refsb == 'L' else bwn) for (ch, bwn) in zip (cinfo, bw)])
+        foffset = np.array([(f*np.arange(0.5, nspec/2.)*2.*bwn/nspec)[::f] for (f, bwn) in zip(flip, bw)])
         dfvec = (fedge[:,None] + foffset) - ref_freq
         frot = np.exp(-1j * delay * dfvec * 2*np.pi)
     else:
-        (offset, dfvec, frot) = (None, None, None)
+        (dfvec, frot) = (None, None)
+    dfvec212 = fedge + (flip*bw)/2. - ref_freq
+    frot212 = np.exp(-1j * delay * dfvec212 * 2*np.pi) # note type_212 is already rotated in data
     return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec,
         code=clabel, sbd=sbd, mbd=mbd, delay=delay, rate=rate, snr=snr, T=T,
-        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, fs=fs, bw=bw, dfvec=dfvec, frot=frot,
-        baseline=b.t202.contents.baseline, source=b.t201.contents.source)
+        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, dfvec=dfvec, frot=frot,
+        dfvec212=dfvec212, frot212=frot212,
+        baseline=b.t202.contents.baseline, source=b.t201.contents.source,
+        scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
 
 # some unstructured channel info for quick printing
 def chaninfo(b):
@@ -114,43 +121,62 @@ def chaninfo(b):
               for (hops_id, q) in [(hops_id, b.t203[0].channels[i]) for (hops_id, i) in idx]]
     return chinfo
 
-# kind: use type_212 or type_230 data
+# helper functions
+def nextpow2(x): # next power of 2 for efficient fft
+    return np.power(2, int(np.ceil(np.log2(x))))
+def expmean(x, s=8, n=4): # robust mean of exponential distribution
+    fac = 1.0
+    m = np.mean(x)
+    for i in range(n):
+        fac = 1.0 - (s*np.exp(-s)/(1.-np.exp(-s)))
+        m = np.mean(x[x<s*m]) / fac
+    return m
+
+# kind: 212 or 230: use type_212 or type_230 data
 # res: zero-padding factor for FFT
-# show: how many fringe FWHM to plot
-# center: delay,rate center of plot (default: on max)
+# showx, showy: how many fringe FWHM to plot
+# center: delay,rate center of plot (default: on max), 'hops':use hops value
 # dt, df: decimation factors in time, channels
 # ni: number of incoherent averages (1=scan average)
-# note: factors must evenly divide data
-# ret: return the full FFT power matrix if true and do not plot anything
-# clip: remove some AP's from end to fit into factors
-def findfringe(fringefile, kind=230, res=4, showx=6, showy=6, center=None,
-               dt=2, df=None, ni=1, ret=False, flip=False, showhops=False):
-
-    def nextpow2(x): # next power of 2 for efficient fft
-        return np.power(2, int(np.ceil(np.log2(x))))
-    def expmean(x, s=8, n=4): # robust mean of exponential distribution
-        fac = 1.0
-        m = np.mean(x)
-        for i in range(n):
-            fac = 1.0 - (s*np.exp(-s)/(1.-np.exp(-s)))
-            m = np.mean(x[x<s*m]) / fac
-        return m
+# ret: return the full FFT power matrix & other info if true and do not plot anything
+# delay_off, rate_off: subtract this from the data before doing search
+# manual offsets will show up in axis labels, automatic offsets (from centering) will not
+def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, None),
+               dt=2, df=None, ni=1, ret=False, showhops=False,
+               delay_off=0., rate_off=0.):
 
     b = mk4.mk4fringe(fringefile)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     clip = np.fmod(nap, dt*ni) # fit ni non-overlapping time segments after decimation
+    if kind is None:
+        kind = 230 if bool(b.t230[0]) else 212 # use type_230 if available
     if kind==212:
         nspec = 1
         df = df or 1
-        v = pop212(b)
+        v = pop212(b)[:,:,None]
     elif kind==230:
         nspec = b.t230[0].contents.nspec_pts / 2 # one sideband
         df = df or 4 # speed-up if using full spectral resolution
         v = np.swapaxes(pop230(b), 1, 0)  # put AP as axis 0
         assert(v.shape == (nap, nchan, nspec))   # make sure loaded data has right dimensions
-        if flip:
-            v = v[:,:,::-1] # reverse SBD channels for testing
+
+    # apply fringe rotations
+    if(center=='hops'):
+        center = (p.delay*1e3, p.rate*1e6)
+    if(kind==212):
+        delay_off -= p.delay*1e3 # ns
+        rate_off -= p.rate*1e6   # ps/s
+    # note this will affect the data, and must also be reflected in the delay, rate vectors
+    if center[0] is not None:
+        delay_off += center[0]
+    if center[1] is not None:
+        rate_off += center[1]
+    print "rotation subtracted from data: %.3f [ns], %.3f [ps/s]" % (delay_off, rate_off)
+    frot = np.exp(-1j * 1e-3*delay_off * (p.dfvec212[:,None] if kind==212 else p.dfvec) * 2*np.pi)
+    trot = np.exp(-1j * 1e-6*rate_off * p.dtvec * 2*np.pi*p.ref_freq)
+    v = v * trot[:,None,None] * frot[None,:,:]
+
     if clip > 0: # remove small amount of end data for equal segments
         nap = nap-clip
         v = v[:nap]
@@ -165,19 +191,13 @@ def findfringe(fringefile, kind=230, res=4, showx=6, showy=6, center=None,
     fqap = fftshift(fftfreq(zpap)) # "frequency" range of the rate space [cycles/sample_spacing]
     fqch = fftshift(fftfreq(zpch)) # "frequency" range of the delay space [cycles/sample_spacing]
 
-    # necessary parameters for conversion into delay/rate
-    # reference frequency for HOPS [MHz]
-    ref_freq = b.t205.contents.ref_freq
     # single-channel spacing [Hz] and decimated spectral point spacing [MHz]
     sb_spacing = np.diff(sorted(b.t203.contents.channels[i].ref_freq for i in range(nchan)))[int(nchan/2)]
     spec_spacing = df * 1e-6 * sb_spacing / nspec
     # accumulation period [s]
     ap = dt * (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds() / (nap + clip)
-    delay = 1e9 * fqch / (spec_spacing * 1e6) # ns
-    rate = 1e12 * fqap / ap / (ref_freq * 1e6) # in ps/s
-    if kind==212:
-        delay += p.delay*1e3
-        rate += p.rate*1e6
+    delay = (center[0] if center[0] else 0.) + 1e9 * fqch / (spec_spacing * 1e6) # ns
+    rate = (center[1] if center[1] else 0.) + 1e12 * fqap / ap / (p.ref_freq * 1e6) # in ps/s
     dd = delay[1] - delay[0]
     dr = rate[1] - rate[0]
 
@@ -186,55 +206,77 @@ def findfringe(fringefile, kind=230, res=4, showx=6, showy=6, center=None,
     BW = 1e-6 * sb_spacing * nchan
     T = ap * v.shape[1]
     fwhm_delay = 1e3 / BW # ns
-    fwhm_rate = 1e6 / T / ref_freq # ps/s
+    fwhm_rate = 1e6 / T / p.ref_freq # ps/s
     aspect = abs(fwhm_delay / fwhm_rate)
     fringepow = np.abs(fringevis)**2 # fringe power before incoherent averaging
     fringepow = fringepow / (0.5 * expmean(fringepow.ravel())) # normalize to snr=1 for noise
     fringepow = np.sum(fringepow, axis=0) # the incoherent average of fringe power
     
+    ns = Namespace(fringepow=fringepow, fringevis=fringevis, BW=BW, T=T, fwhm_delay=fwhm_delay, fwhm_rate=fwhm_rate,
+            delay=delay, rate=rate, dd=dd, dr=dr, dt=dt, df=df, ni=ni,
+            extent=(left, right, bottom, top), aspect=aspect, params=p)
     if ret:
-        return Namespace(fringepow=fringepow, BW=BW, T=T, fwhm_delay=fwhm_delay, fwhm_rate=fwhm_rate,
-            delay=delay, rate=rate, dd=dd, dr=dr, ref_freq=ref_freq, dt=dt, df=df, ni=ni,
-            extent=(left, right, bottom, top), aspect=aspect)
+        return ns
+    else:
+        plotfringe(ns, showx=showx, showy=showy, center=center, showhops=showhops)
 
+def plotfringe(ns, showx=6., showy=6., center=(None, None), showhops=False):
+
+    (fringepow, fwhm_delay, fwhm_rate, delay, rate, extent, aspect, p) = \
+        (ns.fringepow, ns.fwhm_delay, ns.fwhm_rate, ns.delay, ns.rate, ns.extent, ns.aspect, ns.params)
+    if center == 'hops':
+        center = (1e3*p.delay, 1e6*p.rate)
     (i,j) = np.unravel_index(np.argmax(fringepow), fringepow.shape)
-    if center is None:
-        center = (None, None)
-    center = (delay[j] if center[0] is None else center[0], rate[i] if center[1] is None else center[1])
+    plot_center = (delay[j] if center[0] is None else center[0], rate[i] if center[1] is None else center[1])
 
-    mask_delay = np.abs(delay - center[0]) > showx*fwhm_delay
-    mask_rate = np.abs(rate - center[1]) > showy*fwhm_rate
+    mask_delay = np.abs(delay - plot_center[0]) > showx*fwhm_delay
+    mask_rate = np.abs(rate - plot_center[1]) > showy*fwhm_rate
     fringepow[mask_rate,:] = 0 # mask power outside region of interest
     fringepow[:,mask_delay] = 0
     print np.max(fringepow)
 
-    plt.imshow(fringepow, cmap='jet', origin='lower', extent=(left, right, bottom, top),
-        aspect=aspect, interpolation='Nearest')
+    plt.imshow(fringepow, cmap='jet', origin='lower', extent=extent,
+        aspect=aspect, interpolation='Nearest', vmin=0)
     plt.xlabel('delay [ns]')
     plt.ylabel('rate [ps/s]')
-    plt.xlim(center[0] + np.array((-1,1))*showx*fwhm_delay)
-    plt.ylim(center[1] + np.array((-1,1))*showy*fwhm_rate)
+    plt.xlim(plot_center[0] + np.array((-1,1))*showx*fwhm_delay)
+    plt.ylim(plot_center[1] + np.array((-1,1))*showy*fwhm_rate)
 
     # show locatino of fourfit fringe solution
     if showhops:
-        plt.plot(b.t208.contents.resid_mbd*1e3, b.t208.contents.resid_rate*1e6, 'kx', ms=24, mew=10)
-        plt.plot(b.t208.contents.resid_mbd*1e3, b.t208.contents.resid_rate*1e6, 'wx', ms=20, mew=6)
+        plt.plot(1e3*p.delay, 1e6*p.rate, 'kx', ms=24, mew=10)
+        plt.plot(1e3*p.delay, 1e6*p.rate, 'wx', ms=20, mew=6)
 
     ratio = float(showy)/showx
     plt.setp(plt.gcf(), figwidth=2.+3./np.sqrt(ratio), figheight=2.+3.*np.sqrt(ratio))
     plt.tight_layout()
 
     (i,j) = np.unravel_index(np.argmax(fringepow), fringepow.shape) # get new max location
-    putil.tag('%s [%d]' % (b.t200.contents.scan_name, b.t200.contents.scantime.year), loc='upper left', framealpha=0.75)
-    putil.tag('%s [%s]' % (b.t202.contents.baseline, b.t201.contents.source), loc='upper right', framealpha=0.75)
+    putil.tag('%s [%d]' % (p.scan_name, p.scantime.year), loc='upper left', framealpha=0.75)
+    putil.tag('%s [%s]' % (p.baseline, p.source), loc='upper right', framealpha=0.75)
     putil.tag('%.3f ns' % delay[j], loc='lower left', framealpha=0.75)
     putil.tag('%.3f ps/s' % rate[i], loc='lower right', framealpha=0.75)
+
+# coherent or incoherent stacking of two bands fringe plot
+# b1, b2: fringe files
+# d1, d2: delay offsets to apply
+# r1, r2: rate offsets to apply
+# p1, p2: phase offsets to apply
+# coherent: True (default) for coherent stacking, False for incoherent stacking
+# **kwargs: extra arguments to findfringe (dt, df, ni, kind)
+def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True, **kwargs):
+    # get the FFT of both baselines
+    ret1 = findfringe(b1, delay_off=d1, rate_off=r1, ret=True, **kwargs)
+    ret2 = findfringe(b2, delay_off=d2, rate_off=r2, ret=True, **kwargs)
+    # rotate ret2 using the ddelay and dphase
+    return (ret1, ret2)
 
 # average over many files, please make sure frequency setup is the same
 # delay, rate: [us, and us/s], if None use fourfit soln
 # ap is messy to derive from fringe files (fourfit pulls it from ovex)
 # df: decimation factor in frequency for better SNR
 # df: decimation factor in time if timeseires==True
+# centerphase: subtract out mean phase for fewer wraps
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
              timeseries=False, centerphase=None, snrweight=True):
     if not hasattr(bs, '__iter__'):
@@ -360,3 +402,4 @@ def timeseries(bs, dt=1):
     plt.setp(plt.gcf(), figwidth=8, figheight=2+nrow)
     plt.tight_layout()
     plt.subplots_adjust(hspace=0)
+
