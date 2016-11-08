@@ -14,8 +14,32 @@ from argparse import Namespace
 import matplotlib.pyplot as plt
 from ..plots import util as putil
 from matplotlib.offsetbox import AnchoredText
+import glob
+import os
 
-
+# return mk4fringe based on object, filename, or glob path
+# if glob return the file with latest creation time
+# remember file path to guess working directory for future calls
+# filelist=True will return a list of all files found
+def getfringefile(b, filelist=False):
+    if type(b) is str:
+        files = glob.glob(b)
+        if len(files) == 0: # try harder to find file
+            tok = b.split('/')
+            last = getattr(getfringefile, 'last', [])
+            if len(tok) < len(last):
+                files = glob.glob('/'.join(last[:-len(tok)] + tok))
+        if len(files) == 0:
+            return "cannot find file: %s or %s" % (b, '/'.join(last[:-len(tok)] + tok))
+        files = [f for f in files if '..' not in f] # filter out correlator files
+        if filelist:
+            return sorted(files)
+        files.sort(key=os.path.getmtime)
+        getfringefile.last = files[-1].split('/')
+        print files[-1]
+        b = mk4.mk4fringe(files[-1]) # use last updated file
+    return b
+    
 # unwrap short to positive int in multiples from 1e6 to 1024e6
 def short2int(short):
     return short2int.lookup[short]
@@ -30,8 +54,7 @@ def mk4time(time):
 # populate the type_212 visib data into array
 # (nap, nchan)
 def pop212(b):
-    if type(b) is str:
-        b = mk4.mk4fringe(b)
+    b = getfringefile(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     data212 = np.zeros((nchan, nap, 3), dtype=np.float32)
     for i in range(nchan):
@@ -43,8 +66,7 @@ def pop212(b):
 # populate the type_230 visib data into array automatically detect sideband
 # (nchan, nap, nspec)
 def pop230(b):
-    if type(b) is str:
-        b = mk4.mk4fringe(b)
+    b = getfringefile(b)
     (nchan, nap, nspec) = (b.n212, b.t212[0].contents.nap, b.t230[0].contents.nspec_pts)
     data230 = np.zeros((nchan, nap, nspec/2), dtype=np.complex128)
     for i in range(nchan): # loop over HOPS channels
@@ -64,7 +86,7 @@ def pop230(b):
 def params(b):
     if type(b) is str:
         name = b
-        b = mk4.mk4fringe(b)
+        b = getfringefile(b)
     else:
         name = b.id.contents.name
     ref_freq = b.t205.contents.ref_freq
@@ -110,8 +132,7 @@ def params(b):
 
 # some unstructured channel info for quick printing
 def chaninfo(b):
-    if type(b) is str:
-        b = mk4.mk4fringe(b)
+    b = getfringefile(b)
     nchan = b.n212
     # putting them in "fourfit" order also puts them in frequency order
     idx = [(q.ffit_chan_id, q.channels[0]) for q in b.t205.contents.ffit_chan[:nchan]] # MAX #64 for ffit_chan
@@ -145,7 +166,7 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
                dt=2, df=None, ni=1, ret=False, showhops=False,
                delay_off=0., rate_off=0.):
 
-    b = mk4.mk4fringe(fringefile)
+    b = getfringefile(b)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     clip = np.fmod(nap, dt*ni) # fit ni non-overlapping time segments after decimation
@@ -278,19 +299,14 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # df: decimation factor in time if timeseires==True
 # centerphase: subtract out mean phase for fewer wraps
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
-             timeseries=False, centerphase=None, snrweight=True):
-    if not hasattr(bs, '__iter__'):
-        if centerphase is None:
-            centerphase = False
-        bs = [bs,]
-    else:
-        if centerphase is None:
-            centerphase = True
+             timeseries=False, centerphase=False, snrweight=True):
+    if type(bs) is str:
+        bs = getfringefile(bs, filelist=True)
+    if len(bs) > 1:
+        centerphase = True
     vs = None
     for b in bs:
-        if type(b) is str:
-            print b
-            b = mk4.mk4fringe(b)
+        b = getfringefile(b)
         if b.t208.contents.snr < snrthr:
             print "snr %.2f, skipping" % b.t208.contents.snr
             continue
