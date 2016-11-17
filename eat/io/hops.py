@@ -250,9 +250,9 @@ def get_alist_version(filename):
 def read_alist(filename):
     ver = get_alist_version(filename)
     if ver == 5:
-        table = hops.read_alist_v5(filename)
+        table = read_alist_v5(filename)
     elif ver == 6:
-        table = hops.read_alist_v6(filename)
+        table = read_alist_v6(filename)
     else:
         import sys
         sys.exit('alist is not version 5 or 6')
