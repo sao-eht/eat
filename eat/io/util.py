@@ -24,10 +24,6 @@ def istrivial(triangle):
     locs = set((site2loc[s] for s in triangle))
     return len(locs) < 3
 
-def get_alist_version(filename):
-    code = (a[0] for a in open(filename) if a[0].isdigit())
-    return int(code.next())
-
 # unwrap the MBD based on the 32 MHz ambiguity in HOPS, choose value closest to SBD
 def unwrap_mbd_old(df, mbd_ambiguity=None):
     if mbd_ambiguity is None:      # we may want to set this manually

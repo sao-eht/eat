@@ -239,76 +239,23 @@ def write_tlist_v6(df, out=sys.stdout):
         out = open(out, 'w')
     df.to_string(buf=out, columns=tfields_v6, formatters=tformatters_v6, header=False, index=False)
 
-# Taken from vlbidata.alist
-# Taken from Haystack's aformat.doc
-#       = ( (FIELD_NAME, TYPE_FUNC),
-#           ...
-#           )
+def get_alist_version(filename):
+    code = (a[0] for a in open(filename) if a[0].isdigit())
+    return int(code.next())
 
-ALIST_FIELDS = (
-    ('format', int),  # >=5 implies Mk4
-    ('root', str),  # 6-char lower case
-    ('type', int),  # General format for fringe data
-    ('fileset', int),  # Part of filename
-    ('duration', int),  # Nominal duration (sec)
-    ('length', int),  # Seconds of data represented.
-    ('offset', int),  # Offset (sec) of mean time of data
-    ('experiment', int),  # Part of filename
-    ('scan', str),  # From obsvex, blanks trimmed
-    ('procdate', str),  # FRNGE/fourfit processing time
-    ('year', int),  # Four-digit year.
-    ('timetag', str),  # Nominal start time of data record
-    ('scan_offset', int),  # Scan time to time tag (sec)
-    ('source', str),  # Blank-padded ascii string
-    ('baseline', str),  # 2-char baseline id
-    ('errcode', str),  # 2-char qcode and errcode
-    ('band', str),  # e.g. X08 for X-band 8 freqs
-    ('pol', str),  # RR, LL, RL, LR
-    ('lags', int),  # Number of lags in correlation
-    ('amp', float),  # In units of 1/10000
-    ('snr', float),  # 4 significant digits
-    ('phase_deg', float),  # Can be of various type
-    ('phase_snr', float),  # 4 significant digits
-    ('data_type', str  ),  # First char is data origin
-    ('sbd', float),  # Microseconds
-    ('mbd', float),  # Microseconds
-    ('mbd_amb', float),  # Microseconds
-    ('rate', float),  # Picoseconds/second DRATE
-    ('ref_el', float),  # At reference epoch, degrees
-    ('rem_el', float),  # At reference epoch, degrees
-    ('ref_az', float),  # At reference epoch, degrees
-    ('rem_az', float),  # At reference epoch, degrees
-    ('u', float),  # precision 4 sig. digits
-    ('v', float),  # precision 4 sig. digits
-    ('ESDESP', str),  # E=ref.tape error rate exponent:
-    ('epoch', str),  # mmss
-    ('freq', float),  # Precision 10 KHz [REF_FREQ]
-    ('ecphase', float),  # Regardless of field 21 [TPHAS]
-    ('drate', float),  # At ref epoch, microsec/sec [TOTDRATE]
-    ('total_mbd', float),  # At ref epoch, microsec [TOTMBDELAY]
-    ('total_sbdmbd', float),  # At ref epoch, microsec [TOTSBDMMBD]
-    ('scotime', int),  # Seconds [COHTIMES]
-    ('ncotime', int),  # Seconds
-    )
-
-alist_pandasargs = dict(
-    delim_whitespace=True,
-    comment='*',
-    header=None,
-    dtype={15:str},
-    parse_dates={'datetime':[10,11]},
-    # index_col='datetime',
-    keep_date_col=True,
-    # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
-    date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%y%j-%H%M%S') for (x,y) in zip(years,times)],
-    names=[a[0] for a in ALIST_FIELDS]
-)
-
+# read_alist automatically determine version
 # ALIST notes:
 # mk4 correlated data will have az,el = 0
 # difx correlated data will have az,el != 0, but may still have u,v = 0
 def read_alist(filename):
-    table = pd.read_csv(filename, **alist_pandasargs)
+    ver = get_alist_version(filename)
+    if ver == 5:
+        table = hops.read_alist_v5(filename)
+    elif ver == 6:
+        table = hops.read_alist_v6(filename)
+    else:
+        import sys
+        sys.exit('alist is not version 5 or 6')
     return table
 
 # master calibration file from vincent
