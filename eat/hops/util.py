@@ -71,12 +71,15 @@ def pop230(b):
     data230 = np.zeros((nchan, nap, nspec/2), dtype=np.complex128)
     for i in range(nchan): # loop over HOPS channels
         idx = b.t205.contents.ffit_chan[i].channels[0] # need to get index into mk4 chdefs
-        flip = 1 if (b.t203[0].channels[idx].refsb == 'L') else -1 # LSB vs USB organization in t230
+        # flip = 1 if (b.t203[0].channels[idx].refsb == 'L') else -1 # LSB vs USB organization in t230
+        istart = nspec/2 if (b.t203[0].channels[idx].refsb == 'U') else 0 # USB vs LSB fixed offset
         for j in range(nap):
             # grab on spectrum for 1 AP
             q = (mk4.complex_struct*nspec).from_address(
                 ctypes.addressof(b.t230[j+i*nap].contents.xpower))
-            data230[i,j,:] = np.frombuffer(q, dtype=np.complex128, count=-1)[::flip][:nspec/2]
+            # note check later -- this is probably backward for USB. type230 is probably [-lsb-> LO -usb->]
+            # data230[i,j,:] = np.frombuffer(q, dtype=np.complex128, count=-1)[::flip][:nspec/2]
+            data230[i,j,:] = np.frombuffer(q, dtype=np.complex128, count=-1)[istart:istart+nspec/2]
     return data230
 
 # some HOPS channel parameter info
@@ -164,9 +167,9 @@ def expmean(x, s=8, n=4): # robust mean of exponential distribution
 # manual offsets will show up in axis labels, automatic offsets (from centering) will not
 def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, None),
                dt=2, df=None, ni=1, ret=False, showhops=False,
-               delay_off=0., rate_off=0.):
+               delay_off=0., rate_off=0., flip=False):
 
-    b = getfringefile(b)
+    b = getfringefile(fringefile)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     clip = np.fmod(nap, dt*ni) # fit ni non-overlapping time segments after decimation
@@ -181,6 +184,8 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
         df = df or 4 # speed-up if using full spectral resolution
         v = np.swapaxes(pop230(b), 1, 0)  # put AP as axis 0
         assert(v.shape == (nap, nchan, nspec))   # make sure loaded data has right dimensions
+        if flip:
+            v = v[:,:,::-1] # test flip frequency order of spectral points
 
     # apply fringe rotations
     if(center=='hops'):
@@ -273,10 +278,10 @@ def plotfringe(ns, showx=6., showy=6., center=(None, None), showhops=False):
     plt.tight_layout()
 
     (i,j) = np.unravel_index(np.argmax(fringepow), fringepow.shape) # get new max location
-    putil.tag('%s [%d]' % (p.scan_name, p.scantime.year), loc='upper left', framealpha=0.75)
-    putil.tag('%s [%s]' % (p.baseline, p.source), loc='upper right', framealpha=0.75)
-    putil.tag('%.3f ns' % delay[j], loc='lower left', framealpha=0.75)
-    putil.tag('%.3f ps/s' % rate[i], loc='lower right', framealpha=0.75)
+    putil.tag('%s [%d]' % (p.scan_name, p.scantime.year), loc='upper left', framealpha=0.85)
+    putil.tag('%s [%s]' % (p.baseline, p.source), loc='upper right', framealpha=0.85)
+    putil.tag('%.3f ns' % delay[j], loc='lower left', framealpha=0.85)
+    putil.tag('%.3f ps/s' % rate[i], loc='lower right', framealpha=0.85)
 
 # coherent or incoherent stacking of two bands fringe plot
 # b1, b2: fringe files
