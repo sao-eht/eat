@@ -32,7 +32,7 @@ class fitshdu:
 
     def __dir__(self):
         if hasattr(self.hdu, 'columns'):
-            return [a.name for a in self.hdu.columns]
+            return [a.name for a in self.hdu.columns] + ['hdu', 'header']
         else:
             return dir(self.hdu)
 
