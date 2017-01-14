@@ -25,6 +25,7 @@ def istrivial(triangle):
     return len(locs) < 3
 
 # unwrap the MBD based on the 32 MHz ambiguity in HOPS, choose value closest to SBD
+# this old version uses some old column names (instead of the HOPS code defined names)
 def unwrap_mbd_old(df, mbd_ambiguity=None):
     if mbd_ambiguity is None:      # we may want to set this manually
         mbd_ambiguity = df.mbd_amb # if alist file does not contain sufficient precision
@@ -32,8 +33,9 @@ def unwrap_mbd_old(df, mbd_ambiguity=None):
     df['mbd_unwrap'] = df.sbd - offset + 0.5*mbd_ambiguity
 
 # unwrap the MBD based on the 32 MHz ambiguity, choose value closest to SBD
-def unwrap_mbd(df):
-    mbd_ambiguity = 1. / 32. # us
+def unwrap_mbd(df, mbd_ambiguity=None):
+    if mbd_ambiguity is None:      # we may want to set this manually
+        mbd_ambiguity = df.ambiguity # if alist file does not contain sufficient precision
     offset = np.fmod(df.sbdelay - df.mbdelay + 1.5*mbd_ambiguity, df.ambiguity)
     df['mbd_unwrap'] = df.sbdelay - offset + 0.5*mbd_ambiguity
 
