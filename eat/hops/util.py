@@ -18,7 +18,8 @@ import glob
 import os
 
 # return mk4fringe based on object, filename, or glob path
-# if glob return the file with latest creation time
+# if glob return the file with latest getmtime time
+# maybe this should get latest HOPS rootcode instead..
 # remember file path to guess working directory for future calls
 # filelist=True will return a list of all files found
 def getfringefile(b, filelist=False):
@@ -71,17 +72,42 @@ def pop230(b):
     data230 = np.zeros((nchan, nap, nspec/2), dtype=np.complex128)
     for i in range(nchan): # loop over HOPS channels
         idx = b.t205.contents.ffit_chan[i].channels[0] # need to get index into mk4 chdefs
-        # flip = 1 if (b.t203[0].channels[idx].refsb == 'L') else -1 # LSB vs USB organization in t230
         istart = nspec/2 if (b.t203[0].channels[idx].refsb == 'U') else 0 # USB vs LSB fixed offset
         for j in range(nap):
-            # grab on spectrum for 1 AP
+            # get a complete spectrum block for 1 AP at a time
             q = (mk4.complex_struct*nspec).from_address(
                 ctypes.addressof(b.t230[j+i*nap].contents.xpower))
-            # note check later -- this is probably backward for USB. type230 is probably [-lsb-> LO -usb->]
-            # data230[i,j,:] = np.frombuffer(q, dtype=np.complex128, count=-1)[::flip][:nspec/2]
+            # type230 frequeny order appears to be [---LSB--> LO ---USB-->]
             data230[i,j,:] = np.frombuffer(q, dtype=np.complex128, count=-1)[istart:istart+nspec/2]
     return data230
 
+# populate type_120 visib data into array -- use FRINGE file, do NOT give it COREL file
+# because the FRINGE file will determine parameters, but data will come from COREL file
+# if you have not run fourfit then this will not work
+# we don't bother flipping LSB because convention is unknown, and recent data should be USB (zoom-band)
+def pop120(b):
+    b = getfringefile(b) # fringe file
+    ctok = getfringefile.last[-1].split('.')
+    c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
+    # this is not a great way to get nap (what if incomplete?) but nindex appears incorrect..
+    (nchan, nap, nspec) = (b.n212, b.t212[0].contents.nap, c.t100.contents.nlags)
+    # require spectral type (DiFX)
+    if c.index[0].t120[0].contents.type != '\x05':
+        raise(Exception("only supports SPECTRAL type from DiFX->Mark4"))
+    data120 = np.zeros((nchan, nap, nspec), dtype=np.complex64)
+    # 120: (ap, channel, spectrum), this is mk4 channels (31, 41, ..) not HOPS channels (A, B, ..)
+    for i in range(nchan): # loop over HOPS channels
+        # by construction the ordering of type_101 and type_203 is the same (fill_203.c)
+        # so we can avoid using the mk4 channel pair index to bookkeep
+        idx = b.t205.contents.ffit_chan[i].channels[0] # need to get index into mk4 chdefs
+        for j in range(nap):
+            # get a complete spectrum block for 1 AP at a time
+            q = (mk4.spectral*nspec).from_address(
+                ctypes.addressof(c.index[idx].t120[j].contents.ld))
+            # type230 frequeny order appears to be [---LSB--> LO ---USB-->]
+            data120[i,j,:] = np.frombuffer(q, dtype=np.complex64, count=-1)
+    return data120
+     
 # some HOPS channel parameter info
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
@@ -93,8 +119,8 @@ def params(b):
     else:
         name = b.id.contents.name
     ref_freq = b.t205.contents.ref_freq
-    # dimensions
-    (nchan, nap) = (b.n212, b.t212[0].contents.nap)
+    # dimensions -- nlags in fringe files, may be zero padded by 2x
+    (nchan, nap, nlags) = (b.n212, b.t212[0].contents.nap, b.t202.contents.nlags)
     nspec = None if not bool(b.t230[0]) else b.t230[0].contents.nspec_pts 
     # channel indexing
     clabel = [q.ffit_chan_id for q in b.t205.contents.ffit_chan[:nchan]]
@@ -118,15 +144,12 @@ def params(b):
     fedge = np.array([1e-6 * ch.ref_freq for ch in cinfo])
     flip = np.array([-1 if ch.refsb == 'L' else 1 for ch in cinfo])
     bw = np.array([0.5e-6 * short2int(ch.sample_rate) for ch in cinfo])
-    if nspec:
-        foffset = np.array([(f*np.arange(0.5, nspec/2.)*2.*bwn/nspec)[::f] for (f, bwn) in zip(flip, bw)])
-        dfvec = (fedge[:,None] + foffset) - ref_freq
-        frot = np.exp(-1j * delay * dfvec * 2*np.pi)
-    else:
-        (dfvec, frot) = (None, None)
+    foffset = np.array([(f*np.arange(0.5, nlags)*bwn/nlags)[::f] for (f, bwn) in zip(flip, bw)])
+    dfvec = (fedge[:,None] + foffset) - ref_freq
+    frot = np.exp(-1j * delay * dfvec * 2*np.pi)
     dfvec212 = fedge + (flip*bw)/2. - ref_freq
     frot212 = np.exp(-1j * delay * dfvec212 * 2*np.pi) # note type_212 is already rotated in data
-    return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec,
+    return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags,
         code=clabel, sbd=sbd, mbd=mbd, delay=delay, rate=rate, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, dfvec=dfvec, frot=frot,
         dfvec212=dfvec212, frot212=frot212,
@@ -186,6 +209,13 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
         assert(v.shape == (nap, nchan, nspec))   # make sure loaded data has right dimensions
         if flip:
             v = v[:,:,::-1] # test flip frequency order of spectral points
+    elif kind==120: # original correlator output
+        v = np.swapaxes(pop120(b), 1, 0)  # put AP as axis 0
+        df = df or 2 # arbitrary, but compensate for type_230 inflation factor of x2 (SSB)
+        nspec = v.shape[-1]
+        assert(v.shape == (nap, nchan, nspec))
+        if flip: # fake support for LSB?
+            v = v[:,:,::-1] # test flip frequency order of spectral points
 
     # apply fringe rotations
     if(center=='hops'):
@@ -201,6 +231,8 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
     print "rotation subtracted from data: %.3f [ns], %.3f [ps/s]" % (delay_off, rate_off)
     frot = np.exp(-1j * 1e-3*delay_off * (p.dfvec212[:,None] if kind==212 else p.dfvec) * 2*np.pi)
     trot = np.exp(-1j * 1e-6*rate_off * p.dtvec * 2*np.pi*p.ref_freq)
+    if kind==120: # decimate rotation back to original frequency resolution
+        frot = frot.reshape((nchan, -1, p.nlags / nspec)).mean(axis=-1)
     v = v * trot[:,None,None] * frot[None,:,:]
 
     if clip > 0: # remove small amount of end data for equal segments
@@ -244,14 +276,18 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
     if ret:
         return ns
     else:
-        plotfringe(ns, showx=showx, showy=showy, center=center, showhops=showhops)
+        plotfringe(ns, showx=showx, showy=showy, center=center, showhops=showhops, kind=kind)
 
-def plotfringe(ns, showx=6., showy=6., center=(None, None), showhops=False):
+def plotfringe(ns, showx=6., showy=6., center=(None, None), showhops=False, kind=230):
 
     (fringepow, fwhm_delay, fwhm_rate, delay, rate, extent, aspect, p) = \
         (ns.fringepow, ns.fwhm_delay, ns.fwhm_rate, ns.delay, ns.rate, ns.extent, ns.aspect, ns.params)
+    if kind == 212: # use wrapped values
+        (hops_delay, hops_rate) = (p.mbd, p.rate)
+    else: # use unwrapped values
+        (hops_delay, hops_rate) = (p.delay, p.rate)
     if center == 'hops':
-        center = (1e3*p.delay, 1e6*p.rate)
+        center = (1e3*hops_delay, 1e6*hops_rate)
     (i,j) = np.unravel_index(np.argmax(fringepow), fringepow.shape)
     plot_center = (delay[j] if center[0] is None else center[0], rate[i] if center[1] is None else center[1])
 
@@ -270,8 +306,8 @@ def plotfringe(ns, showx=6., showy=6., center=(None, None), showhops=False):
 
     # show locatino of fourfit fringe solution
     if showhops:
-        plt.plot(1e3*p.delay, 1e6*p.rate, 'kx', ms=24, mew=10)
-        plt.plot(1e3*p.delay, 1e6*p.rate, 'wx', ms=20, mew=6)
+        plt.plot(1e3*hops_delay, 1e6*hops_rate, 'kx', ms=24, mew=10)
+        plt.plot(1e3*hops_delay, 1e6*hops_rate, 'wx', ms=20, mew=6)
 
     ratio = float(showy)/showx
     plt.setp(plt.gcf(), figwidth=2.+3./np.sqrt(ratio), figheight=2.+3.*np.sqrt(ratio))
