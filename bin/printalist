@@ -59,6 +59,9 @@ elif(len(firstline) == len(hops.ffields_v5) and firstline[0] == '5'):
 elif(len(firstline) == len(hops.tfields_v6) and firstline[0] == '6'):
     (readfun, fmt) = (hops.read_tlist_v6, hops.tformatters_v6)
     defaultcol = "scan_id timetag source triangle duration bis_snr bis_phas cmbdelay cdelay_rate".split()
+elif(len(firstline) == len(hops.tfields_v6) and firstline[0] == '5'): # it appears this can happen
+    (readfun, fmt) = (hops.read_tlist_v6, hops.tformatters_v6)
+    defaultcol = "scan_id timetag source triangle duration bis_snr bis_phas cmbdelay cdelay_rate".split()
 elif(len(firstline) == len(misc.RLULIST_FIELDS) and firstline[0] == "#dd"):
     (readfun, fmt) = (misc.read_rlulist, misc.rluformatters)
     defaultcol = misc.RLULIST_FIELDS
