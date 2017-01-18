@@ -22,14 +22,8 @@ isite = {f:i for i, flist in enumerate(sites) for f in flist}
 idish = {f:i for i, flist in enumerate(dishes) for f in flist}
 ifeed = {f:i for i, f in enumerate(feeds)}
 
-ver = util.get_alist_version(args.filename)
-if ver == 5:
-    a = hops.read_alist_v5(args.filename)
-elif ver == 6:
-    a = hops.read_alist_v6(args.filename)
-else:
-    import sys
-    sys.exit('alist is not version 5 or 6')
+# read alist file (autodetect version 5 or 6)
+a = hops.read_alist(args.filename)
 
 # unwrap mbd to be aligned to sbd
 util.unwrap_mbd(a)
