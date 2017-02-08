@@ -144,15 +144,19 @@ def params(b):
     fedge = np.array([1e-6 * ch.ref_freq for ch in cinfo])
     flip = np.array([-1 if ch.refsb == 'L' else 1 for ch in cinfo])
     bw = np.array([0.5e-6 * short2int(ch.sample_rate) for ch in cinfo])
-    foffset = np.array([(f*np.arange(0.5, nlags)*bwn/nlags)[::f] for (f, bwn) in zip(flip, bw)])
-    dfvec = (fedge[:,None] + foffset) - ref_freq
-    frot = np.exp(-1j * delay * dfvec * 2*np.pi)
-    dfvec212 = fedge + (flip*bw)/2. - ref_freq
-    frot212 = np.exp(-1j * delay * dfvec212 * 2*np.pi) # note type_212 is already rotated in data
+    (foffset, dfvec, frot) = (dict(), dict(), dict())
+    nlags120 = nlags/2 # guess
+    foffset[230] = np.array([(f*np.arange(0.5, nlags)*bwn/nlags)[::f] for (f, bwn) in zip(flip, bw)])
+    foffset[120] = np.array([(f*np.arange(0.5, nlags120)*bwn/nlags120)[::f] for (f, bwn) in zip(flip, bw)])
+    dfvec[230] = (fedge[:,None] + foffset[230]) - ref_freq
+    dfvec[120] = (fedge[:,None] + foffset[120]) - ref_freq
+    dfvec[212] = fedge + (flip*bw)/2. - ref_freq
+    frot[230] = np.exp(-1j * delay * dfvec[230] * 2*np.pi)
+    frot[120] = np.exp(-1j * delay * dfvec[120] * 2*np.pi) # assuming nlags120 = nlags230/2
+    frot[212] = np.exp(-1j * delay * dfvec[212] * 2*np.pi) # note type_212 is already rotated in data
     return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags,
         code=clabel, sbd=sbd, mbd=mbd, delay=delay, rate=rate, snr=snr, T=T,
-        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, dfvec=dfvec, frot=frot,
-        dfvec212=dfvec212, frot212=frot212,
+        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source,
         scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
 
@@ -186,16 +190,15 @@ def expmean(x, s=8, n=4): # robust mean of exponential distribution
 # dt, df: decimation factors in time, channels
 # ni: number of incoherent averages (1=scan average)
 # ret: return the full FFT power matrix & other info if true and do not plot anything
+# segment: (start_ap, stop_ap) over which to search, slice-like syntax: e.g. (10,-10)
 # delay_off, rate_off: subtract this from the data before doing search
 # manual offsets will show up in axis labels, automatic offsets (from centering) will not
 def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, None),
                dt=2, df=None, ni=1, ret=False, showhops=False,
-               delay_off=0., rate_off=0., flip=False):
-
+               delay_off=0., rate_off=0., flip=False, segment=(None, None)):
     b = getfringefile(fringefile)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
-    clip = np.fmod(nap, dt*ni) # fit ni non-overlapping time segments after decimation
     if kind is None:
         kind = 230 if bool(b.t230[0]) else 212 # use type_230 if available
     if kind==212:
@@ -229,12 +232,13 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
     if center[1] is not None:
         rate_off += center[1]
     print "rotation subtracted from data: %.3f [ns], %.3f [ps/s]" % (delay_off, rate_off)
-    frot = np.exp(-1j * 1e-3*delay_off * (p.dfvec212[:,None] if kind==212 else p.dfvec) * 2*np.pi)
+    frot = np.exp(-1j * 1e-3*delay_off * p.dfvec[kind].reshape((nchan, -1)) * 2*np.pi)
     trot = np.exp(-1j * 1e-6*rate_off * p.dtvec * 2*np.pi*p.ref_freq)
-    if kind==120: # decimate rotation back to original frequency resolution
-        frot = frot.reshape((nchan, -1, p.nlags / nspec)).mean(axis=-1)
     v = v * trot[:,None,None] * frot[None,:,:]
 
+    v = v[slice(*segment)] # apply time segment cut
+    nap = len(v)      # number of AP's inside time segment
+    clip = np.fmod(nap, dt*ni) # fit ni non-overlapping time segments after decimation
     if clip > 0: # remove small amount of end data for equal segments
         nap = nap-clip
         v = v[:nap]
@@ -340,7 +344,7 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # df: decimation factor in time if timeseires==True
 # centerphase: subtract out mean phase for fewer wraps
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
-             timeseries=False, centerphase=False, snrweight=True):
+             timeseries=False, centerphase=False, snrweight=True, kind=230):
     if type(bs) is str:
         bs = getfringefile(bs, filelist=True)
     if len(bs) > 1:
@@ -360,7 +364,7 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         delay = p.delay if delay is None else delay
         rate = p.rate if rate is None else rate
         trot = np.exp(-1j * rate * p.dtvec * 2*np.pi*p.ref_freq)
-        frot = np.exp(-1j * delay * p.dfvec * 2*np.pi)
+        frot = np.exp(-1j * delay * p.dfvec[kind] * 2*np.pi)
         vrot = v * trot[None,:,None] * frot[:,None,:]
         if centerphase: # rotate out the average phase over all channels
             crot = vrot.sum()
@@ -459,4 +463,37 @@ def timeseries(bs, dt=1):
     plt.setp(plt.gcf(), figwidth=8, figheight=2+nrow)
     plt.tight_layout()
     plt.subplots_adjust(hspace=0)
+
+# calculate delay at each AP using type120 data
+def delayscan(fringefile, res=4, dt=1, df=None):
+    b = getfringefile(fringefile)
+    p = params(b)
+    (nchan, nap) = (b.n212, b.t212[0].contents.nap)
+    v = np.swapaxes(pop120(b), 1, 0)  # put AP as axis 0
+    df = df or 1 # arbitrary, but compensate for type_230 inflation factor of x2 (SSB)
+    nspec = v.shape[-1]
+    assert(v.shape == (nap, nchan, nspec))
+    clip = np.fmod(nap, dt) # fit ni non-overlapping time segments after decimation
+    if clip > 0: # remove small amount of end data for equal segments
+        nap = nap-clip
+        v = v[:nap]
+
+    # block averaging factors to speedup, make sure no phase wrap!
+    v = v.reshape((1, nap/dt, dt, nchan*nspec/df, df))
+    v = v.sum(axis=(2, 4)) # stack on time, and frequency decimation factors
+
+    # the normalized complex visibility and FFT search delay/rate
+    zpch = nextpow2(res*v.shape[2]) # zero padding for freq
+    fringevis = np.fft.fft(v, n=zpch) # by default operate on axis=-1 (frequency axis)
+    fqch = fftfreq(zpch) # "frequency" range of the delay space [cycles/sample_spacing]
+
+    # single-channel spacing [Hz] and decimated spectral point spacing [MHz]
+    sb_spacing = np.diff(sorted(b.t203.contents.channels[i].ref_freq for i in range(nchan)))[int(nchan/2)]
+    spec_spacing = df * 1e-6 * sb_spacing / nspec
+    delay = 1e9 * fqch / (spec_spacing * 1e6) # ns
+
+    imax = np.argmax(np.abs(fringevis), axis=-1) # the maximum frequency index
+    delays = delay[imax] # the solved delays
+
+    return delays.ravel()
 
