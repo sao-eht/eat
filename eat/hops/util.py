@@ -82,8 +82,8 @@ def pop230(b):
     return data230
 
 # populate type_120 visib data into array -- use FRINGE file, do NOT give it COREL file
-# because the FRINGE file will determine parameters, but data will come from COREL file
-# if you have not run fourfit then this will not work
+# because the FRINGE file will determine parameters incl polarization, but data will come from COREL file
+# if you have not run fourfit then *this will not work*
 # we don't bother flipping LSB because convention is unknown, and recent data should be USB (zoom-band)
 def pop120(b):
     b = getfringefile(b) # fringe file
@@ -155,7 +155,7 @@ def params(b):
     frot[120] = np.exp(-1j * delay * dfvec[120] * 2*np.pi) # assuming nlags120 = nlags230/2
     frot[212] = np.exp(-1j * delay * dfvec[212] * 2*np.pi) # note type_212 is already rotated in data
     return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags,
-        code=clabel, sbd=sbd, mbd=mbd, delay=delay, rate=rate, snr=snr, T=T,
+        code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source,
         scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
@@ -465,7 +465,7 @@ def timeseries(bs, dt=1):
     plt.subplots_adjust(hspace=0)
 
 # calculate delay at each AP using type120 data
-def delayscan(fringefile, res=4, dt=1, df=None):
+def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4)):
     b = getfringefile(fringefile)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
@@ -479,11 +479,11 @@ def delayscan(fringefile, res=4, dt=1, df=None):
         v = v[:nap]
 
     # block averaging factors to speedup, make sure no phase wrap!
-    v = v.reshape((1, nap/dt, dt, nchan*nspec/df, df))
-    v = v.sum(axis=(2, 4)) # stack on time, and frequency decimation factors
+    v = v.reshape((nap/dt, dt, nchan*nspec/df, df))
+    v = v.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
 
     # the normalized complex visibility and FFT search delay/rate
-    zpch = nextpow2(res*v.shape[2]) # zero padding for freq
+    zpch = nextpow2(res*v.shape[1]) # zero padding for freq
     fringevis = np.fft.fft(v, n=zpch) # by default operate on axis=-1 (frequency axis)
     fqch = fftfreq(zpch) # "frequency" range of the delay space [cycles/sample_spacing]
 
@@ -492,8 +492,9 @@ def delayscan(fringefile, res=4, dt=1, df=None):
     spec_spacing = df * 1e-6 * sb_spacing / nspec
     delay = 1e9 * fqch / (spec_spacing * 1e6) # ns
 
-    imax = np.argmax(np.abs(fringevis), axis=-1) # the maximum frequency index
-    delays = delay[imax] # the solved delays
+    inside = ((delay >= delayrange[0]) & (delay <= delayrange[1]))
+    imax = np.argmax(np.abs(fringevis[:,inside]), axis=-1) # the maximum frequency index
+    delays = delay[inside][imax] # the solved delays
 
     return delays.ravel()
 
