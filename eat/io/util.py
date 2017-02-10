@@ -55,6 +55,10 @@ def add_delayerr(df, mbd_systematic=0.000010, rate_systematic=0.001):
     df['mbd_err'] = np.sqrt(df['mbd_err']**2 + mbd_systematic**2)
     df['rate_err'] = np.sqrt(df['rate_err']**2 + rate_systematic**2)
 
+# add a path to each alist line for easier finding
+def add_path(df):
+    df['path'] = ['%s/%s/%s.%.1s.%s.%s' % par for par in zip(df.expt_no, df.scan_id, df.baseline, df.freq_code, df.extent_no, df.root_id)]
+
 # add UNIX time
 def add_utime(df):
     df['utime'] = 1e-9*np.array(df.datetime).astype('float')
