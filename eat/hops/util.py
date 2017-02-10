@@ -17,12 +17,17 @@ from matplotlib.offsetbox import AnchoredText
 import glob
 import os
 
+def getpolarization(f):
+    b = mk4.mk4fringe(f)
+    ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
+    return ch0.refpol + ch0.rempol
+
 # return mk4fringe based on object, filename, or glob path
 # if glob return the file with latest getmtime time
 # maybe this should get latest HOPS rootcode instead..
 # remember file path to guess working directory for future calls
 # filelist=True will return a list of all files found
-def getfringefile(b, filelist=False):
+def getfringefile(b, filelist=False, pol=None):
     if type(b) is str:
         files = glob.glob(b)
         if len(files) == 0: # try harder to find file
@@ -33,14 +38,22 @@ def getfringefile(b, filelist=False):
         if len(files) == 0:
             return "cannot find file: %s or %s" % (b, '/'.join(last[:-len(tok)] + tok))
         files = [f for f in files if '..' not in f] # filter out correlator files
+        if pol is not None: # filter by polarization
+            files = [f for f in files if getpolarization(f) == pol]
+        if len(files) == 0:
+            return "cannot find file with polarization " + pol
         if filelist:
             return sorted(files)
         files.sort(key=os.path.getmtime)
         getfringefile.last = files[-1].split('/')
-        print files[-1]
         b = mk4.mk4fringe(files[-1]) # use last updated file
     return b
     
+# convenience function to set "datadir" (last file) for getfringefile
+# can optionally pass expt_no and scan_id to set subdirectories
+def set_datadir(datadir, expt_no='expt_no', scan_id='scan_id'):
+    getfringefile.last = datadir.rstrip('/').split('/') + [str(expt_no), str(scan_id), 'baseline.freq_code.extent_no.root_id']
+
 # unwrap short to positive int in multiples from 1e6 to 1024e6
 def short2int(short):
     return short2int.lookup[short]
@@ -168,7 +181,7 @@ def chaninfo(b):
     idx = [(q.ffit_chan_id, q.channels[0]) for q in b.t205.contents.ffit_chan[:nchan]] # MAX #64 for ffit_chan
     chinfo = [(hops_id, q.index, q.ref_chan_id, q.rem_chan_id, round(q.ref_freq/1e6), round(q.rem_freq/1e6),
               round(q.ref_freq/1e6 - b.t205.contents.ref_freq),
-              q.refsb, q.remsb, short2int(q.sample_rate)/1e6)
+              q.refsb+q.remsb, short2int(q.sample_rate)/1e6, q.refpol+q.rempol)
               for (hops_id, q) in [(hops_id, b.t203[0].channels[i]) for (hops_id, i) in idx]]
     return chinfo
 
@@ -195,8 +208,8 @@ def expmean(x, s=8, n=4): # robust mean of exponential distribution
 # manual offsets will show up in axis labels, automatic offsets (from centering) will not
 def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, None),
                dt=2, df=None, ni=1, ret=False, showhops=False,
-               delay_off=0., rate_off=0., flip=False, segment=(None, None)):
-    b = getfringefile(fringefile)
+               delay_off=0., rate_off=0., flip=False, segment=(None, None), pol=None):
+    b = getfringefile(fringefile, pol=pol)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     if kind is None:
@@ -344,14 +357,14 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # df: decimation factor in time if timeseires==True
 # centerphase: subtract out mean phase for fewer wraps
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
-             timeseries=False, centerphase=False, snrweight=True, kind=230):
+             timeseries=False, centerphase=False, snrweight=True, kind=230, pol=None):
     if type(bs) is str:
-        bs = getfringefile(bs, filelist=True)
+        bs = getfringefile(bs, filelist=True, pol=pol)
     if len(bs) > 1:
         centerphase = True
     vs = None
     for b in bs:
-        b = getfringefile(b)
+        b = getfringefile(b, pol=pol)
         if b.t208.contents.snr < snrthr:
             print "snr %.2f, skipping" % b.t208.contents.snr
             continue
@@ -465,8 +478,8 @@ def timeseries(bs, dt=1):
     plt.subplots_adjust(hspace=0)
 
 # calculate delay at each AP using type120 data
-def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4)):
-    b = getfringefile(fringefile)
+def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None):
+    b = getfringefile(fringefile, pol=pol)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     v = np.swapaxes(pop120(b), 1, 0)  # put AP as axis 0
