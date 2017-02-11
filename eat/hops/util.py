@@ -46,6 +46,7 @@ def getfringefile(b, filelist=False, pol=None):
             return sorted(files)
         files.sort(key=os.path.getmtime)
         getfringefile.last = files[-1].split('/')
+        print files[-1]
         b = mk4.mk4fringe(files[-1]) # use last updated file
     return b
     
@@ -97,16 +98,22 @@ def pop230(b):
 # populate type_120 visib data into array -- use FRINGE file, do NOT give it COREL file
 # because the FRINGE file will determine parameters incl polarization, but data will come from COREL file
 # if you have not run fourfit then *this will not work*
+# output data will match fourfit CHANNELS and will contain all DiFX processed AP's (no fourfit time cuts)
 # we don't bother flipping LSB because convention is unknown, and recent data should be USB (zoom-band)
 def pop120(b):
     b = getfringefile(b) # fringe file
     ctok = getfringefile.last[-1].split('.')
     c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
-    # this is not a great way to get nap (what if incomplete?) but nindex appears incorrect..
-    (nchan, nap, nspec) = (b.n212, b.t212[0].contents.nap, c.t100.contents.nlags)
+    # HOPS corel struct allocates empty pointers, then fills them according to correlator AP
+    # the first correlator AP may be > 0, this non-zero AP corresponds to HOPS AP "0"
+    # we must count NULLs because the first AP is not recorded anywhere (see fourfit/set_pointers.c:245)
+    firstap = next(a.contents.ap for a in c.index[0].t120 if a)
+    lastap = next(a.contents.ap for a in c.index[0].t120[c.index[0].ap_space-1:0:-1] if a)
     # require spectral type (DiFX)
-    if c.index[0].t120[0].contents.type != '\x05':
+    if c.index[0].t120[firstap].contents.type != '\x05':
         raise(Exception("only supports SPECTRAL type from DiFX->Mark4"))
+    # this is not a great way to get nap (what if incomplete?) but nindex appears incorrect..
+    (nchan, nap, nspec) = (b.n212, 1+lastap-firstap, c.t100.contents.nlags)
     data120 = np.zeros((nchan, nap, nspec), dtype=np.complex64)
     # 120: (ap, channel, spectrum), this is mk4 channels (31, 41, ..) not HOPS channels (A, B, ..)
     for i in range(nchan): # loop over HOPS channels
@@ -116,7 +123,7 @@ def pop120(b):
         for j in range(nap):
             # get a complete spectrum block for 1 AP at a time
             q = (mk4.spectral*nspec).from_address(
-                ctypes.addressof(c.index[idx].t120[j].contents.ld))
+                ctypes.addressof(c.index[idx].t120[firstap+j].contents.ld))
             # type230 frequeny order appears to be [---LSB--> LO ---USB-->]
             data120[i,j,:] = np.frombuffer(q, dtype=np.complex64, count=-1)
     return data120
@@ -478,7 +485,7 @@ def timeseries(bs, dt=1):
     plt.subplots_adjust(hspace=0)
 
 # calculate delay at each AP using type120 data
-def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None):
+def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None, fix_outliers=True):
     b = getfringefile(fringefile, pol=pol)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
@@ -504,10 +511,19 @@ def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None
     sb_spacing = np.diff(sorted(b.t203.contents.channels[i].ref_freq for i in range(nchan)))[int(nchan/2)]
     spec_spacing = df * 1e-6 * sb_spacing / nspec
     delay = 1e9 * fqch / (spec_spacing * 1e6) # ns
+    dres = delay[1] - delay[0]
+    print dres
 
     inside = ((delay >= delayrange[0]) & (delay <= delayrange[1]))
     imax = np.argmax(np.abs(fringevis[:,inside]), axis=-1) # the maximum frequency index
     delays = delay[inside][imax] # the solved delays
+
+    # a little simple logic to clean up noise outliers
+    if fix_outliers:
+        good = np.ones(len(delays), dtype=np.bool)
+        tol = np.isclose(delays[:-1], delays[1:], 0, 2*dres)
+        good[1:-1] = (tol[:-1]) | (tol[1:])
+        delays = np.where(good, delays, np.nan)
 
     return delays.ravel()
 
