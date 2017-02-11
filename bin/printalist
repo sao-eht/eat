@@ -89,6 +89,8 @@ if 'mbd_unwrap' in columns:
     util.unwrap_mbd(a)
 if 'utime' in columns:
     util.add_utime(a)
+if 'path' in columns:
+    util.add_path(a)
 # convenience
 if 'timetag' in a and 'hour' not in a:
     util.add_hour(a)
