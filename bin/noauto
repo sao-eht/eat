@@ -4,7 +4,7 @@ import sys
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('filename', help='alist txt file', default=None)
+parser.add_argument('filename', help='alist txt file', nargs='?', default=None)
 args = parser.parse_args()
 
 if args.filename is None:
@@ -13,11 +13,12 @@ else:
     fin = open(args.filename)
 
 for line in fin:
+    tok = line.split()
     if line[0] == '5':
-        if line[87] != line[88]:
+        if tok[14][0] != tok[14][1]:
             sys.stdout.write(line)
     elif line[0] == '6':
-        if line[113] != line[114]:
+        if tok[15][0] != tok[15][1]:
             sys.stdout.write(line)
     else:
         sys.stdout.write(line)
