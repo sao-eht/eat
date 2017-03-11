@@ -57,9 +57,14 @@ def set_datadir(datadir, expt_no='expt_no', scan_id='scan_id'):
 
 # unwrap short to positive int in multiples from 1e6 to 1024e6
 def short2int(short):
-    return short2int.lookup[short]
+    if short in short2int.lookup:
+        return short2int.lookup[short]
+    else:
+        return short2int.lookup_minus_1[short]
 
 short2int.lookup = {ctypes.c_short(i*1000000).value:i*1000000 for i in range(1024)}
+# look out for float precision error in HOPS vex parser.. appears to happen for 116.0 Ms/s
+short2int.lookup_minus_1 = {ctypes.c_short(i*1000000-1).value:i*1000000 for i in range(1024)}
 
 def mk4time(time):
     return datetime.datetime.strptime("%d-%03d %02d:%02d:%02d.%06d" %
@@ -101,13 +106,16 @@ def pop230(b):
 # output data will match fourfit CHANNELS and will contain all DiFX processed AP's (no fourfit time cuts)
 # we don't bother flipping LSB because convention is unknown, and recent data should be USB (zoom-band)
 def pop120(b):
+    if type(b) is str and b[-8:-6] == "..":
+        raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
     b = getfringefile(b) # fringe file
     ctok = getfringefile.last[-1].split('.')
     c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
     # HOPS corel struct allocates empty pointers, then fills them according to correlator AP
     # the first correlator AP may be > 0, this non-zero AP corresponds to HOPS AP "0"
     # we must count NULLs because the first AP is not recorded anywhere (see fourfit/set_pointers.c:245)
-    firstap = next(a.contents.ap for a in c.index[0].t120 if a)
+    # assumes one contiguous interval of APs, might not work if only 1 AP (lastap cannot define)
+    firstap = next(a.contents.ap for a in c.index[0].t120[0:c.index[0].ap_space] if a)
     lastap = next(a.contents.ap for a in c.index[0].t120[c.index[0].ap_space-1:0:-1] if a)
     # require spectral type (DiFX)
     if c.index[0].t120[firstap].contents.type != '\x05':
@@ -186,8 +194,8 @@ def chaninfo(b):
     nchan = b.n212
     # putting them in "fourfit" order also puts them in frequency order
     idx = [(q.ffit_chan_id, q.channels[0]) for q in b.t205.contents.ffit_chan[:nchan]] # MAX #64 for ffit_chan
-    chinfo = [(hops_id, q.index, q.ref_chan_id, q.rem_chan_id, round(q.ref_freq/1e6), round(q.rem_freq/1e6),
-              round(q.ref_freq/1e6 - b.t205.contents.ref_freq),
+    chinfo = [(hops_id, q.index, q.ref_chan_id, q.rem_chan_id, round(q.ref_freq/1e5)/10., round(q.rem_freq/1e5)/10.,
+              round(10.*(q.ref_freq/1e6 - b.t205.contents.ref_freq))/10.,
               q.refsb+q.remsb, short2int(q.sample_rate)/1e6, q.refpol+q.rempol)
               for (hops_id, q) in [(hops_id, b.t203[0].channels[i]) for (hops_id, i) in idx]]
     return chinfo
@@ -339,7 +347,7 @@ def plotfringe(ns, showx=6., showy=6., center=(None, None), showhops=False, kind
 
     (i,j) = np.unravel_index(np.argmax(fringepow), fringepow.shape) # get new max location
     putil.tag('%s [%d]' % (p.scan_name, p.scantime.year), loc='upper left', framealpha=0.85)
-    putil.tag('%s [%s]' % (p.baseline, p.source), loc='upper right', framealpha=0.85)
+    putil.tag('%s(%s) [%s]' % (p.baseline, p.pol, p.source), loc='upper right', framealpha=0.85)
     putil.tag('%.3f ns' % delay[j], loc='lower left', framealpha=0.85)
     putil.tag('%.3f ps/s' % rate[i], loc='lower right', framealpha=0.85)
 
@@ -375,12 +383,15 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         if b.t208.contents.snr < snrthr:
             print "snr %.2f, skipping" % b.t208.contents.snr
             continue
-        if not bool(b.t230[0]):
+        if kind==230 and not bool(b.t230[0]):
             print "skipping no t230"
             continue
-        v = pop230(b)   # visib array (nchan, nap, nspec/2)
+        if kind==230:
+            v = pop230(b)   # visib array (nchan, nap, nspec/2)
+        elif kind==120:
+            v = pop120(b)   # visib array (nchan, nap, nspec/2)
         p = params(b) # channel and fringe parameters
-        nrow = bool(timeseries) + np.int((float(p.nchan) / ncol) + 0.5)
+        nrow = bool(timeseries) + np.int(np.ceil(float(p.nchan) / ncol))
         delay = p.delay if delay is None else delay
         rate = p.rate if rate is None else rate
         trot = np.exp(-1j * rate * p.dtvec * 2*np.pi*p.ref_freq)
