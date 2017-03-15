@@ -234,7 +234,7 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
         df = df or 1
         v = pop212(b)[:,:,None]
     elif kind==230:
-        nspec = b.t230[0].contents.nspec_pts / 2 # one sideband
+        nspec = b.t230[0].contents.nspec_pts / 2 # one sideband, assume all channels are same
         df = df or 4 # speed-up if using full spectral resolution
         v = np.swapaxes(pop230(b), 1, 0)  # put AP as axis 0
         assert(v.shape == (nap, nchan, nspec))   # make sure loaded data has right dimensions
@@ -282,7 +282,8 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
     fqch = fftshift(fftfreq(zpch)) # "frequency" range of the delay space [cycles/sample_spacing]
 
     # single-channel spacing [Hz] and decimated spectral point spacing [MHz]
-    sb_spacing = np.diff(sorted(b.t203.contents.channels[i].ref_freq for i in range(nchan)))[int(nchan/2)]
+    spacings = set(np.diff(sorted(a.fedge)))
+    sb_spacing = spacings.pop() if len(spacings) == 1 else raise Exception("channel spacing is discontinuous")
     spec_spacing = df * 1e-6 * sb_spacing / nspec
     # accumulation period [s]
     ap = dt * (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds() / (nap + clip)
