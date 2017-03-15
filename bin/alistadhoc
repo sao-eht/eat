@@ -1,0 +1,31 @@
+#!/usr/bin/env python
+
+# create fourfit ad-hoc phase file from single baseline
+# 2017-03-15 Lindy Blackburn
+
+from eat.io import hops, util
+import numpy as np
+import pandas as pd
+import argparse
+
+fmt = {
+'days':'{:010.6f}'.format,
+'phase_unwrap':'{:6.1f}'.format
+}
+
+parser = argparse.ArgumentParser()
+parser.add_argument('filename', help='alist txt file')
+parser.add_argument('nchan', help='number of channels', nargs='?', type=int, default=60)
+parser.add_argument('-f', '--flip', help='flip phases, for use with the REM site (default is REF)', action="store_true"),
+args = parser.parse_args()
+
+# read alist file (autodetect version 5 or 6)
+a = hops.read_alist(args.filename)
+
+util.add_days(a)
+
+a['phase_unwrap'] = (-1. if args.flip else 1.) * np.unwrap(a.resid_phas, 180.)
+
+# fmt = ['{:10.6f}'.format,] + ['{:6.1f}'.format,]*args.nchan
+print a[['days',] + ['phase_unwrap',]*args.nchan].to_string(formatters=fmt, header=False, index=False)
+
