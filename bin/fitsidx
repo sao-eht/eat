@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+
+# Print index of FITS-IDI files
+# 2016-01-11 LLB
+
+from eat.io import fits
+import sys
+import datetime
+
+files = sorted(sys.argv[1:])
+
+for f in files:
+    a = fits.open(f)
+    date = datetime.datetime.strptime(a.UV_DATA.header['DATE-OBS'], "%Y-%m-%d") # '2016-04-07'
+    startsec = int(0.5 + a.UV_DATA.TIME[0] * 86400. / 10.) * 10 # round to nearest 10s
+    endsec = int(0.5 + a.UV_DATA.TIME[-1] * 86400. / 10.) * 10 # round to nearest 10s
+    duration = endsec - startsec
+    date += datetime.timedelta(seconds=startsec)
+    timetag = date.strftime("%j-%H%M")
+    print "%-35s  %s  %6d  %s" % (f, timetag, duration, " ".join(a.SOURCE.SOURCE))
+    a.close()
