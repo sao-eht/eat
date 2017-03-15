@@ -11,7 +11,7 @@ import sys
 import argparse
 
 additional_fmt = {
-'mbd_unwrap':'{:,.5f}'.format
+'mbd_unwrap':'{:.5f}'.format
 }
 
 """
@@ -41,10 +41,12 @@ parser.add_argument('filename', nargs='+', help='alist txt file[s]')
 parser.add_argument('-c', '--columns', help='space separated default columns to print (optional)', nargs='*', default=None)
 parser.add_argument('-a', '--add-columns', help='add these columns to the default list', nargs='*', default=None)
 parser.add_argument('-r', '--remove-columns', help='remove these columns from the default list', nargs='*', default=None)
-parser.add_argument('-n', '--no-auto', help='do not print autocorrelations', action="store_true")
 parser.add_argument('-s', '--sort-by', help='sort by these columns', nargs='*', default=None)
 parser.add_argument('-f', '--filter', help='filter is a set of key value requirements: e.g. -f baseline GE source BLLAC', nargs='*', default=None)
 parser.add_argument('-e', '--expression', help='expression is a python expression to evaluate on each row which evaluates to true if row is to be kept', default=None)
+parser.add_argument('-na', '--no-auto', help='do not print autocorrelations', action="store_true")
+parser.add_argument('-nh', '--no-header', help="don't print column header", action="store_true")
+parser.add_argument('-ni', '--no-index', help="don't print index (row number)", action="store_true")
 args = parser.parse_args()
 
 # which kind of file are we looking at (may not close file until garbage collect?)
@@ -82,6 +84,11 @@ if args.remove_columns is not None:
 
 if args.no_auto:
     a = a[a.baseline.map(lambda x: x[0] != x[1])]
+to_string_kwargs = dict()
+if args.no_header:
+    to_string_kwargs['header'] = False
+if args.no_index:
+    to_string_kwargs["index"] = False
 
 if 'gmst' in columns:
     util.add_gmst(a)
@@ -109,4 +116,4 @@ if args.sort_by is not None:
     a = a.sort_values(args.sort_by)
 
 fmt.update(additional_fmt)
-print a[columns].to_string(formatters=fmt)
+print a[columns].to_string(formatters=fmt, **to_string_kwargs)
