@@ -539,3 +539,68 @@ def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None
 
     return delays.ravel()
 
+# This function is added by Kazu Akiyama
+def compare_alist_v6(alist1,baseline1,polarization1,
+                     alist2=None,baseline2=None,polarization2=None):
+    '''Compare two alist data in pandas.DataFrame.
+
+    This function pick up rows at common datetimes in two input alist data and
+    at specified sets of the baseline(s), polarization(s), and concatenate two alist data
+    into one pandas.DataFrame. The keys for the first and second alist data will be "xxx1"
+    (e.g. "snr1", "amp1") and "xxx2" (e.g. "snr2", "amp2"), respectively.
+
+    Args:
+        alist1 (pandas.DataFrame):
+            the first alist data read by eat.io.hope.read_alist_v6
+        baseline1 (string):
+            a baseline of the first alist data to be compared
+        polarization1 (string):
+             a polarization of the first alist data to be compared
+        alist2 (optional, pandas.DataFrame):
+            the second alist data in pandas.DataFrame read by eat.io.hope.read_alist_v6
+            (default: same to alist1)
+        baseline2 (optional, string):
+            a baseline of the second alist data to be compared
+            (default: same to baseline1)
+        polarization2 (optional, string):
+            a polarization of the second alist data to be compared
+            (default: same to polarization1)
+
+    Returns:
+        A pandas.DataFrame object includes two alist data when the datetimes of two data sets
+        at the specified baselines and polarizations are overlapped.
+    '''
+    import pandas as pd
+    if alist2 is None:
+        alist2 = alist1
+    if baseline2 is None:
+        baseline2 = baseline1
+    if polarization2 is None:
+        polarization2 = polarization1
+    #
+    # Get timestamps
+    datetimes = sorted(list(set(alist1["datetime"].tolist()+alist2["datetime"].tolist())))
+    #
+    # Get alist keys
+    alist1_keys = alist1.columns.tolist()
+    alist1_keys.remove("datetime")
+    alist2_keys = alist2.columns.tolist()
+    alist2_keys.remove("datetime")
+    #
+    outdata = pd.DataFrame()
+    for datetime in datetimes:
+        alist1_idx = (alist1["datetime"]==datetime) * (alist1["baseline"]==baseline1) * (alist1["polarization"]==polarization1)
+        alist1_tmp = alist1.loc[alist1_idx, :].reset_index(drop=True)
+        alist2_idx = (alist2["datetime"]==datetime) * (alist2["baseline"]==baseline2) * (alist2["polarization"]==polarization2)
+        alist2_tmp = alist2.loc[alist2_idx, :].reset_index(drop=True)
+        if len(alist1_tmp["datetime"]) * len(alist2_tmp["datetime"]) == 0:
+            continue
+        #
+        outdata_tmp = pd.DataFrame()
+        outdata_tmp["datetime"] = [datetime]
+        for key in alist1_keys:
+            outdata_tmp[key+"1"] = [alist1_tmp.loc[0, key]]
+        for key in alist2_keys:
+            outdata_tmp[key+"2"] = [alist2_tmp.loc[0, key]]
+        outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
+    return outdata
