@@ -140,10 +140,10 @@ def pop120(b):
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
 # i.e. they subtract the delay, rate under multiplication
-def params(b):
+def params(b, pol=None):
     if type(b) is str:
         name = b
-        b = getfringefile(b)
+        b = getfringefile(b, pol=pol)
     else:
         name = b.id.contents.name
     ref_freq = b.t205.contents.ref_freq
@@ -281,10 +281,12 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
     fqap = fftshift(fftfreq(zpap)) # "frequency" range of the rate space [cycles/sample_spacing]
     fqch = fftshift(fftfreq(zpch)) # "frequency" range of the delay space [cycles/sample_spacing]
 
-    # single-channel spacing [Hz] and decimated spectral point spacing [MHz]
-    spacings = set(np.diff(sorted(a.fedge)))
-    sb_spacing = spacings.pop() if len(spacings) == 1 else raise Exception("channel spacing is discontinuous")
-    spec_spacing = df * 1e-6 * sb_spacing / nspec
+    # single-channel spacing [MHz] and decimated spectral point spacing [MHz]
+    spacings = set(np.diff(sorted(p.fedge)))
+    if len(spacings) > 1:
+        raise Exception("channel spacing is discontinuous")
+    sb_spacing = spacings.pop()
+    spec_spacing = df * sb_spacing / nspec
     # accumulation period [s]
     ap = dt * (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds() / (nap + clip)
     delay = (center[0] if center[0] else 0.) + 1e9 * fqch / (spec_spacing * 1e6) # ns
@@ -294,7 +296,7 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
 
     (left, right, bottom, top) = (delay[0]-dd/2., delay[-1]+dd/2., rate[0]-dr/2., rate[-1]+dr/2.)
     # set the plot aspect relative to nyquist (propotional to fringe FWHM)
-    BW = 1e-6 * sb_spacing * nchan
+    BW = sb_spacing * nchan
     T = ap * v.shape[1]
     fwhm_delay = 1e3 / BW # ns
     fwhm_rate = 1e6 / T / p.ref_freq # ps/s
@@ -539,6 +541,7 @@ def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None
 
     return delays.ravel()
 
+<<<<<<< Updated upstream
 # This function is added by Kazu Akiyama
 def compare_alist_v6(alist1,baseline1,polarization1,
                      alist2=None,baseline2=None,polarization2=None):
@@ -604,3 +607,16 @@ def compare_alist_v6(alist1,baseline1,polarization1,
             outdata_tmp[key+"2"] = [alist2_tmp.loc[0, key]]
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
+
+# create ad-hoc phases from fringe file (type 212)
+# use round-robin training/evaluation to avoid self-tuning bias
+# compensate for delay-rate rotator bias for frequencies away from reference frequency
+def adhoc(b, pol=None):
+    b = getfringefile(b, pol=pol)
+    v = pop212(b)
+    (nap, nchan) = v.shape
+    p = param(b)
+    for i in nchan: # i is the channel to exclude in fit
+        # parameters = (alpha, tau, spec)
+        par = np.zeros(2 + nap)
+    raise Exception("unfinished")        
