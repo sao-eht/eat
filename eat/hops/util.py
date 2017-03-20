@@ -541,7 +541,6 @@ def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None
 
     return delays.ravel()
 
-<<<<<<< Updated upstream
 # This function is added by Kazu Akiyama
 def compare_alist_v6(alist1,baseline1,polarization1,
                      alist2=None,baseline2=None,polarization2=None):
