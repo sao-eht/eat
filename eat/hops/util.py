@@ -62,9 +62,10 @@ def short2int(short):
     else:
         return short2int.lookup_minus_1[short]
 
-short2int.lookup = {ctypes.c_short(i*1000000).value:i*1000000 for i in range(1024)}
+stype = dict(mk4.ch_struct._fields_)['sample_rate'] # was changed from short to ushort around Feb 2017
+short2int.lookup = {stype(i*1000000).value:i*1000000 for i in range(1024)}
 # look out for float precision error in HOPS vex parser.. appears to happen for 116.0 Ms/s
-short2int.lookup_minus_1 = {ctypes.c_short(i*1000000-1).value:i*1000000 for i in range(1024)}
+short2int.lookup_minus_1 = {stype(i*1000000-1).value:i*1000000 for i in range(1024)}
 
 def mk4time(time):
     return datetime.datetime.strptime("%d-%03d %02d:%02d:%02d.%06d" %
