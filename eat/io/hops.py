@@ -219,7 +219,7 @@ def read_tlist_v6(filename):
 
 fformatters_v5 = {col:lambda x, fmt=fmt: fmt % x for col,fmt in zip(ffields_v5, fformat_v5)}
 fformatters_v5['year'] = lambda x: '%s' % x # necessary because pandas parse_dates will keep date col as str (!?)
-fformatters_v6 = {col:lambda x, fmt=fmt: fmt % x for col,fmt in zip(ffields_v5, fformat_v5)}
+fformatters_v6 = {col:lambda x, fmt=fmt: fmt % x for col,fmt in zip(ffields_v6, fformat_v6)}
 fformatters_v6['year'] = lambda x: '%s' % x # necessary because pandas parse_dates will keep date col as str (!?)
 tformatters_v6 = {col:lambda x, fmt=fmt: fmt % x for col,fmt in zip(tfields_v6, tformat_v6)}
 tformatters_v6['year'] = lambda x: '%s' % x # necessary because pandas parse_dates will keep date col as str (!?)
