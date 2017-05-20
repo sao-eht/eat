@@ -53,7 +53,7 @@ args = parser.parse_args()
 firstline = (a for a in open(args.filename[0])
     if a[0] is not '*').next().strip().split()
 if(len(firstline) == len(hops.ffields_v6) and firstline[0] == '6'):
-    (readfun, fmt) = (hops.read_alist_v6, hops.fformatters_v6)
+    (readfun, fmt) = (hops.read_alist_v6, hops.fformatters_v5) # use v5 formats for more readability
     defaultcol = "scan_id timetag source baseline polarization amp snr resid_phas sbdelay mbdelay delay_rate".split()
 elif(len(firstline) == len(hops.ffields_v5) and firstline[0] == '5'):
     (readfun, fmt) = (hops.read_alist_v5, hops.fformatters_v5)
@@ -116,4 +116,5 @@ if args.sort_by is not None:
     a = a.sort_values(args.sort_by)
 
 fmt.update(additional_fmt)
+fmt.pop('source', None) # let source autoformat because HOPS %32s is really long
 print a[columns].to_string(formatters=fmt, **to_string_kwargs)
