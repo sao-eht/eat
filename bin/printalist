@@ -44,6 +44,7 @@ parser.add_argument('-r', '--remove-columns', help='remove these columns from th
 parser.add_argument('-s', '--sort-by', help='sort by these columns', nargs='*', default=None)
 parser.add_argument('-f', '--filter', help='filter is a set of key value requirements: e.g. -f baseline GE source BLLAC', nargs='*', default=None)
 parser.add_argument('-e', '--expression', help='expression is a python expression to evaluate on each row which evaluates to true if row is to be kept', default=None)
+parser.add_argument('-t', '--threshold', help='signal-to-noise threshold (same as -e "snr > <threshold>")', type=float, default=None)
 parser.add_argument('-na', '--no-auto', help='do not print autocorrelations', action="store_true")
 parser.add_argument('-nh', '--no-header', help="don't print column header", action="store_true")
 parser.add_argument('-ni', '--no-index', help="don't print index (row number)", action="store_true")
@@ -108,6 +109,12 @@ if args.filter is not None:
     keep = reduce(np.bitwise_and, ((a[key] == val for key, val in
         zip(args.filter[::2], args.filter[1::2]))))
     a = a[keep]
+
+if args.threshold is not None:
+	if 'snr' in a.columns:
+		a = a[a.snr > args.threshold]
+	elif 'bis_snr' in a.columns:
+		a = a[a.bis_snr > args.threshold]
 
 if args.expression is not None:
     a = a[[eval(args.expression, row._asdict()) for row in a.itertuples()]]
