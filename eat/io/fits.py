@@ -22,7 +22,10 @@ class fitshdulist:
         if hasattr(self.hdulist, attr):
             return getattr(self.hdulist, attr)
         else:
-            return fitshdu(next((a for a in reversed(self.hdulist) if attr.upper() in a.name)))
+            # reversed iterator broken at some point as of astropy 1.3 (debian jessie), possibly related to,
+            # https://github.com/astropy/astropy/issues/5585
+            # return fitshdu(next((a for a in reversed(self.hdulist) if attr.upper() in a.name)))
+            return fitshdu(next((a for a in self.hdulist[::-1] if attr.upper() in a.name)))
 
 # some easier interactive fits interface
 class fitshdu:
