@@ -99,6 +99,8 @@ if 'utime' in columns:
     util.add_utime(a)
 if 'path' in columns:
     util.add_path(a)
+if 'doy' in columns:
+    util.add_doy(a)
 # convenience
 if 'timetag' in a and 'hour' not in a:
     util.add_hour(a)
