@@ -17,6 +17,11 @@ from matplotlib.offsetbox import AnchoredText
 import glob
 import os
 
+# convenient reduces columns to print
+showcol = "datetime timetag scan_id source baseline band polarization amp snr phase_deg delay_rate".split()
+# parity columns which should be flipped if baseline is flipped
+flipcol = "phase_deg sbdelay mbdelay delay_rate u v ecphase delay_rate total_phas total_rate total_mbdelay total_sbresid".split()
+
 def getpolarization(f):
     b = mk4.mk4fringe(f)
     ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
@@ -27,7 +32,9 @@ def getpolarization(f):
 # maybe this should get latest HOPS rootcode instead..
 # remember file path to guess working directory for future calls
 # filelist=True will return a list of all files found
-def getfringefile(b, filelist=False, pol=None):
+def getfringefile(b=None, filelist=False, pol=None):
+    if b is None and hasattr(getfringefile, 'last'): # try to run with the last
+        return getfringefile('/'.join(getfringefile.last), filelist=filelist, pol=pol)
     if type(b) is str:
         files = glob.glob(b)
         if len(files) == 0: # try harder to find file
@@ -66,8 +73,10 @@ stype = dict(mk4.ch_struct._fields_)['sample_rate'] # was changed from short to 
 short2int.lookup = {stype(i*1000000).value:i*1000000 for i in range(1024)}
 # look out for float precision error in HOPS vex parser.. appears to happen for 116.0 Ms/s
 short2int.lookup_minus_1 = {stype(i*1000000-1).value:i*1000000 for i in range(1024)}
-short2int.lookup[21632] = 58593750 # special values for ALMA full band 58.593750 MHz ("117.2" Ms/s)
-short2int.lookup[21631] = 58593750 # make sure -1 rounding error case takes priority as well
+short2int.lookup[21632] = 117187500 # special values for ALMA full band 58.593750 MHz ("117.2" Ms/s)
+short2int.lookup[21631] = 117187500 # make sure -1 rounding error case takes priority as well
+short2int.lookup[9132] = 117187500 # full precision in OVEX
+short2int.lookup[9131] = 117187500 # -1 rounding case
 
 def mk4time(time):
     return datetime.datetime.strptime("%d-%03d %02d:%02d:%02d.%06d" %
@@ -76,7 +85,7 @@ def mk4time(time):
 
 # populate the type_212 visib data into array
 # (nap, nchan)
-def pop212(b):
+def pop212(b=None):
     b = getfringefile(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     data212 = np.zeros((nchan, nap, 3), dtype=np.float32)
@@ -88,7 +97,7 @@ def pop212(b):
 
 # populate the type_230 visib data into array automatically detect sideband
 # (nchan, nap, nspec)
-def pop230(b):
+def pop230(b=None):
     b = getfringefile(b)
     (nchan, nap, nspec) = (b.n212, b.t212[0].contents.nap, b.t230[0].contents.nspec_pts)
     data230 = np.zeros((nchan, nap, nspec/2), dtype=np.complex128)
@@ -108,7 +117,7 @@ def pop230(b):
 # if you have not run fourfit then *this will not work*
 # output data will match fourfit CHANNELS and will contain all DiFX processed AP's (no fourfit time cuts)
 # we don't bother flipping LSB because convention is unknown, and recent data should be USB (zoom-band)
-def pop120(b):
+def pop120(b=None):
     if type(b) is str and b[-8:-6] == "..":
         raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
     b = getfringefile(b) # fringe file
@@ -143,7 +152,7 @@ def pop120(b):
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
 # i.e. they subtract the delay, rate under multiplication
-def params(b, pol=None):
+def params(b=None, pol=None):
     if type(b) is str:
         name = b
         b = getfringefile(b, pol=pol)
@@ -192,7 +201,7 @@ def params(b, pol=None):
         scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
 
 # some unstructured channel info for quick printing
-def chaninfo(b):
+def chaninfo(b=None):
     b = getfringefile(b)
     nchan = b.n212
     # putting them in "fourfit" order also puts them in frequency order
@@ -222,11 +231,12 @@ def expmean(x, s=8, n=4): # robust mean of exponential distribution
 # ni: number of incoherent averages (1=scan average)
 # ret: return the full FFT power matrix & other info if true and do not plot anything
 # segment: (start_ap, stop_ap) over which to search, slice-like syntax: e.g. (10,-10)
+# unrotate_212: unrotate the fourfit soln from the 212 data before fringe search
 # delay_off, rate_off: subtract this from the data before doing search
 # manual offsets will show up in axis labels, automatic offsets (from centering) will not
-def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, None),
+def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None, None),
                dt=2, df=None, ni=1, ret=False, showhops=False,
-               delay_off=0., rate_off=0., flip=False, segment=(None, None), pol=None):
+               delay_off=0., rate_off=0., flip=False, segment=(None, None), pol=None, unrotate_212=True):
     b = getfringefile(fringefile, pol=pol)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
@@ -254,7 +264,7 @@ def findfringe(fringefile, kind=None, res=4, showx=6, showy=6, center=(None, Non
     # apply fringe rotations
     if(center=='hops'):
         center = (p.delay*1e3, p.rate*1e6)
-    if(kind==212):
+    if(kind==212 and unrotate_212):
         delay_off -= p.delay*1e3 # ns
         rate_off -= p.rate*1e6   # ps/s
     # note this will affect the data, and must also be reflected in the delay, rate vectors
@@ -622,3 +632,21 @@ def adhoc(b, pol=None):
         # parameters = (alpha, tau, spec)
         par = np.zeros(2 + nap)
     raise Exception("unfinished")        
+
+# helper class for embedded PDF in ipython notebook
+class PDF(object):
+    def __init__(self, pdfdata):
+        self.pdfdata = pdfdata
+    def _repr_pdf_(self):
+        return self.pdfdata
+
+# grab the ps from type221, convert to pdf if possible
+def fplot(b=None, pol=None):
+    import subprocess
+    b = getfringefile(b, pol=pol)
+    ps = b.t221.contents.pplot
+    proc = subprocess.Popen("ps2pdf - -".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+    # proc = subprocess.Popen("cat".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+    out = PDF(proc.communicate(input=ps)[0])
+    return out
+
