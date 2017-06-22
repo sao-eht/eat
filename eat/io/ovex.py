@@ -1,5 +1,58 @@
-# Read in .vex files.
-# Assumes there is only 1 MODE in vex file
+
+"""
+USAGE NOTE:
+
+ovex_reader.Ovex('ovex file name') returns an object that contains
+various observational information.
+
+import ovex_reader as ov
+fname = "ovex_files/3C279.zmubap"
+ovex = ov.Ovex(fname)
+
+
+Summary of mnemonics:
+
+--- Read in from "$MODE" section in a ovex file
+ovex.modes[mode index]['mode'] = name of mode
+ovex.modes[mode index]['site_dic'] = dictionary of site name in $FREQ language and site ID in $SITES language
+
+--- Read in from "$FREQ" section in a ovex file
+ovex.freqs[site index]['antenna'] = antenna ID
+ovex.freqs[site index]['sample_rate'] = sample rate
+ovex.freqs[site index]['chans'][channel index]['chan_name'] = name of channel ?
+ovex.freqs[site index]['chans'][channel index]['freq'] = frequency in MHz
+ovex.freqs[site index]['chans'][channel index]['bw'] = bandwidth in MHz
+
+
+--- Read in from "$SITES" section in a ovex file
+ovex.sites[site index]['site_name']
+ovex.sites[site index]['site_ID']
+ovex.sites[site index]['mk4_site_ID']
+ovex.sites[site index]['site_position']
+
+--- Read in from "$SCHED" section in a ovex file
+ovex.sched[scan index]['scan_numer'] = scan number of "scan ID"-th scan
+ovex.sched[scan index]['source'] = source name of "scan ID"-th scan
+ovex.sched[scan index]['mjd_floor'] = floored MJD of the scan
+ovex.sched[scan index]['start_hr'] = start time of the scan in UTC
+ovex.sched[scan index]['mode'] = scan mode of the scan
+ovex.sched[scan index]['scan'][site index]['site'] = site name of "site-ID"-th site of the "scan ID"-th scan
+ovex.sched[scan index]['scan'][site index]['scan_sec'] = duration of the scan in second
+ovex.sched[scan index]['scan'][site index]['data_size'] = data size (?) of the scan in GB
+ovex.sched[scan index]['scan'][site index]['scan_sec_start'] = probably 'start_hr' + 'scan_sec_start'(in sec) is the actual time that the scan starts, but not sure
+
+--- Read in from "$SOURCE" section in a ovex file
+ovex.source[source index]['source'] = source name of "source ID"-th source
+ovex.source[source index]['ra'] = RA of the source
+ovex.source[source index]['dec'] = DEC of the source
+ovex.source[source index]['ref_coord_frame'] = something about the source
+
+--- Others
+ovex.sites_dic = sites' names in various languages (site_name, site_ID, mk4_site_ID, $FREQ's ref)
+ovex.lvex_rev
+ovex.evex_rev
+ovex.ivex_rev
+"""
 
 
 import numpy as np
