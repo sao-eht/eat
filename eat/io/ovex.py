@@ -13,6 +13,7 @@ ovex = ov.Ovex(fname)
 Summary of mnemonics:
 
 --- Read in from "$MODE" section in a ovex file
+"mode index"=0 if there's only 1 mode
 ovex.modes[mode index]['mode'] = name of mode
 ovex.modes[mode index]['site_dic'] = dictionary of site name in $FREQ language and site ID in $SITES language
 
@@ -31,10 +32,10 @@ ovex.sites[site index]['mk4_site_ID']
 ovex.sites[site index]['site_position']
 
 --- Read in from "$SCHED" section in a ovex file
+"scan index"=0 if there's only 1 scan, which is always the case for ovex files ??
 ovex.sched[scan index]['scan_numer'] = scan number of "scan ID"-th scan
 ovex.sched[scan index]['source'] = source name of "scan ID"-th scan
-ovex.sched[scan index]['mjd_floor'] = floored MJD of the scan
-ovex.sched[scan index]['start_hr'] = start time of the scan in UTC
+ovex.sched[scan index]['start'] = start time of the scan
 ovex.sched[scan index]['mode'] = scan mode of the scan
 ovex.sched[scan index]['scan'][site index]['site'] = site name of "site-ID"-th site of the "scan ID"-th scan
 ovex.sched[scan index]['scan'][site index]['scan_sec'] = duration of the scan in second
@@ -42,6 +43,7 @@ ovex.sched[scan index]['scan'][site index]['data_size'] = data size (?) of the s
 ovex.sched[scan index]['scan'][site index]['scan_sec_start'] = probably 'start_hr' + 'scan_sec_start'(in sec) is the actual time that the scan starts, but not sure
 
 --- Read in from "$SOURCE" section in a ovex file
+"source index"=0 if there's only 1 source
 ovex.source[source index]['source'] = source name of "source ID"-th source
 ovex.source[source index]['ra'] = RA of the source
 ovex.source[source index]['dec'] = DEC of the source
@@ -57,7 +59,7 @@ ovex.ivex_rev
 
 import numpy as np
 import re
-import jdcal
+#import jdcal
 
 
 class Ovex(object):
@@ -250,9 +252,10 @@ class Ovex(object):
             if inscan:
                 ret = self.get_variable("start",line)
                 if len(ret)>0:
-                    mjd,hr = self.vexdate_to_MJD_hr(ret) # convert vex time format to mjd and hour
-                    temp['mjd_floor'] = mjd
-                    temp['start_hr'] = hr
+                    #mjd,hr = self.vexdate_to_MJD_hr(ret) # convert vex time format to mjd and hour
+                    #temp['mjd_floor'] = mjd
+                    #temp['start_hr'] = hr
+		    temp['start'] = ret
 
                 ret = self.get_variable("mode",line)
                 if len(ret)>0: temp['mode'] = ret
@@ -350,6 +353,7 @@ class Ovex(object):
 
     # Function to find MJD (int!) and hour in UT from vex format,
     # e.g, 2016y099d05h00m00s
+    """
     def vexdate_to_MJD_hr(self, vexdate):
         time = re.findall("[-+]?\d+[\.]?\d*",vexdate)
         year = int(time[0])
@@ -357,6 +361,7 @@ class Ovex(object):
         mjd = jdcal.gcal2jd(year,1,1)[1]+date-1
         hour = int(time[2]) + float(time[3])/60. + float(time[4])/60./60.
         return mjd,hour
+    """
 
     # check if a variable 'vname' exists by itself in a line.
     # returns index of vname[0] in a line, or -1
