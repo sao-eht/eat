@@ -87,7 +87,7 @@ def add_gmst(df):
     if type(timestamps[0]) is np.datetime64: # pandas < 0.9
         times_unix = 1e-9*np.array(
             timestamps).astype('float') # note one float64 is not [ns] precision
-    elif type(timestamps[0]) is pd.tslib.Timestamp:
+    elif type(timestamps[0]) is pd.Timestamp:
         times_unix = np.array([1e-9 * t.value for t in timestamps]) # will be int64's
     else:
         raise Exception("do not know how to convert timestamp of type " + repr(type(timestamps[0])))
