@@ -48,8 +48,10 @@ def rewrap_mbd(df):
 # this is re-derived and close in spirit to the code in fourfit/fill_208.c
 # but there are small different factors, not sure what is origin of the fourfit eqns
 # add some sytematic errors in quadrature.. (alist precision, linear approx systematics..)
-def add_delayerr(df, mbd_systematic=0.000010, rate_systematic=0.001):
-    bw = 480. # bandwidth spread in [MHz]
+# bw: bw spread in MHz (not in alist..)
+# mbd_systematic, rate_systematic: added in quadrature to statistical error (us, ps/s)
+def add_delayerr(df, bw = 2048., mbd_systematic=0.000010, rate_systematic=0.001):
+    # bw = 480. # bandwidth spread in [MHz]
     df['mbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * bw) # us
     df['rate_err'] = 1e6 * np.sqrt(12) / (2*np.pi * df.ref_freq * df.snr * df.duration) # us/s -> ps/s
     df['mbd_err'] = np.sqrt(df['mbd_err']**2 + mbd_systematic**2)
