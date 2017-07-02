@@ -1,15 +1,20 @@
 # 12/9/2015 LLB
 # 1/12/2016 LLB - bug fix in thermal and phase noise
 
+from __future__ import division
+from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import map
 import sys
 import os
 import pandas as pd
 import numpy as np
-import StringIO
+import io
 from argparse import Namespace
 
 if len(sys.argv) < 2 or not os.path.exists(sys.argv[1]):
-    print "use: python prep.py visibs_true.txt > visibs_measured.txt"
+    print("use: python prep.py visibs_true.txt > visibs_measured.txt")
     sys.exit()
 
 # note SPT345 SEFD is completely made up
@@ -22,7 +27,7 @@ n  site sefd230 sefd345
 4  ALMA     110     140
 5   SPT    7300   15000
 """
-sites = pd.read_csv(StringIO.StringIO(sitesstring), delim_whitespace=True, index_col='n')
+sites = pd.read_csv(io.StringIO(sitesstring), delim_whitespace=True, index_col='n')
 
 # Michael's synthetic true visibilities table
 VISIBS_FIELDS = (
@@ -75,7 +80,7 @@ def populate(row):
     gain1 = 1.0 + 0.1 * hashrandn(site1, 'gain') + 0.1 * hashrandn(site1, 'gain', row.hour)
     gain2 = 1.0 + 0.1 * hashrandn(site2, 'gain') + 0.1 * hashrandn(site2, 'gain', row.hour)
     # average SEFD
-    sefd1 = site1.sefd230 
+    sefd1 = site1.sefd230
     sefd2 = site2.sefd230
     # include opacity attenuation for the true SEFD (to derive true SNR)
     sefd1true = sefd1 * np.exp(tau1/np.sin(np.deg2rad(row.elev1))) / gain1

@@ -1,7 +1,11 @@
+from future import standard_library
+standard_library.install_aliases()
+from builtins import next
+from builtins import object
 from astropy.io import fits
 
 # some easier interactive fits interface
-class fitshdulist:
+class fitshdulist(object):
 
     def __init__(self, hdulist):
         self.hdulist = hdulist
@@ -10,7 +14,7 @@ class fitshdulist:
         return [a.name for a in self.hdulist]
 
     def __repr__(self):
-        from StringIO import StringIO
+        from io import StringIO
         out = StringIO()
         self.hdulist.info(output=out)
         return out.getvalue()
@@ -28,7 +32,7 @@ class fitshdulist:
             return fitshdu(next((a for a in self.hdulist[::-1] if attr.upper() in a.name)))
 
 # some easier interactive fits interface
-class fitshdu:
+class fitshdu(object):
 
     def __init__(self, hdu):
         self.hdu = hdu
@@ -60,4 +64,3 @@ def open(filename):
     # https://github.com/astropy/astropy/issues/1380
     hdulist = fits.open(filename, mode='denywrite')
     return fitshdulist(hdulist)
-

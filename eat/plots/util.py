@@ -91,5 +91,3 @@ def normconfidence(maxval=10.):
     from scipy.stats import norm
     xx = np.linspace(0, maxval, 200)
     sf = nomm.sf(xx)
-
-

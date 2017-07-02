@@ -1,10 +1,15 @@
 # EHT table misc support utilities
 # 2016-10-11 Lindy Blackburn
 
+from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+
+from builtins import zip
 from pkg_resources import parse_version
 import pandas as pd
 if parse_version(pd.__version__) < parse_version('0.15.1dev'):
-    print "pandas version too old and buggy, please update"
+    print("pandas version too old and buggy, please update")
 import datetime
 import numpy as np
 import os
@@ -82,7 +87,7 @@ def add_days(df):
 def add_gmst(df):
     from astropy import time
     g = df.groupby('datetime')
-    (timestamps, indices) = zip(*g.groups.iteritems())
+    (timestamps, indices) = list(zip(*iter(g.groups.items())))
     # this broke in pandas 0.9 with API changes
     if type(timestamps[0]) is np.datetime64: # pandas < 0.9
         times_unix = 1e-9*np.array(
@@ -99,7 +104,7 @@ def add_gmst(df):
 
 # take calibration output data frame, and make UV dictionary lookup table
 def uvdict(filename):
-    import hops
+    from . import hops
     df = hops.read_caltable(filename, sort=False)
     uvdict = {}
     for (day, hhmm, baseline, u, v) in zip(df.day, df.hhmm, df.baseline, df.u, df.v):
@@ -111,4 +116,3 @@ def uvdict(filename):
             (u, v) = (-u, -v)
         uvdict[(day, hhmm, bl)] = (u, v)
     return uvdict
-

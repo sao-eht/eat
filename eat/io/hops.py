@@ -1,10 +1,13 @@
 # I/O routines for HOPS ASCII tables
 # 2016-10-11 Lindy Blackburn
 
+from __future__ import print_function
+from builtins import zip
+from builtins import range
 from pkg_resources import parse_version
 import pandas as pd
 if parse_version(pd.__version__) < parse_version('0.15.1dev'):
-    print "pandas version too old and buggy, please update"
+    print("pandas version too old and buggy, please update")
 import datetime
 import numpy as np
 import os
@@ -241,7 +244,7 @@ def write_tlist_v6(df, out=sys.stdout):
 
 def get_alist_version(filename):
     code = (a[0] for a in open(filename) if a[0].isdigit())
-    return int(code.next())
+    return int(next(code))
 
 # read_alist automatically determine version
 # ALIST notes:
@@ -372,7 +375,7 @@ def read_caltable(filename):
 # 20: Formal Uncertainty in Gain_2 from the network solution
 # 21: chi^2 of the visibility after using the network solution (i.e., departure from self-consistent solution, in units of \sigma, squared)
 # 22. Calibrated Visibility Amplitude (Jy)
-# 23. Estimated systematic uncertainty, as a fraction of the Calibrated Visibility Amplitude (#2). 
+# 23. Estimated systematic uncertainty, as a fraction of the Calibrated Visibility Amplitude (#2).
 NETWORKSOL_FIELDS = (
     ('day', str), # day
     ('hhmm', str),
@@ -492,7 +495,6 @@ def read_bandpass(filename):
     table.columns = [a[0] for a in BANDPASS_FIELDS] + \
         ['amp_%d' % (i+1) for i in range(len(table.columns) - 5)]
     table['experiment'], table['scan'], table['filename'] = \
-        zip(*table['path'].apply(lambda x: x.split('/')))
+        list(zip(*table['path'].apply(lambda x: x.split('/'))))
     table['baseline'] = table['filename'].apply(lambda x: x[:2])
     return table
-

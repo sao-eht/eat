@@ -6,4 +6,3 @@
 .. moduleauthor:: Lindy Blackburn (lindylam@gmail.com)
 
 """
-
