@@ -7,7 +7,12 @@ HOPS utilities
 from ..io import util
 import numpy as np
 from numpy.fft import fft2, fftfreq, fftshift # for fringe fitting
-import mk4 # part of recent HOPS install, need HOPS ENV variables
+try:
+	import mk4 # part of recent HOPS install, need HOPS ENV variables
+except:
+	import warnings
+	warnings.warn("cannot import mk4 (did you run hops.bash?), mk4 file access will not work")
+	mk4 = None
 import datetime
 import ctypes
 from argparse import Namespace
@@ -69,14 +74,15 @@ def short2int(short):
     else:
         return short2int.lookup_minus_1[short]
 
-stype = dict(mk4.ch_struct._fields_)['sample_rate'] # was changed from short to ushort around Feb 2017
-short2int.lookup = {stype(i*1000000).value:i*1000000 for i in range(1024)}
-# look out for float precision error in HOPS vex parser.. appears to happen for 116.0 Ms/s
-short2int.lookup_minus_1 = {stype(i*1000000-1).value:i*1000000 for i in range(1024)}
-short2int.lookup[21632] = 117187500 # special values for ALMA full band 58.593750 MHz ("117.2" Ms/s)
-short2int.lookup[21631] = 117187500 # make sure -1 rounding error case takes priority as well
-short2int.lookup[9132] = 117187500 # full precision in OVEX
-short2int.lookup[9131] = 117187500 # -1 rounding case
+if mk4 is not None:
+	stype = dict(mk4.ch_struct._fields_)['sample_rate'] # was changed from short to ushort around Feb 2017
+	short2int.lookup = {stype(i*1000000).value:i*1000000 for i in range(1024)}
+	# look out for float precision error in HOPS vex parser.. appears to happen for 116.0 Ms/s
+	short2int.lookup_minus_1 = {stype(i*1000000-1).value:i*1000000 for i in range(1024)}
+	short2int.lookup[21632] = 117187500 # special values for ALMA full band 58.593750 MHz ("117.2" Ms/s)
+	short2int.lookup[21631] = 117187500 # make sure -1 rounding error case takes priority as well
+	short2int.lookup[9132] = 117187500 # full precision in OVEX
+	short2int.lookup[9131] = 117187500 # -1 rounding case
 
 def mk4time(time):
     return datetime.datetime.strptime("%d-%03d %02d:%02d:%02d.%06d" %
