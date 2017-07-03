@@ -24,6 +24,12 @@ def istrivial(triangle):
     locs = set((site2loc[s] for s in triangle))
     return len(locs) < 3
 
+# return True if data frame rows are uniquely identified by columns
+# e.g. check for single root_id per (timetag, baseline, polarization)
+def isunique(df, cols=['timetag', 'baseline', 'polarization']):
+	count = set(len(rows) for (name, rows) in df.groupby(cols))
+	return count == {1,}
+
 # unwrap the MBD based on the 32 MHz ambiguity in HOPS, choose value closest to SBD
 # this old version uses some old column names (instead of the HOPS code defined names)
 def unwrap_mbd_old(df, mbd_ambiguity=None):
