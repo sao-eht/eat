@@ -29,7 +29,7 @@ def istrivial(triangle):
 def unwrap_mbd_old(df, mbd_ambiguity=None):
     if mbd_ambiguity is None:      # we may want to set this manually
         mbd_ambiguity = df.mbd_amb # if alist file does not contain sufficient precision
-    offset = np.fmod(df.sbd - df.mbd + 1.5*mbd_ambiguity, mbd_ambiguity)
+    offset = np.remainder(df.sbd - df.mbd + 1.5*mbd_ambiguity, mbd_ambiguity)
     df['mbd_unwrap'] = df.sbd - offset + 0.5*mbd_ambiguity
 
 # unwrap the MBD based on the 32 MHz ambiguity, choose value closest to SBD
@@ -69,6 +69,10 @@ def add_hour(df):
         df['hour'] = df.timetag.apply(lambda x: float(x[4:6]) + float(x[6:8])/60. + float(x[8:10])/3600.)
     elif 'hhmm' in df:
         df['hour'] = df.hhmm.apply(lambda x: float(x[0:2]) + float(x[2:4])/60.)
+
+# day of year tag as integer (from timetag)
+def add_doy(df):
+    df['doy'] = df.timetag.str[:3].astype(int)
 
 # decimal days since beginning of year = (DOY - 1) + hour/24.
 def add_days(df):

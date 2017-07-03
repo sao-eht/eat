@@ -170,7 +170,7 @@ def params(b=None, pol=None):
     sbd = b.t208.contents.resid_sbd
     mbd = b.t208.contents.resid_mbd
     amb = b.t208.contents.ambiguity
-    offset = np.fmod(sbd - mbd + 1.5*amb, amb)
+    offset = (sbd - mbd + 1.5*amb) % amb
     delay = (sbd - offset + 0.5*amb) # unwrap to be close to SBD, us
     rate = b.t208.contents.resid_rate # us/s
     snr = b.t208.contents.snr
