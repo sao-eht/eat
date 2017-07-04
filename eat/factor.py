@@ -58,4 +58,9 @@ def factor(bb, weight=1.0):
     def err(sol): # closure (as in functional languages) on ref, rem, and obs
         return np.append(obs - (sol[ref] - sol[rem]), weight * sol)
 
-    return least_squares(err, sol).x
+    sol = least_squares(err, sol)
+
+    if sol.success:
+        return sol.x
+    else:
+        return None
