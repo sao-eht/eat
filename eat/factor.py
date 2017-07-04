@@ -48,7 +48,7 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
         Site-based data being factored out
 
     """
-    sites = sorted(set(bb['ref']) | set(bb['rem']))
+    sites = set(bb['ref']) | set(bb['rem'])
     map   = {s: i for i, s in enumerate(sites)}
 
     ref = np.array([map[s] for s in bb['ref']])
@@ -66,6 +66,6 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
 
     sol = least_squares(err, initial_guess)
     if sol.success:
-        return sol.x
+        return {s: sol.x[i] for i, s in enumerate(sites)}
     else:
         return None
