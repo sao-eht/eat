@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import least_squares
 
-def factor(bb):
+def factor(bb, weight=1.0):
     """
     Factor out site-based delay and rate from baseline-based slopes
 
@@ -36,10 +36,10 @@ def factor(bb):
     err[ref, rem] is invariant to a global constant offset to sol[].
     The simplest fix is to add the regularizer
 
-        w sum_sites sol^2
+        w^2 sum_sites sol^2
 
     This is equivalent to using the Tikhonov regularizer with Tikhonov
-    matrix sqrt(w) I.
+    matrix w I.
 
     Args:
         bb:    Baseline-based input data
@@ -56,6 +56,6 @@ def factor(bb):
     rem = np.array([map[s] for s in bb['rem']])
     obs = np.array(                 bb['val'] )
     def err(sol): # closure (as in functional languages) on ref, rem, and obs
-        return obs - (sol[ref] - sol[rem])
+        return np.append(obs - (sol[ref] - sol[rem]), weight * sol)
 
     return least_squares(err, sol).x
