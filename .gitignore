@@ -29,9 +29,15 @@ var/
 *.manifest
 *.spec
 
+# PyBuilder
+target/
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
 
 # Unit test / coverage reports
 htmlcov/
@@ -52,6 +58,7 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+html/
 
-# PyBuilder
-target/
+# Emacs backups
+*~
