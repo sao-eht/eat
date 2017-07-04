@@ -1,3 +1,4 @@
+import numpy as np
 from scipy.optimize import least_squares
 
 def factor(bb):
@@ -47,15 +48,14 @@ def factor(bb):
         Site-based data being factored out
 
     """
-    sites = list(set(bb['ref']) | set(bb['rem']))
-    sol   = [0.0] * len(sites)
+    sites = sorted(set(bb['ref']) | set(bb['rem']))
+    sol   = np.zeros(len(sites))
+    map   = {s: i for i, s in enumerate(sites)}
 
-    def err(sol): # closure (as in functional languages) on bb and sites
-        map = {s: i for i, s in enumerate(sites)}
-        ref = list(bb['ref'])
-        rem = list(bb['rem'])
-        val = list(bb['val'])
-        return [obs - (sol[map[ref[i]]] -
-                       sol[map[rem[i]]]) for i, obs in enumerate(val)]
+    ref = np.array([map[s] for s in bb['ref']])
+    rem = np.array([map[s] for s in bb['rem']])
+    obs = np.array(                 bb['val'] )
+    def err(sol): # closure (as in functional languages) on ref, rem, and obs
+        return obs - (sol[ref] - sol[rem])
 
     return least_squares(err, sol).x
