@@ -49,7 +49,6 @@ def factor(bb, weight=1.0):
 
     """
     sites = sorted(set(bb['ref']) | set(bb['rem']))
-    sol   = np.zeros(len(sites))
     map   = {s: i for i, s in enumerate(sites)}
 
     ref = np.array([map[s] for s in bb['ref']])
@@ -58,8 +57,8 @@ def factor(bb, weight=1.0):
     def err(sol): # closure (as in functional languages) on ref, rem, and obs
         return np.append(obs - (sol[ref] - sol[rem]), weight * sol)
 
-    sol = least_squares(err, sol)
-
+    guess = np.zeros(len(sites))
+    sol   = least_squares(err, guess)
     if sol.success:
         return sol.x
     else:
