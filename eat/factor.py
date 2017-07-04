@@ -20,8 +20,15 @@ def factor(bb):
     the baseline-based "data", therefore, is essential for developing
     new high-order image reconstruction methods.
 
-    We implement here a very general apporach to factor out site-based
-    information from baseline-based information.
+    We implement here a very general approach to factor out site-based
+    information from baseline-based information.  Let obs[] be the
+    observational data and sol[] be the solution array, the simplest
+    error function is
+
+        err[ref, rem] = obs[ref, rem] - (sol[ref] - sol[rem])
+
+    However, it is clear that sol[] is not uniquely determined because
+    err[ref, rem] is invariant to a global constant offset to sol[].
 
     Args:
         bb:    Baseline-based input data
