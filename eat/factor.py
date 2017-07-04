@@ -27,8 +27,18 @@ def factor(bb):
 
         err[ref, rem] = obs[ref, rem] - (sol[ref] - sol[rem])
 
+    so that the minimization is performed over
+
+        chi^2 = sum_baselines err[ref, rem]^2 / sigma[ref, rem]^2
+
     However, it is clear that sol[] is not uniquely determined because
     err[ref, rem] is invariant to a global constant offset to sol[].
+    The simplest fix is to add the regularizer
+
+        w sum_sites sol^2
+
+    This is equivalent to using the Tikhonov regularizer with Tikhonov
+    matrix sqrt(w) I.
 
     Args:
         bb:    Baseline-based input data
