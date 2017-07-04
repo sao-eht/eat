@@ -66,6 +66,7 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
 
     sol = least_squares(err, initial_guess)
     if sol.success:
-        return {s: sol.x[i] for i, s in enumerate(sites)}
+        v = sol.x * (regularizer_weight**2 + len(sites)) / len(sites)
+        return {s: v[i] for i, s in enumerate(sites)}
     else:
         return None
