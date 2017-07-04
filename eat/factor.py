@@ -66,7 +66,8 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
 
     sol = least_squares(err, initial_guess)
     if sol.success:
-        v = sol.x * (regularizer_weight**2 + len(sites)) / len(sites)
+        v  = sol.x * (regularizer_weight**2 + len(sites)) / len(sites)
+        v -= np.mean(v) # FIXME: is the regularizer still necessary?
         return {s: v[i] for i, s in enumerate(sites)}
     else:
         return None
