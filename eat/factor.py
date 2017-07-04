@@ -1,3 +1,5 @@
+from scipy.optimize import least_squares
+
 def factor(bb):
     """
     Factor out site-based delay and rate from baseline-based slopes
@@ -48,4 +50,12 @@ def factor(bb):
     sites = list(set(bb['ref']) | set(bb['rem']))
     sol   = [0.0] * len(sites)
 
-    return {s:sol[i] for i, s in enumerate(sites)}
+    def err(sol): # closure (as in functional languages) on bb and sites
+        map = {s: i for i, s in enumerate(sites)}
+        ref = list(bb['ref'])
+        rem = list(bb['rem'])
+        val = list(bb['val'])
+        return [obs - (sol[map[ref[i]]] -
+                       sol[map[rem[i]]]) for i, obs in enumerate(val)]
+
+    return least_squares(err, sol).x
