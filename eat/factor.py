@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import least_squares
 
-def factor(bb, regularizer_weight=1.0):
+def factor(bb, initial_guess=None, regularizer_weight=1.0):
     """
     Factor out site-based delay and rate from baseline-based slopes
 
@@ -57,8 +57,14 @@ def factor(bb, regularizer_weight=1.0):
     def err(sol): # closure (as in functional languages) on ref, rem, and obs
         return np.append(obs - (sol[ref] - sol[rem]), regularizer_weight * sol)
 
-    guess = np.zeros(len(sites))
-    sol   = least_squares(err, guess)
+    if initial_guess is None:
+        initial_guess = np.zeros(len(sites))
+    elif len(initial_guess) != len(sites):
+        raise IndexError("Lengths of initial_guess ({}) and sites ({}) "
+                         "do not match".format(len(initial_guess),
+                                               len(sites)))
+
+    sol = least_squares(err, initial_guess)
     if sol.success:
         return sol.x
     else:
