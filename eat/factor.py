@@ -5,11 +5,12 @@ from __future__ import absolute_import
 from future import standard_library
 standard_library.install_aliases()
 
+import math
 import numpy as np
 from scipy.optimize import least_squares
 
 def factor(bb, initial_guess=None,
-           regularizer='Tikhonov', regularizer_weight=1.0):
+           regularizer='Tikhonov', weight=1.0):
     """
     Factor out site-based delay and rate from baseline-based slopes
 
@@ -44,10 +45,10 @@ def factor(bb, initial_guess=None,
     err[ref, rem] is invariant to a global constant offset to sol[].
     The simplest fix is to add the regularizer
 
-        w^2 sum_feeds sol^2
+        w sum_feeds sol^2
 
     This is equivalent to using the Tikhonov regularizer with Tikhonov
-    matrix w^2 I.
+    matrix w I.
 
     Args:
         bb:    A numpy structured array or pandas dataframe of
@@ -69,7 +70,7 @@ def factor(bb, initial_guess=None,
         else:
             reg = sol if regularizer == 'Tikhonov' else np.mean(sol)
             return np.append(obs - (sol[ref] - sol[rem]),
-                             regularizer_weight * reg)
+                             math.sqrt(weight) * reg)
 
     if initial_guess is None:
         initial_guess = np.zeros(len(feeds))
@@ -81,7 +82,7 @@ def factor(bb, initial_guess=None,
     sol = least_squares(err, initial_guess)
     if sol.success:
         if regularizer == 'Tikhonov':
-            n = (regularizer_weight**2 + len(feeds)) / len(feeds)
+            n = 1.0 + weight/len(feeds)
         else:
             n = 1.0
         v  = sol.x * n
