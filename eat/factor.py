@@ -81,12 +81,12 @@ def factor(bb, initial_guess=None,
 
     sol = least_squares(err, initial_guess)
     if sol.success:
-        if regularizer == 'Tikhonov':
-            n = 1.0 + weight/len(feeds)
-        else:
-            n = 1.0
-        v  = sol.x * n
-        v -= np.mean(v) # FIXME: is the regularizer still necessary?
+        if regularizer is None:
+            v = sol.x - np.mean(sol.x)
+        elif regularizer == 'Tikhonov':
+            v = sol.x * (1.0 + weight/len(feeds))
+        else: # regularizer == 'mean'
+            v = sol.x
         return {f: v[i] for i, f in enumerate(feeds)}
     else:
         return None
