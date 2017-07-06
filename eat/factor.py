@@ -51,11 +51,14 @@ def factor(bb, initial_guess=None,
     matrix w I.
 
     Args:
-        bb:    A numpy structured array or pandas dataframe of
-               baseline-based input data
+        bb:               A numpy structured array or pandas dataframe of
+                          baseline-based input data
+        initial_guess:    Initial conditions of the minimizer
+        regularizer:      Name of the regularizer
+        weight:           Weight of the regularizer
 
     Returns:
-        A dictionary of zero-mean site-based data being factored out
+        A dictionary of site-based data being factored out
 
     """
     feeds = set(bb['ref']) | set(bb['rem'])
