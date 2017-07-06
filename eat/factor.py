@@ -7,7 +7,7 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
 
     The linear drift (slopes) of phase with frequency and time are
     usually interpreted as delays and rates, and are removed from the
-    VLBI data in fringe fitting.  Let n be the number of sites.  There
+    VLBI data in fringe fitting.  Let n be the number of feeds.  There
     are n (n-1) such slopes in total.  Using all of them, such as
     currently done in HOPS, breaks the closure relationships in
     general.
@@ -36,7 +36,7 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
     err[ref, rem] is invariant to a global constant offset to sol[].
     The simplest fix is to add the regularizer
 
-        w^2 sum_sites sol^2
+        w^2 sum_feeds sol^2
 
     This is equivalent to using the Tikhonov regularizer with Tikhonov
     matrix w I.
@@ -48,26 +48,26 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
         Site-based data being factored out
 
     """
-    sites = set(bb['ref']) | set(bb['rem'])
-    map   = {s: i for i, s in enumerate(sites)}
+    feeds = set(bb['ref']) | set(bb['rem'])
+    map   = {f: i for i, f in enumerate(feeds)}
 
-    ref = np.array([map[s] for s in bb['ref']])
-    rem = np.array([map[s] for s in bb['rem']])
+    ref = np.array([map[f] for f in bb['ref']])
+    rem = np.array([map[f] for f in bb['rem']])
     obs = np.array(                 bb['val'] )
     def err(sol): # closure (as in functional languages) on ref, rem, and obs
         return np.append(obs - (sol[ref] - sol[rem]), regularizer_weight * sol)
 
     if initial_guess is None:
-        initial_guess = np.zeros(len(sites))
-    elif len(initial_guess) != len(sites):
-        raise IndexError("Lengths of initial_guess ({}) and sites ({}) "
+        initial_guess = np.zeros(len(feeds))
+    elif len(initial_guess) != len(feeds):
+        raise IndexError("Lengths of initial_guess ({}) and feeds ({}) "
                          "do not match".format(len(initial_guess),
-                                               len(sites)))
+                                               len(feeds)))
 
     sol = least_squares(err, initial_guess)
     if sol.success:
-        v  = sol.x * (regularizer_weight**2 + len(sites)) / len(sites)
+        v  = sol.x * (regularizer_weight**2 + len(feeds)) / len(feeds)
         v -= np.mean(v) # FIXME: is the regularizer still necessary?
-        return {s: v[i] for i, s in enumerate(sites)}
+        return {f: v[i] for i, f in enumerate(feeds)}
     else:
         return None
