@@ -8,7 +8,8 @@ standard_library.install_aliases()
 import numpy as np
 from scipy.optimize import least_squares
 
-def factor(bb, initial_guess=None, regularizer_weight=1.0):
+def factor(bb, initial_guess=None,
+           regularizer='Tikhonov', regularizer_weight=1.0):
     """
     Factor out site-based delay and rate from baseline-based slopes
 
@@ -63,7 +64,12 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
     rem = np.array([map[f] for f in bb['rem']])
     obs = np.array(                 bb['val'] )
     def err(sol): # closure (as in functional languages) on ref, rem, and obs
-        return np.append(obs - (sol[ref] - sol[rem]), regularizer_weight * sol)
+        if regularizer is None:
+            return obs - (sol[ref] - sol[rem])
+        else:
+            reg = sol if regularizer == 'Tikhonov' else np.mean(sol)
+            return np.append(obs - (sol[ref] - sol[rem]),
+                             regularizer_weight * reg)
 
     if initial_guess is None:
         initial_guess = np.zeros(len(feeds))
@@ -74,7 +80,11 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
 
     sol = least_squares(err, initial_guess)
     if sol.success:
-        v  = sol.x * (regularizer_weight**2 + len(feeds)) / len(feeds)
+        if regularizer == 'Tikhonov':
+            n = (regularizer_weight**2 + len(feeds)) / len(feeds)
+        else:
+            n = 1.0
+        v  = sol.x * n
         v -= np.mean(v) # FIXME: is the regularizer still necessary?
         return {f: v[i] for i, f in enumerate(feeds)}
     else:
