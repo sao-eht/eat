@@ -46,13 +46,14 @@ def factor(bb, initial_guess=None, regularizer_weight=1.0):
         w^2 sum_feeds sol^2
 
     This is equivalent to using the Tikhonov regularizer with Tikhonov
-    matrix w I.
+    matrix w^2 I.
 
     Args:
-        bb:    Baseline-based input data
+        bb:    A numpy structured array or pandas dataframe of
+               baseline-based input data
 
     Returns:
-        Site-based data being factored out
+        A dictionary of zero-mean site-based data being factored out
 
     """
     feeds = set(bb['ref']) | set(bb['rem'])
