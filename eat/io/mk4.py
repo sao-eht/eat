@@ -1,3 +1,4 @@
+from builtins import object
 from ctypes import *
 
 mk4io = cdll.LoadLibrary('/home/lindy/hops-3.10/sub/mk4.so')
@@ -361,9 +362,6 @@ def loadsdata(filePrefix):
     mk4io.read_mk4sdata(c_char_p(filePrefix), byref(mk4p))
     return mk4p
 
-class m4view:
+class m4view(object):
     def __init__(mk4p):
         self.mk4p = mk4p
-
-
-

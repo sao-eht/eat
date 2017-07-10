@@ -309,7 +309,7 @@ class RadioastronTimeFrameOffset(Structure):
     ('dtdtau', c_double),
 ]
 
-class RadioastronAxisVectors(Structure): 
+class RadioastronAxisVectors(Structure):
     _fields_ = [
     ('X', c_double * 3),
     ('Y', c_double * 3),

@@ -4,6 +4,15 @@ HOPS utilities
 
 #2016-10-31 Lindy Blackburn
 
+from __future__ import division
+from __future__ import print_function
+
+from builtins import next
+from builtins import str
+from builtins import zip
+from builtins import range
+from builtins import object
+
 from ..io import util
 import numpy as np
 from numpy.fft import fft2, fftfreq, fftshift # for fringe fitting
@@ -58,10 +67,10 @@ def getfringefile(b=None, filelist=False, pol=None):
             return sorted(files)
         files.sort(key=os.path.getmtime)
         getfringefile.last = files[-1].split('/')
-        print files[-1]
+        print(files[-1])
         b = mk4.mk4fringe(files[-1]) # use last updated file
     return b
-    
+
 # convenience function to set "datadir" (last file) for getfringefile
 # can optionally pass expt_no and scan_id to set subdirectories
 def set_datadir(datadir, expt_no='expt_no', scan_id='scan_id'):
@@ -106,16 +115,16 @@ def pop212(b=None):
 def pop230(b=None):
     b = getfringefile(b)
     (nchan, nap, nspec) = (b.n212, b.t212[0].contents.nap, b.t230[0].contents.nspec_pts)
-    data230 = np.zeros((nchan, nap, nspec/2), dtype=np.complex128)
+    data230 = np.zeros((nchan, nap, nspec//2), dtype=np.complex128)
     for i in range(nchan): # loop over HOPS channels
         idx = b.t205.contents.ffit_chan[i].channels[0] # need to get index into mk4 chdefs
-        istart = nspec/2 if (b.t203[0].channels[idx].refsb == 'U') else 0 # USB vs LSB fixed offset
+        istart = nspec//2 if (b.t203[0].channels[idx].refsb == 'U') else 0 # USB vs LSB fixed offset
         for j in range(nap):
             # get a complete spectrum block for 1 AP at a time
             q = (mk4.complex_struct*nspec).from_address(
                 ctypes.addressof(b.t230[j+i*nap].contents.xpower))
             # type230 frequeny order appears to be [---LSB--> LO ---USB-->]
-            data230[i,j,:] = np.frombuffer(q, dtype=np.complex128, count=-1)[istart:istart+nspec/2]
+            data230[i,j,:] = np.frombuffer(q, dtype=np.complex128, count=-1)[istart:istart+nspec//2]
     return data230
 
 # populate type_120 visib data into array -- use FRINGE file, do NOT give it COREL file
@@ -137,7 +146,7 @@ def pop120(b=None):
     lastap = next(a.contents.ap for a in c.index[0].t120[c.index[0].ap_space-1:0:-1] if a)
     # require spectral type (DiFX)
     if c.index[0].t120[firstap].contents.type != '\x05':
-        raise(Exception("only supports SPECTRAL type from DiFX->Mark4"))
+        raise Exception("only supports SPECTRAL type from DiFX->Mark4")
     # this is not a great way to get nap (what if incomplete?) but nindex appears incorrect..
     (nchan, nap, nspec) = (b.n212, 1+lastap-firstap, c.t100.contents.nlags)
     data120 = np.zeros((nchan, nap, nspec), dtype=np.complex64)
@@ -153,7 +162,7 @@ def pop120(b=None):
             # type230 frequeny order appears to be [---LSB--> LO ---USB-->]
             data120[i,j,:] = np.frombuffer(q, dtype=np.complex64, count=-1)
     return data120
-     
+
 # some HOPS channel parameter info
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
@@ -167,7 +176,7 @@ def params(b=None, pol=None):
     ref_freq = b.t205.contents.ref_freq
     # dimensions -- nlags in fringe files, may be zero padded by 2x
     (nchan, nap, nlags) = (b.n212, b.t212[0].contents.nap, b.t202.contents.nlags)
-    nspec = None if not bool(b.t230[0]) else b.t230[0].contents.nspec_pts 
+    nspec = None if not bool(b.t230[0]) else b.t230[0].contents.nspec_pts
     # channel indexing
     clabel = [q.ffit_chan_id for q in b.t205.contents.ffit_chan[:nchan]]
     cidx = [q.channels[0] for q in b.t205.contents.ffit_chan[:nchan]]
@@ -191,7 +200,7 @@ def params(b=None, pol=None):
     flip = np.array([-1 if ch.refsb == 'L' else 1 for ch in cinfo])
     bw = np.array([0.5e-6 * short2int(ch.sample_rate) for ch in cinfo])
     (foffset, dfvec, frot) = (dict(), dict(), dict())
-    nlags120 = nlags/2 # guess
+    nlags120 = nlags//2 # guess
     foffset[230] = np.array([(f*np.arange(0.5, nlags)*bwn/nlags)[::f] for (f, bwn) in zip(flip, bw)])
     foffset[120] = np.array([(f*np.arange(0.5, nlags120)*bwn/nlags120)[::f] for (f, bwn) in zip(flip, bw)])
     dfvec[230] = (fedge[:,None] + foffset[230]) - ref_freq
@@ -253,7 +262,7 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
         df = df or 1
         v = pop212(b)[:,:,None]
     elif kind==230:
-        nspec = b.t230[0].contents.nspec_pts / 2 # one sideband, assume all channels are same
+        nspec = b.t230[0].contents.nspec_pts // 2 # one sideband, assume all channels are same
         df = df or 4 # speed-up if using full spectral resolution
         v = np.swapaxes(pop230(b), 1, 0)  # put AP as axis 0
         assert(v.shape == (nap, nchan, nspec))   # make sure loaded data has right dimensions
@@ -278,7 +287,7 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
         delay_off += center[0]
     if center[1] is not None:
         rate_off += center[1]
-    print "rotation subtracted from data: %.3f [ns], %.3f [ps/s]" % (delay_off, rate_off)
+    print("rotation subtracted from data: %.3f [ns], %.3f [ps/s]" % (delay_off, rate_off))
     frot = np.exp(-1j * 1e-3*delay_off * p.dfvec[kind].reshape((nchan, -1)) * 2*np.pi)
     trot = np.exp(-1j * 1e-6*rate_off * p.dtvec * 2*np.pi*p.ref_freq)
     v = v * trot[:,None,None] * frot[None,:,:]
@@ -323,7 +332,7 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
     fringepow = np.abs(fringevis)**2 # fringe power before incoherent averaging
     fringepow = fringepow / (0.5 * expmean(fringepow.ravel())) # normalize to snr=1 for noise
     fringepow = np.sum(fringepow, axis=0) # the incoherent average of fringe power
-    
+
     ns = Namespace(fringepow=fringepow, fringevis=fringevis, BW=BW, T=T, fwhm_delay=fwhm_delay, fwhm_rate=fwhm_rate,
             delay=delay, rate=rate, dd=dd, dr=dr, dt=dt, df=df, ni=ni,
             extent=(left, right, bottom, top), aspect=aspect, params=p)
@@ -349,7 +358,7 @@ def plotfringe(ns, showx=6., showy=6., center=(None, None), showhops=False, kind
     mask_rate = np.abs(rate - plot_center[1]) > showy*fwhm_rate
     fringepow[mask_rate,:] = 0 # mask power outside region of interest
     fringepow[:,mask_delay] = 0
-    print np.max(fringepow)
+    print(np.max(fringepow))
 
     plt.imshow(fringepow, cmap='jet', origin='lower', extent=extent,
         aspect=aspect, interpolation='Nearest', vmin=0)
@@ -363,7 +372,7 @@ def plotfringe(ns, showx=6., showy=6., center=(None, None), showhops=False, kind
         plt.plot(1e3*hops_delay, 1e6*hops_rate, 'kx', ms=24, mew=10)
         plt.plot(1e3*hops_delay, 1e6*hops_rate, 'wx', ms=20, mew=6)
 
-    ratio = float(showy)/showx
+    ratio = showy / showx
     plt.setp(plt.gcf(), figwidth=2.+3./np.sqrt(ratio), figheight=2.+3.*np.sqrt(ratio))
     plt.tight_layout()
 
@@ -403,17 +412,17 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
     for b in bs:
         b = getfringefile(b, pol=pol)
         if b.t208.contents.snr < snrthr:
-            print "snr %.2f, skipping" % b.t208.contents.snr
+            print("snr %.2f, skipping" % b.t208.contents.snr)
             continue
         if kind==230 and not bool(b.t230[0]):
-            print "skipping no t230"
+            print("skipping no t230")
             continue
         if kind==230:
             v = pop230(b)   # visib array (nchan, nap, nspec/2)
         elif kind==120:
             v = pop120(b)   # visib array (nchan, nap, nspec/2)
         p = params(b) # channel and fringe parameters
-        nrow = bool(timeseries) + np.int(np.ceil(float(p.nchan) / ncol))
+        nrow = bool(timeseries) + np.int(np.ceil(p.nchan / ncol))
         delay = p.delay if delay is None else delay
         rate = p.rate if rate is None else rate
         trot = np.exp(-1j * rate * p.dtvec * 2*np.pi*p.ref_freq)
@@ -470,7 +479,7 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         putil.rmgaps(1e6, 2.0)
         plt.xlim(-p.T/2., p.T/2.)
     if figsize is None:
-        plt.setp(plt.gcf(), figwidth=8, figheight=8.*float(nrow)/ncol)
+        plt.setp(plt.gcf(), figwidth=8, figheight=8.*nrow/ncol)
     else:
         plt.setp(plt.gcf(), figwidth=figsize[0], figheight=figsize[1])
 
@@ -541,11 +550,11 @@ def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None
     fqch = fftfreq(zpch) # "frequency" range of the delay space [cycles/sample_spacing]
 
     # single-channel spacing [Hz] and decimated spectral point spacing [MHz]
-    sb_spacing = np.diff(sorted(b.t203.contents.channels[i].ref_freq for i in range(nchan)))[int(nchan/2)]
+    sb_spacing = np.diff(sorted(b.t203.contents.channels[i].ref_freq for i in range(nchan)))[nchan//2]
     spec_spacing = df * 1e-6 * sb_spacing / nspec
     delay = 1e9 * fqch / (spec_spacing * 1e6) # ns
     dres = delay[1] - delay[0]
-    print dres
+    print(dres)
 
     inside = ((delay >= delayrange[0]) & (delay <= delayrange[1]))
     imax = np.argmax(np.abs(fringevis[:,inside]), axis=-1) # the maximum frequency index
@@ -637,7 +646,7 @@ def adhoc(b, pol=None):
     for i in nchan: # i is the channel to exclude in fit
         # parameters = (alpha, tau, spec)
         par = np.zeros(2 + nap)
-    raise Exception("unfinished")        
+    raise Exception("unfinished")
 
 # helper class for embedded PDF in ipython notebook
 class PDF(object):
@@ -655,4 +664,3 @@ def fplot(b=None, pol=None):
     # proc = subprocess.Popen("cat".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     out = PDF(proc.communicate(input=ps)[0])
     return out
-

@@ -1,4 +1,3 @@
-
 """
 USAGE NOTE:
 
@@ -55,8 +54,11 @@ ovex.lvex_rev
 ovex.evex_rev
 ovex.ivex_rev
 """
+from __future__ import print_function
 
 
+from builtins import range
+from builtins import object
 import numpy as np
 import re
 #import jdcal
@@ -88,7 +90,7 @@ class Ovex(object):
                 metalist.append(temp)
                 temp = [raw[j]]
             else:
-                print 'Something is wrong.'
+                print('Something is wrong.')
         metalist.append(temp) # don't forget to add the final one
         self.metalist = metalist
 
@@ -130,13 +132,13 @@ class Ovex(object):
         SOURCE = self.get_sector('SOURCE')
         source = []
         indef = False
- 
+
         for i in range(len(SOURCE)):
- 
+
             line = SOURCE[i]
             if line[0:3]=="def":
                 indef=True
- 
+
             if indef:
                 ret = self.get_variable("source_name",line)
                 if len(ret)>0: source_name = ret
@@ -146,11 +148,11 @@ class Ovex(object):
                 if len(ret)>0: dec = ret
                 ret = self.get_variable("ref_coord_frame",line)
                 if len(ret)>0: ref_coord_frame = ret
- 
+
                 if line[0:6]=="enddef":
                     source.append({'source':source_name,'ra':ra,'dec':dec,'ref_coord_frame':ref_coord_frame})
                     indef=False
- 
+
         self.source = source
 
 
@@ -199,27 +201,27 @@ class Ovex(object):
         indef = False
 
         for i in range(len(SITE)):
- 
+
             line = SITE[i]
             if line[0:3]=="def": indef=True
- 
+
             if indef:
                 # get site_name
                 ret = self.get_variable("site_name",line)
                 if len(ret)>0:
                     site_name = ret
- 
+
                 # get site_ID and make dictionrary for site_ID <-> site_name
                 ret = self.get_variable("site_ID",line)
                 if len(ret)>0:
                     site_ID = ret
                     site_ID_dict[ret] = site_name
- 
+
                 # get site_position
                 ret = self.get_variable("site_position",line)
                 if len(ret)>0:
                     site_position = re.findall("[-+]?\d+[\.]?\d*",line)
- 
+
                 # get mk4_site_ID
                 ret = self.get_variable("mk4_site_ID",line)
                 if len(ret)>0:
@@ -238,9 +240,9 @@ class Ovex(object):
         SCHED = self.get_sector('SCHED')
         sched = []
         inscan = False
- 
+
         for i in range(len(SCHED)):
- 
+
             line = SCHED[i]
             if line[0:4]=="scan":
                 inscan=True
@@ -248,7 +250,7 @@ class Ovex(object):
 		temp['scan_number'] = re.findall("[-+]?\d+[\.]?\d*",line)
 		temp['scan']={}
 		cnt = 0
- 
+
             if inscan:
                 ret = self.get_variable("start",line)
                 if len(ret)>0:
@@ -259,10 +261,10 @@ class Ovex(object):
 
                 ret = self.get_variable("mode",line)
                 if len(ret)>0: temp['mode'] = ret
- 
+
                 ret = self.get_variable("source",line)
                 if len(ret)>0: temp['source'] = ret
- 
+
                 ret = self.get_variable("station",line)
                 if len(ret)>0:
                     site_ID = ret
@@ -273,7 +275,7 @@ class Ovex(object):
                     d_size = float(sdur[2]) # data size(?) in GB
                     temp['scan'][cnt] = {'site':site_name,'scan_sec_start':s_st,'scan_sec':s_en,'data_size':d_size}
                     cnt +=1
- 
+
                 if line[0:7]=="endscan":
                     sched.append(temp)
                     inscan=False
@@ -333,7 +335,7 @@ class Ovex(object):
         for i in range(len(self.metalist)):
             if sname in self.metalist[i][0]:
                 return self.metalist[i]
-        print 'No sector named %s'%sname
+        print('No sector named %s'%sname)
         return False
 
     # Function to get a value of 'vname' in a line which has format of
@@ -408,16 +410,3 @@ class Ovex(object):
 	    if invar == False and line[i]!=' ': invar = True
 	    if invar==True: var2 += line[i]
 	return var1,var2
-	
-
-
-
-
-
-
-
-
-
-
-
-

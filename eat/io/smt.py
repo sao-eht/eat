@@ -1,10 +1,16 @@
 """EHT tables
 """
+from __future__ import division
+from __future__ import print_function
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import zip
+from builtins import map
 from pkg_resources import parse_version
 import pandas as pd
 if parse_version(pd.__version__) < parse_version('0.15.1dev'):
-    print "pandas version too old and buggy, please update"
+    print("pandas version too old and buggy, please update")
 import datetime
 import numpy as np
 import os
@@ -113,7 +119,7 @@ def sddscantimes(filename):
         tok = line.strip().split()
         if tok[0] == "scan":
             tok[1] = tok[1][:-4]
-            (scan, chan) = map(int, tok[1].split('.'))
+            (scan, chan) = list(map(int, tok[1].split('.')))
         elif tok[0] == "utdate":
             utdate = datetime.datetime.strptime(tok[1], "%Y.%m%d00")
         elif tok[0] == "ut":
@@ -126,9 +132,9 @@ def sddscantimes(filename):
 # from unipops sdd text file, extract certain parameters from class and put them in a big table
 # column def will be {Class ID}_{field}
 # the index will have Class ID = 0
-def sddfile(filename, 
+def sddfile(filename,
             cols='c1_scan c1_object c1_obsmode c3_utdate c3_ut c5_tamb c12_tcal c12_stsys c12_rtsys c12_tauh2o'.split()):
-    import StringIO
+    import io
     out = []
     f = open(filename)
     classno = 'B' # classno of bootstrap
@@ -147,7 +153,7 @@ def sddfile(filename,
             fields['c%s_%s' % (classno, tok[0])] = tok[1]
     # last entry
     out.append(",".join((fields[col] for col in cols))) # print out previous scan
-    table = pd.read_csv(StringIO.StringIO("\n".join(out)), names=cols, header=None, dtype={'c3_utdate':str})
+    table = pd.read_csv(io.StringIO("\n".join(out)), names=cols, header=None, dtype={'c3_utdate':str})
     if 'c1_scan' in cols:
         table['scan'] = [int(0.5+scan) for scan in table.c1_scan]
         table['channel'] = [int(0.5+100*(scan - int(scan))) for scan in table.c1_scan]
@@ -184,7 +190,7 @@ def tpreduce(tp):
         out = OrderedDict()
         out['datetime_start'] = tpgroup.datetime.iloc[0]
         out['datetime_stop'] = tpgroup.datetime.iloc[-1]
-        out['datetime'] = out['datetime_start'] + (out['datetime_stop'] - out['datetime_start'])/2
+        out['datetime'] = out['datetime_start'] + (out['datetime_stop'] - out['datetime_start'])/2.
         out['state'] = tpgroup.state.iloc[0]
         out['n'] = tpgroup.n.iloc[0]
         fmap = defaultdict(lambda: np.mean)
@@ -205,7 +211,7 @@ def group(df, col):
         out = OrderedDict()
         out['datetime_start'] = subgroup.datetime.iloc[0]
         out['datetime_stop'] = subgroup.datetime.iloc[-1]
-        out['datetime'] = out['datetime_start'] + (out['datetime_stop'] - out['datetime_start'])/2
+        out['datetime'] = out['datetime_start'] + (out['datetime_stop'] - out['datetime_start'])/2.
         out[col] = subgroup[col].iloc[0]
         # Series does not work here because cannot prevent pandas from converting str columns to Timestamp
         # gets a multiindex -- probably can reduce somehow but oh well
@@ -213,7 +219,7 @@ def group(df, col):
         return pd.DataFrame(out, index=subgroup.index[:1])
     h = g.apply(vagg)
     return h
-    
+
 # get a date range from current x limits in matplotlib
 def xlim2range(ax=None):
     if ax is None:
@@ -237,5 +243,3 @@ def tp2tsys(tp, trec=100., thot=284.8, tcal3=284., tcal7=284.):
     tsys3 = tcal3 * (v3s / (v3h - v3s))
     tsys7 = tcal7 * (v7s / (v7h - v7s))
     return tsys3, tsys7
-
-
