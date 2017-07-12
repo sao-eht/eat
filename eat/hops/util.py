@@ -247,12 +247,14 @@ def expmean(x, s=8, n=4): # robust mean of exponential distribution
 # ni: number of incoherent averages (1=scan average)
 # ret: return the full FFT power matrix & other info if true and do not plot anything
 # segment: (start_ap, stop_ap) over which to search, slice-like syntax: e.g. (10,-10)
+# channels: (start_ch, stop_ch) over which to search, slice-like syntax: e.g. (0, None)
 # unrotate_212: unrotate the fourfit soln from the 212 data before fringe search
 # delay_off, rate_off: subtract this from the data before doing search
 # manual offsets will show up in axis labels, automatic offsets (from centering) will not
 def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None, None),
                dt=2, df=None, ni=1, ret=False, showhops=False,
-               delay_off=0., rate_off=0., flip=False, segment=(None, None), pol=None, unrotate_212=True):
+               delay_off=0., rate_off=0., flip=False, segment=(None, None), channels=(None,None),
+               pol=None, unrotate_212=True):
     b = getfringefile(fringefile, pol=pol)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
@@ -294,7 +296,8 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
     v = v * trot[:,None,None] * frot[None,:,:]
 
     v = v[slice(*segment)] # apply time segment cut
-    nap = len(v)      # number of AP's inside time segment
+    v = v[:,slice(*channels),:] # apply channel cut
+    (nap, nchan, nspec) = v.shape  # dimensions of data
     clip = np.fmod(nap, dt*ni) # fit ni non-overlapping time segments after decimation
     if clip > 0: # remove small amount of end data for equal segments
         nap = nap-clip
