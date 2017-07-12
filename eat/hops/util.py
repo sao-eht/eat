@@ -8,7 +8,8 @@ from __future__ import division
 from __future__ import print_function
 
 from builtins import next
-from builtins import str
+# from builtins import str
+str = type('') # python 2-3 compatibility issues
 from builtins import zip
 from builtins import range
 from builtins import object
@@ -300,7 +301,7 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
         v = v[:nap]
 
     # block averaging factors to speedup, make sure no phase wrap!
-    v = v.reshape((ni, nap/dt/ni, dt, nchan*nspec/df, df))
+    v = v.reshape((ni, nap//dt//ni, dt, nchan*nspec//df, df))
     v = v.sum(axis=(2, 4)) # stack on time, and frequency decimation factors
 
     # the normalized complex visibility and FFT search delay/rate
@@ -491,7 +492,7 @@ def vecplot(vs, dtvec, dfvec, delay, rate, ref_freq, dt=1, df=1):
     (nt, nf) = vrot.shape
     nt = nt - np.fmod(nt, dt) # fit time segments after decimation
     vrot = vrot[:nt,:]
-    vrot = vrot.reshape((nt/dt, dt, nf/df, df))
+    vrot = vrot.reshape((nt//dt, dt, nf//df, df))
     vrot = vrot.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
     plt.plot([0,0], [vrot.re, vrot.im], 'b.-', alpha=0.25)
     vtot = np.sum(vrot) / len(vrot.ravel())
@@ -508,7 +509,7 @@ def timeseries(bs, dt=1):
         nt = len(v)
         dt = min(dt, nt)
         nt = nt - np.fmod(nt, dt) # fit time segments after decimation
-        v = v[:nt].reshape((nt/dt, -1)).sum(axis=1) # clip to multiple of dt and stack
+        v = v[:nt].reshape((nt//dt, -1)).sum(axis=1) # clip to multiple of dt and stack
         t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1) + p.T/2.
         amp = np.abs(v)
         phase = np.angle(v)
@@ -541,7 +542,7 @@ def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None
         v = v[:nap]
 
     # block averaging factors to speedup, make sure no phase wrap!
-    v = v.reshape((nap/dt, dt, nchan*nspec/df, df))
+    v = v.reshape((nap/dt, dt, nchan*nspec//df, df))
     v = v.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
 
     # the normalized complex visibility and FFT search delay/rate
