@@ -14,9 +14,13 @@ def test_factor():
     sb = {s:r[i] for i, s in enumerate(sites)}
 
     # Generate baseline-based rates/delays using `sb`
-    bb = np.array([(ref, rem, sb[ref] - sb[rem]) for ref in sites
-                                                 for rem in sites if rem > ref],
-                  dtype=[('ref', 'U3'), ('rem', 'U2'), ('val', 'f16')])
+    bb = np.array([(ref, rem, sb[ref] - sb[rem], 1.0)
+                   for ref in sites
+                   for rem in sites if rem > ref],
+                  dtype=[('ref', 'U3'),
+                         ('rem', 'U2'),
+                         ('val', 'f16'),
+                         ('err', 'f16')])
 
     # Use `eat.factor()` to factor out site-based delays/rates from
     # baseline-based delays/ratse
