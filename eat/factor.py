@@ -67,7 +67,10 @@ def factor(bb, initial_guess=None,
     ref = np.array([fmap[f] for f in bb['ref']])
     rem = np.array([fmap[f] for f in bb['rem']])
     obs = np.array(                  bb['val'] )
-    err = np.array(                  bb['err'] )
+    try:
+        err = np.array(bb['err'])
+    except:
+        err = 1.0
     def regchi(sol):
         # closure (as in functional languages) on ref, rem, obs, and err
         chi = (obs - (sol[ref] - sol[rem])) / err
