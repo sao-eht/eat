@@ -92,7 +92,7 @@ def factor(bb, initial_guess=None,
         if regularizer is None:
             v = sol.x - np.mean(sol.x)
         elif regularizer == 'Tikhonov':
-            v = sol.x * (1.0 + weight/len(feeds))
+            v = sol.x * (1.0 + weight/len(sol.x))
         else: # regularizer == 'mean'
             v = sol.x
         return {f: v[i] for i, f in enumerate(feeds)}
