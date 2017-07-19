@@ -6,4 +6,4 @@
 .. moduleauthor:: Lindy Blackburn (lindylam@gmail.com)
 
 """
-from .factor import *
+from . import *
