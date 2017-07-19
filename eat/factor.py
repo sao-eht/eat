@@ -12,7 +12,7 @@ from scipy.optimize import least_squares
 def factor(bb, initial_guess=None,
            regularizer='Tikhonov', weight=1.0):
     """
-    Factor out site-based delay and rate from baseline-based slopes
+    Factor out site-based delays and rates from baseline-based slopes
 
     The linear drift (slopes) of phase with frequency and time are
     usually interpreted as delays and rates, and are removed from the
