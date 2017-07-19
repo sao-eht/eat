@@ -12,7 +12,7 @@ from scipy.optimize import least_squares
 def factor(bb, initial_guess=None,
            regularizer='Tikhonov', weight=1.0):
     """
-    Factor out site-based delays and rates from baseline-based slopes
+    Factor out site-based delay and rate from baseline-based slopes
 
     The linear drift (slopes) of phase with frequency and time are
     usually interpreted as delays and rates, and are removed from the
@@ -62,11 +62,11 @@ def factor(bb, initial_guess=None,
 
     """
     feeds = set(bb['ref']) | set(bb['rem'])
-    map   = {f: i for i, f in enumerate(feeds)}
+    fmap  = {f: i for i, f in enumerate(feeds)}
 
-    ref = np.array([map[f] for f in bb['ref']])
-    rem = np.array([map[f] for f in bb['rem']])
-    obs = np.array(                 bb['val'] )
+    ref = np.array([fmap[f] for f in bb['ref']])
+    rem = np.array([fmap[f] for f in bb['rem']])
+    obs = np.array(                  bb['val'] )
     def err(sol): # closure (as in functional languages) on ref, rem, and obs
         if regularizer is None:
             return obs - (sol[ref] - sol[rem])
