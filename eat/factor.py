@@ -67,13 +67,15 @@ def factor(bb, initial_guess=None,
     ref = np.array([fmap[f] for f in bb['ref']])
     rem = np.array([fmap[f] for f in bb['rem']])
     obs = np.array(                  bb['val'] )
-    def err(sol): # closure (as in functional languages) on ref, rem, and obs
+    err = np.array(                  bb['err'] )
+    def regchi(sol):
+        # closure (as in functional languages) on ref, rem, obs, and err
+        chi = (obs - (sol[ref] - sol[rem])) / err
         if regularizer is None:
-            return obs - (sol[ref] - sol[rem])
+            return chi
         else:
             reg = sol if regularizer == 'Tikhonov' else np.mean(sol)
-            return np.append(obs - (sol[ref] - sol[rem]),
-                             math.sqrt(weight) * reg)
+            return np.append(chi, math.sqrt(weight) * reg)
 
     if initial_guess is None:
         initial_guess = np.zeros(len(feeds))
@@ -82,7 +84,7 @@ def factor(bb, initial_guess=None,
                          "do not match".format(len(initial_guess),
                                                len(feeds)))
 
-    sol = least_squares(err, initial_guess)
+    sol = least_squares(regchi, initial_guess)
     if sol.success:
         if regularizer is None:
             v = sol.x - np.mean(sol.x)
