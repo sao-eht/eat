@@ -1,3 +1,4 @@
+import random
 import pandas as pd
 import numpy  as np
 from ..factor import *
@@ -14,7 +15,7 @@ def test_factor():
     sb = {s:r[i] for i, s in enumerate(sites)}
 
     # Generate baseline-based rates/delays using `sb`
-    bb = np.array([(ref, rem, sb[ref] - sb[rem], 1.0)
+    bb = np.array([(ref, rem, sb[ref] - sb[rem], random.random())
                    for ref in sites
                    for rem in sites if rem > ref],
                   dtype=[('ref', 'U3'),
@@ -24,7 +25,7 @@ def test_factor():
 
     # Use `eat.factor()` to factor out site-based delays/rates from
     # baseline-based delays/ratse
-    sol = factor(bb, regularizer=None, weight=10.0)
+    sol = factor(bb)
     assert sol is not None
 
     # The solution is in general different from the original
