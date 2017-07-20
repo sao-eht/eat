@@ -2,34 +2,48 @@
 
 # close ALIST and create HOPS control file steered to global solution
 # 2016-10-11 Lindy Blackburn
+# 2017-07-20 Lindy Blackburn & CK Chan - update for 2015+ data
 
 from eat.io import hops, util
 import numpy as np
 from scipy.optimize import least_squares
+from itertools import chain
 import pandas as pd
 import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist txt file')
+parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=3e-6)
+parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
+parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=20e-6)
+parser.add_argument('-sw', '--sigmas_to_window', help='sigmas to window for both delay and rate', type=float, default=0)
+parser.add_argument('-dw', '--delay_window', help='fixed delay window to apply in [us]', type=float, default=0)
+parser.add_argument('-rw', '--rate_window', help='fixed rate window to apply in [ps/s]', type=float, default=0)
 args = parser.parse_args()
-
-# stations grouped according to having related fringe parameters
-sites = ['DEFG', 'JPQ', 'ST', 'A']
-dishes = ['DE', 'FG', 'J', 'PQ', 'ST', 'A']
-feeds = [l for l in "DEFGJPQSTA"]
-# reverse index of lookup for single dish station code
-isite = {f:i for i, flist in enumerate(sites) for f in flist}
-idish = {f:i for i, flist in enumerate(dishes) for f in flist}
-ifeed = {f:i for i, f in enumerate(feeds)}
 
 # read alist file (autodetect version 5 or 6)
 a = hops.read_alist(args.filename)
+
+# stations grouped according to having related fringe parameters
+if int(a.iloc[0].year) <= 2013:
+    dishes = ['DE', 'FG', 'J', 'PQ', 'ST', 'A']
+    feeds = [l for l in "DEFGJPQSTA"]
+else:
+    # ['J', 'L', 'S', 'Z']
+    dishes = sorted(set(chain(*a.baseline)))
+    # [('L', 'L'), ('L', 'R'), ('S', 'L'), ('S', 'R'), ('Z', 'L'), ('Z', 'R')]
+    feeds = sorted(set(chain(*[zip(*q) for q in zip(a.baseline, a.polarization)])))
+
+# reverse index of lookup for single dish station code
+idish = {f:i for i, flist in enumerate(dishes) for f in flist}
+ifeed = {f:i for i, f in enumerate(feeds)}
 
 # unwrap mbd to be aligned to sbd
 util.unwrap_mbd(a)
 
 # add delay and rate errors, with systematic limits on resolution
-util.add_delayerr(a, mbd_systematic=0.000010, rate_systematic=0.001)
+util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_error,
+                     crosspol_systematic=args.crosspol_delay_error)
 
 # least squares objective function: (predict - model) / std
 # par is a list of the mdoel parameters fit against alldata and allerr
@@ -40,10 +54,14 @@ def errfunc(par, idx1, idx2, alldata, allerr):
     return (alldata - model) / allerr
 
 # indices for unique feeds/dishes
-a['ifeed0'] = [ifeed[bl[0]] for bl in a.baseline]
-a['ifeed1'] = [ifeed[bl[1]] for bl in a.baseline]
 a['idish0'] = [idish[bl[0]] for bl in a.baseline]
 a['idish1'] = [idish[bl[1]] for bl in a.baseline]
+if int(a.iloc[0].year) <= 2013:
+    a['ifeed0'] = [ifeed[bl[0]] for bl in a.baseline]
+    a['ifeed1'] = [ifeed[bl[1]] for bl in a.baseline]
+else:
+    a['ifeed0'] = [ifeed[(bl[0], pol[0])] for (bl, pol) in zip(a.baseline, a.polarization)]
+    a['ifeed1'] = [ifeed[(bl[1], pol[1])] for (bl, pol) in zip(a.baseline, a.polarization)]
 
 g = a.groupby('scan_id')
 scans = sorted(set(a.scan_id))
