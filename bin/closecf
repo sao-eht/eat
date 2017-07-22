@@ -10,12 +10,14 @@ from scipy.optimize import least_squares
 from itertools import chain
 import pandas as pd
 import argparse
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist txt file')
 parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=3e-6)
 parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
 parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=20e-6)
+parser.add_argument('-pp', '--polarization_products', help='separate delays by polarization product', action='store_true')
 parser.add_argument('-sw', '--sigmas_to_window', help='sigmas to window for both delay and rate', type=float, default=0)
 parser.add_argument('-dw', '--delay_window', help='fixed delay window to apply in [us]', type=float, default=0)
 parser.add_argument('-rw', '--rate_window', help='fixed rate window to apply in [ps/s]', type=float, default=0)
@@ -28,11 +30,14 @@ a = hops.read_alist(args.filename)
 if int(a.iloc[0].year) <= 2013:
     dishes = ['DE', 'FG', 'J', 'PQ', 'ST', 'A']
     feeds = [l for l in "DEFGJPQSTA"]
-else:
+elif args.polarization_products:
     # ['J', 'L', 'S', 'Z']
     dishes = sorted(set(chain(*a.baseline)))
     # [('L', 'L'), ('L', 'R'), ('S', 'L'), ('S', 'R'), ('Z', 'L'), ('Z', 'R')]
     feeds = sorted(set(chain(*[zip(*q) for q in zip(a.baseline, a.polarization)])))
+else:
+    dishes = sorted(set(chain(*a.baseline)))
+    feeds = dishes
 
 # reverse index of lookup for single dish station code
 idish = {f:i for i, flist in enumerate(dishes) for f in flist}
@@ -59,9 +64,12 @@ a['idish1'] = [idish[bl[1]] for bl in a.baseline]
 if int(a.iloc[0].year) <= 2013:
     a['ifeed0'] = [ifeed[bl[0]] for bl in a.baseline]
     a['ifeed1'] = [ifeed[bl[1]] for bl in a.baseline]
-else:
+elif args.polarization_products:
     a['ifeed0'] = [ifeed[(bl[0], pol[0])] for (bl, pol) in zip(a.baseline, a.polarization)]
     a['ifeed1'] = [ifeed[(bl[1], pol[1])] for (bl, pol) in zip(a.baseline, a.polarization)]
+else:
+    a['ifeed0'] = [ifeed[bl[0]] for bl in a.baseline]
+    a['ifeed1'] = [ifeed[bl[1]] for bl in a.baseline]
 
 g = a.groupby('scan_id')
 scans = sorted(set(a.scan_id))
@@ -92,9 +100,21 @@ for scan in scans:
 util.rewrap_mbd(a)
 
 # print out FF control file
-g = a.groupby('timetag')
 
-for (scan, b) in g:
-    for c in b.itertuples():
-        print("if scan %s and baseline %s sb_win %8.5f %8.5f mb_win %8.5f %8.5f dr_win %14.11f %14.11f" %
-            (c.timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate))
+if args.polarization_products:
+    for pp in set(a.polarization):
+        out = open('%s.closecf.%s' % (os.path.split(args.filename)[-1], pp), 'w')
+        app = a[a.polarization == pp]
+        g = app.groupby('timetag')
+        for (scan, b) in g:
+            for c in b.itertuples():
+                out.write("if scan %s and baseline %s sb_win %9.6f %9.6f mb_win %9.6f %9.6f dr_win %15.12f %15.12f\n" %
+                    (c.timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate))
+        out.close()
+else:
+    g = a.groupby('timetag')
+    for (scan, b) in g:
+        for c in b.itertuples():
+            print("if scan %s and baseline %s sb_win %9.6f %9.6f mb_win %9.6f %9.6f dr_win %15.12f %15.12f" %
+                (c.timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate))
+
