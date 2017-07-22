@@ -33,9 +33,9 @@ import glob
 import os
 
 # convenient reduces columns to print
-showcol = "datetime timetag scan_id source baseline band polarization amp snr phase_deg delay_rate".split()
+showcol_v5 = "datetime timetag scan_id source baseline band polarization amp snr phase_deg delay_rate".split()
 # parity columns which should be flipped if baseline is flipped
-flipcol = "phase_deg sbdelay mbdelay delay_rate u v ecphase delay_rate total_phas total_rate total_mbdelay total_sbresid".split()
+flipcol_v5 = "phase_deg sbdelay mbdelay delay_rate u v ecphase delay_rate total_phas total_rate total_mbdelay total_sbresid".split()
 
 def getpolarization(f):
     b = mk4.mk4fringe(f)
