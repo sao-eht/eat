@@ -47,13 +47,14 @@ def unwrap_mbd_old(df, mbd_ambiguity=None):
 def unwrap_mbd(df, mbd_ambiguity=None):
     if mbd_ambiguity is None:      # we may want to set this manually
         mbd_ambiguity = df.ambiguity # if alist file does not contain sufficient precision
-    offset = np.fmod(df.sbdelay - df.mbdelay + 1.5*mbd_ambiguity, df.ambiguity)
+    offset = np.remainder(df.sbdelay - df.mbdelay + 1.5*mbd_ambiguity, df.ambiguity)
     df['mbd_unwrap'] = df.sbdelay - offset + 0.5*mbd_ambiguity
 
 # rewrap the MBD based on the 32 MHz ambiguity, choose value within +/-ambiguity window
-def rewrap_mbd(df):
-    mbd_ambiguity = 1. / 32. # us
-    df['mbdelay'] = np.fmod(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
+def rewrap_mbd(df, mbd_ambiguity=None):
+    if mbd_ambiguity is None:      # we may want to set this manually
+        mbd_ambiguity = df.ambiguity # if alist file does not contain sufficient precision
+    df['mbdelay'] = np.remainder(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
 
 # add statistical error from fitting straight lines here, note no systematics!
 # this is re-derived and close in spirit to the code in fourfit/fill_208.c
@@ -61,7 +62,8 @@ def rewrap_mbd(df):
 # add some sytematic errors in quadrature.. (alist precision, linear approx systematics..)
 # bw: bw spread in MHz (not in alist..) default: guess based on ambiguity and freq code
 # mbd_systematic, rate_systematic: added in quadrature to statistical error (us, ps/s)
-def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001):
+# crosspol_systematic: added in quadrature to delay error for cross polarization products
+def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001, crosspol_systematic=0.):
     if bw is None:
         nchan = pd.to_numeric(df.freq_code.str[1:])
         sbw   = 1./pd.to_numeric(df.ambiguity) # bw of single channel
@@ -70,7 +72,8 @@ def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001):
         bw = nchan * sbw # assume contiguous channels, not always correct
     df['mbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * bw) # us
     df['rate_err'] = 1e6 * np.sqrt(12) / (2*np.pi * df.ref_freq * df.snr * df.duration) # us/s -> ps/s
-    df['mbd_err'] = np.sqrt(df['mbd_err']**2 + mbd_systematic**2)
+    df['mbd_err'] = np.sqrt(df['mbd_err']**2 + mbd_systematic**2 +
+                            crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
     df['rate_err'] = np.sqrt(df['rate_err']**2 + rate_systematic**2)
 
 # add a path to each alist line for easier finding
