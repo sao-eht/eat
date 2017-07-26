@@ -25,6 +25,7 @@ args = parser.parse_args()
 
 # read alist file (autodetect version 5 or 6)
 a = hops.read_alist(args.filename)
+a = a[a.snr > 7] # loss function not super robust..
 
 # stations grouped according to having related fringe parameters
 if int(a.iloc[0].year) <= 2013:
@@ -49,6 +50,9 @@ util.unwrap_mbd(a)
 # add delay and rate errors, with systematic limits on resolution
 util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_error,
                      crosspol_systematic=args.crosspol_delay_error)
+
+# extra error for JS baseline
+a['mbd_err'] = np.sqrt(a['mbd_err']**2 + 50e-6**2*(a.baseline.str.contains('J') & a.baseline.str.contains('S')))
 
 # least squares objective function: (predict - model) / std
 # par is a list of the mdoel parameters fit against alldata and allerr
@@ -90,10 +94,10 @@ for scan in scans:
     # but it looks like scipy just supports a single float
     fit_mbd = least_squares(errfunc, np.zeros(len(feeds)),
                             args=(b.ifeed0, b.ifeed1, b.mbd_unwrap, b.mbd_err),
-                            loss='arctan', f_scale=6).x
+                            loss='linear', f_scale=6).x
     fit_rate = least_squares(errfunc, np.zeros(len(dishes)),
                             args=(b.idish0, b.idish1, b.delay_rate, b.rate_err),
-                            loss='arctan', f_scale=6).x
+                            loss='linear', f_scale=6).x
     a.ix[idx,'mbd_unwrap'] = fit_mbd[b.ifeed0] - fit_mbd[b.ifeed1]
     a.ix[idx,'delay_rate'] = fit_rate[b.idish0] - fit_rate[b.idish1]
 
