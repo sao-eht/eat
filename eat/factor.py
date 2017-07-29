@@ -9,8 +9,7 @@ import math
 import numpy as np
 from scipy.optimize import least_squares
 
-def factor(bb, initial_guess=None,
-           regularizer='Tikhonov', weight=1.0):
+def factor(bb, initial_guess=None, weight=1.0):
     """
     Factor out site-based delay and rate from baseline-based slopes
 
@@ -35,26 +34,22 @@ def factor(bb, initial_guess=None,
     observational data and sol[] be the solution array, the simplest
     error function is
 
-        err[ref, rem] = obs[ref, rem] - (sol[ref] - sol[rem])
+        chi[ref, rem] = obs[ref, rem] - (sol[ref] - sol[rem])
 
     so that the minimization is performed over
 
-        chi^2 = sum_baselines err[ref, rem]^2 / sigma[ref, rem]^2
+        chi^2 = sum_baselines chi[ref, rem]^2 / sigma[ref, rem]^2
 
     However, it is clear that sol[] is not uniquely determined because
-    err[ref, rem] is invariant to a global constant offset to sol[].
+    chi[ref, rem] is invariant to a global constant offset to sol[].
     The simplest fix is to add the regularizer
 
-        w sum_feeds sol^2
-
-    This is equivalent to using the Tikhonov regularizer with Tikhonov
-    matrix w I.
+        w mean(sol)^2
 
     Args:
         bb:               A numpy structured array or pandas dataframe of
                           baseline-based input data
         initial_guess:    Initial conditions of the minimizer
-        regularizer:      Name of the regularizer
         weight:           Weight of the regularizer
 
     Returns:
@@ -62,18 +57,19 @@ def factor(bb, initial_guess=None,
 
     """
     feeds = set(bb['ref']) | set(bb['rem'])
-    map   = {f: i for i, f in enumerate(feeds)}
+    fmap  = {f: i for i, f in enumerate(feeds)}
 
-    ref = np.array([map[f] for f in bb['ref']])
-    rem = np.array([map[f] for f in bb['rem']])
-    obs = np.array(                 bb['val'] )
-    def err(sol): # closure (as in functional languages) on ref, rem, and obs
-        if regularizer is None:
-            return obs - (sol[ref] - sol[rem])
-        else:
-            reg = sol if regularizer == 'Tikhonov' else np.mean(sol)
-            return np.append(obs - (sol[ref] - sol[rem]),
-                             math.sqrt(weight) * reg)
+    ref = np.array([fmap[f] for f in bb['ref']])
+    rem = np.array([fmap[f] for f in bb['rem']])
+    obs = np.array(                  bb['val'] )
+    try:
+        err = np.array(bb['err'])
+    except:
+        err = 1.0
+    def regchi(sol):
+        # closure (as in functional languages) on ref, rem, obs, and err
+        return np.append((obs - (sol[ref] - sol[rem])) / err,
+                         math.sqrt(weight) * np.mean(sol))
 
     if initial_guess is None:
         initial_guess = np.zeros(len(feeds))
@@ -82,14 +78,8 @@ def factor(bb, initial_guess=None,
                          "do not match".format(len(initial_guess),
                                                len(feeds)))
 
-    sol = least_squares(err, initial_guess)
+    sol = least_squares(regchi, initial_guess)
     if sol.success:
-        if regularizer is None:
-            v = sol.x - np.mean(sol.x)
-        elif regularizer == 'Tikhonov':
-            v = sol.x * (1.0 + weight/len(feeds))
-        else: # regularizer == 'mean'
-            v = sol.x
-        return {f: v[i] for i, f in enumerate(feeds)}
+        return {f: sol.x[i] for i, f in enumerate(feeds)}
     else:
         return None
