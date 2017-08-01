@@ -545,7 +545,7 @@ def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None
         v = v[:nap]
 
     # block averaging factors to speedup, make sure no phase wrap!
-    v = v.reshape((nap/dt, dt, nchan*nspec//df, df))
+    v = v.reshape((nap//dt, dt, nchan*nspec//df, df))
     v = v.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
 
     # the normalized complex visibility and FFT search delay/rate
