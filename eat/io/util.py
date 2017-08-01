@@ -14,7 +14,7 @@ import datetime
 import numpy as np
 import os
 
-# stations grouped according to having related fringe parameters
+# stations grouped according to having related fringe parameters (2013)
 sites = ['DEFG', 'JPQ', 'ST', 'A']
 locations = ['C', 'H', 'Z', 'A']
 dishes = ['DE', 'FG', 'J', 'PQ', 'ST', 'A']
@@ -76,6 +76,10 @@ def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001, cr
                             crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
     df['rate_err'] = np.sqrt(df['rate_err']**2 + rate_systematic**2)
 
+# add unique ID tuple to data frame based on columns
+def add_id(df, col=['timetag', 'baseline', 'polarization']):
+    df['id'] = list(zip(*[df[c] for c in col]))
+
 # add a path to each alist line for easier finding
 def add_path(df):
     df['path'] = ['%s/%s/%s.%.1s.%s.%s' % par for par in zip(df.expt_no, df.scan_id, df.baseline, df.freq_code, df.extent_no, df.root_id)]
@@ -117,6 +121,11 @@ def add_gmst(df):
     df['gmst'] = 0. # initialize new column
     for (gmst, idx) in zip(times_gmst, indices):
         df.ix[idx, 'gmst'] = gmst
+
+# remove autocorrelations from data frame
+def noauto(df):
+    auto = df.baseline.str[0] == df.baseline.str[1]
+    return df[~auto].copy()
 
 # take calibration output data frame, and make UV dictionary lookup table
 def uvdict(filename):
