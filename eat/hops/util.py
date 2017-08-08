@@ -190,6 +190,7 @@ def params(b=None, pol=None):
     delay = (sbd - offset + 0.5*amb) # unwrap to be close to SBD, us
     rate = b.t208.contents.resid_rate # us/s
     snr = b.t208.contents.snr
+    amplitude = b.t208.contents.amplitude
     # time vector and rotator
     T = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds()
     # ref_time = mk4time(b.t205.contents.start) + T/2. # place reference time in middle
@@ -211,7 +212,7 @@ def params(b=None, pol=None):
     frot[120] = np.exp(-1j * delay * dfvec[120] * 2*np.pi) # assuming nlags120 = nlags230/2
     frot[212] = np.exp(-1j * delay * dfvec[212] * 2*np.pi) # note type_212 is already rotated in data
     return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags,
-        code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, snr=snr, T=T,
+        code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source,
         scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
