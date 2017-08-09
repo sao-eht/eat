@@ -133,24 +133,23 @@ def pop230(b=None):
 # if you have not run fourfit then *this will not work*
 # output data will match fourfit CHANNELS and will contain all DiFX processed AP's (no fourfit time cuts)
 # we don't bother flipping LSB because convention is unknown, and recent data should be USB (zoom-band)
-def pop120(b=None):
+# fill value will fill visibs with value for missing data (Null pointer)
+def pop120(b=None, fill=0):
     if type(b) is str and b[-8:-6] == "..":
         raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
     b = getfringefile(b) # fringe file
     ctok = getfringefile.last[-1].split('.')
     c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
-    # HOPS corel struct allocates empty pointers, then fills them according to correlator AP
-    # the first correlator AP may be > 0, this non-zero AP corresponds to HOPS AP "0"
-    # we must count NULLs because the first AP is not recorded anywhere (see fourfit/set_pointers.c:245)
-    # assumes one contiguous interval of APs, might not work if only 1 AP (lastap cannot define)
-    firstap = next(a.contents.ap for a in c.index[0].t120[0:c.index[0].ap_space] if a)
-    lastap = next(a.contents.ap for a in c.index[0].t120[c.index[0].ap_space-1:0:-1] if a)
+    # use fringe file to get ap length, note that nap in fringe file is not necessarily same as corel
+    ap = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds() / b.t212[0].contents.nap
+    T = (mk4time(c.t100.contents.stop) - mk4time(c.t100.contents.start)).total_seconds()
+    # some slob just in case roundoff error from non-integer ap, ap_space from HOPS is too big
+    (nchan, nap, nspec) = (b.n212, int(1e-6 + T / ap), c.t100.contents.nlags)
+    data120 = np.zeros((nchan, nap, nspec), dtype=np.complex64)
     # require spectral type (DiFX)
+    firstap = next(a.contents.ap for a in c.index[0].t120[0:c.index[0].ap_space] if a)
     if c.index[0].t120[firstap].contents.type != '\x05':
         raise Exception("only supports SPECTRAL type from DiFX->Mark4")
-    # this is not a great way to get nap (what if incomplete?) but nindex appears incorrect..
-    (nchan, nap, nspec) = (b.n212, 1+lastap-firstap, c.t100.contents.nlags)
-    data120 = np.zeros((nchan, nap, nspec), dtype=np.complex64)
     # 120: (ap, channel, spectrum), this is mk4 channels (31, 41, ..) not HOPS channels (A, B, ..)
     for i in range(nchan): # loop over HOPS channels
         # by construction the ordering of type_101 and type_203 is the same (fill_203.c)
@@ -158,10 +157,16 @@ def pop120(b=None):
         idx = b.t205.contents.ffit_chan[i].channels[0] # need to get index into mk4 chdefs
         for j in range(nap):
             # get a complete spectrum block for 1 AP at a time
-            q = (mk4.spectral*nspec).from_address(
-                ctypes.addressof(c.index[idx].t120[firstap+j].contents.ld))
-            # type230 frequeny order appears to be [---LSB--> LO ---USB-->]
-            data120[i,j,:] = np.frombuffer(q, dtype=np.complex64, count=-1)
+            # HOPS corel struct allocates empty pointers, then fills them according to correlator AP
+            # the first correlator AP may be > 0, this non-zero AP corresponds to HOPS AP "0"
+            specptr = c.index[idx].t120[j]
+            if specptr:
+                q = (mk4.spectral*nspec).from_address(
+                    ctypes.addressof(c.index[idx].t120[j].contents.ld))
+                # type230 frequeny order appears to be [---LSB--> LO ---USB-->]
+                data120[i,j,:] = np.frombuffer(q, dtype=np.complex64, count=-1)
+            else:
+                data120[i,j,:] = fill
     return data120
 
 # some HOPS channel parameter info
