@@ -197,7 +197,9 @@ def params(b=None, pol=None):
     snr = b.t208.contents.snr
     amplitude = b.t208.contents.amplitude
     # time vector and rotator
-    T = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds()
+    (start, stop) = (mk4time(b.t205.contents.start), mk4time(b.t205.contents.stop)) # t212 bounds
+    utc_central = mk4time(b.t205.contents.utc_central) # depends only on scan boundary, not cuts
+    T = (stop-start).total_seconds()
     # ref_time = mk4time(b.t205.contents.start) + T/2. # place reference time in middle
     ap = T / nap
     dtvec = ap * np.arange(nap) - (T-ap)/2.
@@ -219,7 +221,7 @@ def params(b=None, pol=None):
     return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags,
         code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
-        baseline=b.t202.contents.baseline, source=b.t201.contents.source,
+        baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
         scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
 
 # some unstructured channel info for quick printing
