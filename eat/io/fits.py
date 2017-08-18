@@ -14,7 +14,9 @@ class fitshdulist(object):
         return [a.name for a in self.hdulist]
 
     def __repr__(self):
-        from io import StringIO
+        # from io import StringIO
+        # at some point (?) io.StringIO stopped accepting byte strings, need revisit in 3.x
+        from StringIO import StringIO
         out = StringIO()
         self.hdulist.info(output=out)
         return out.getvalue()
