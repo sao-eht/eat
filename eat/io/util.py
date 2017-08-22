@@ -76,10 +76,19 @@ def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001, cr
                             crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
     df['rate_err'] = np.sqrt(df['rate_err']**2 + rate_systematic**2)
 
+# convert HOPS timetag to pandas Timestamp (np.datetime64)
+def tt2dt(timetag, year=2017):
+    return pd.to_datetime(str(year) + timetag, format="%Y%j-%H%M%S")
+
 # add unique ID tuple to data frame based on columns
 def add_id(df, col=['timetag', 'baseline', 'polarization']):
     df['id'] = list(zip(*[df[c] for c in col]))
 
+# add scan number based on 2017 scan_id e.g. No0012 -> 12
+def add_scanno(df):
+    df['scan_no'] = df.scan_id.str[2:].astype(int) 
+
+def add_scanno(df):
 # add a path to each alist line for easier finding
 def add_path(df):
     df['path'] = ['%s/%s/%s.%.1s.%s.%s' % par for par in zip(df.expt_no, df.scan_id, df.baseline, df.freq_code, df.extent_no, df.root_id)]
