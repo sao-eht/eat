@@ -415,9 +415,11 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # df: decimation factor in time if timeseires==True
 # centerphase: subtract out mean phase for fewer wraps
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
-             timeseries=False, centerphase=False, snrweight=True, kind=230, pol=None):
+             timeseries=False, centerphase=False, snrweight=True, kind=230, pol=None, grid=True):
     if type(bs) is str:
         bs = getfringefile(bs, filelist=True, pol=pol)
+    if not hasattr(bs, '__len__'):
+        bs = [bs,]
     if len(bs) > 1:
         centerphase = True
     vs = None
@@ -466,6 +468,8 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         ax2.set_yticklabels([])
         ax2.set_xticklabels([])
         putil.rmgaps(1.0, 2.0)
+        if grid:
+            plt.grid()
         ax2.add_artist(AnchoredText(p.code[n], loc=1, frameon=False, borderpad=0))
     plt.subplots_adjust(wspace=0, hspace=0)
     ax1.set_yticklabels([])
@@ -489,6 +493,8 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         plt.ylim(-np.pi, np.pi)
         plt.gca().set_yticklabels([])
         putil.rmgaps(1e6, 2.0)
+        if grid:
+            plt.grid()
         plt.xlim(-p.T/2., p.T/2.)
     if figsize is None:
         plt.setp(plt.gcf(), figwidth=8, figheight=8.*nrow/ncol)
@@ -539,11 +545,14 @@ def timeseries(bs, dt=1):
     plt.subplots_adjust(hspace=0)
 
 # calculate delay at each AP using type120 data
-def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None, fix_outliers=True):
+def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None, fix_outliers=True, kind=120):
     b = getfringefile(fringefile, pol=pol)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
-    v = np.swapaxes(pop120(b), 1, 0)  # put AP as axis 0
+    if kind==120:
+        v = np.swapaxes(pop120(b), 1, 0)  # put AP as axis 0
+    else:
+        v = pop212(b)[:,:,None] # add extra axis for subchannel
     df = df or 1 # arbitrary, but compensate for type_230 inflation factor of x2 (SSB)
     nspec = v.shape[-1]
     assert(v.shape == (nap, nchan, nspec))
