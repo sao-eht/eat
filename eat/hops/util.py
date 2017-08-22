@@ -58,12 +58,12 @@ def getfringefile(b=None, filelist=False, pol=None):
             if len(tok) < len(last):
                 files = glob.glob('/'.join(last[:-len(tok)] + tok))
         if len(files) == 0:
-            return "cannot find file: %s or %s" % (b, '/'.join(last[:-len(tok)] + tok))
+            raise(Exception("cannot find file: %s or %s" % (b, '/'.join(last[:-len(tok)] + tok))))
         files = [f for f in files if '..' not in f] # filter out correlator files
         if pol is not None: # filter by polarization
             files = [f for f in files if getpolarization(f) == pol]
         if len(files) == 0:
-            return "cannot find file with polarization " + pol
+            raise(Exception("cannot find file with polarization " + pol))
         if filelist:
             return sorted(files)
         files.sort(key=os.path.getmtime)
