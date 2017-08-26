@@ -31,7 +31,6 @@ from ..plots import util as putil
 from matplotlib.offsetbox import AnchoredText
 import glob
 import re
-from collections import OrderedDict
 import os
 
 # convenient reduces columns to print
@@ -694,9 +693,9 @@ class ControlFile(object):
 
     # extract parameters out of simple control files
     # pass filename or control file contents as string
-    # returns OrderedDict of {condition:statements}
+    # returns list of [condition, statements]
     # condition: string with condition
-    # statements: OrderedDict of {action:value}
+    # statements: list of [action, value]
     def open(self, cf):
         # action keyword match -- needs to match only beginning of keyword but be careful not to match anything else
         action_kw = "adhoc_ dc_block delay_offs dr_ freqs est_pc gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
@@ -710,10 +709,10 @@ class ControlFile(object):
 
         # separate out actions using reverse findall search
         def splitactions(actions):
-            return OrderedDict([(b[::-1], a[::-1]) for (a, b) in re.findall(pat_act, actions[::-1])][::-1])
+            return [[b[::-1], a[::-1]] for (a, b) in re.findall(pat_act, actions[::-1])][::-1]
 
         # separate conditions from actions in blocks
-        return OrderedDict((a, splitactions(b)) for (a, b) in (re.match(pat_blk, blk).groups() for blk in blocks))
+        return [[a, splitactions(b)] for (a, b) in (re.match(pat_blk, blk).groups() for blk in blocks)]
 
     # evaluate control file conditional given input parameters
     # assume comments are dropped and all whitespace is reduced to one space (e.g. by controlfile())
@@ -760,26 +759,26 @@ class ControlFile(object):
     # filter control file dictionary using parameters given to function
     # see evaluate() for details
     def filter(self, station=None, baseline=None, source=None, scan=None, dropmissing=False):
-        return ControlFile(OrderedDict((condition, actions) for (condition, actions) in self.cfdict.items() if
-            self.evaluate(condition, station=station, baseline=baseline, source=source, scan=scan, dropmissing=dropmissing)))
+        return ControlFile([[condition, actions] for (condition, actions) in self.cfblocks if
+            self.evaluate(condition, station=station, baseline=baseline, source=source, scan=scan, dropmissing=dropmissing)])
 
     # initialize a control file object from file or string
     def __init__(self, cf):
         if type(cf) == str:
-            self.cfdict = self.open(cf)
+            self.cfblocks = self.open(cf)
         else:
-            self.cfdict = cf
+            self.cfblocks = cf
 
     # write out control codes to string
     def __str__(self):
         lines = []
-        for (condition, actions) in self.cfdict.items():
+        for (condition, actions) in self.cfblocks:
             if condition == '': # defaults
-                for a in actions.items():
+                for a in actions:
                     lines.append(' '.join(a))
             else:
                 lines.append('if ' + condition)
-                for a in actions.items():
+                for a in actions:
                     lines.append('    ' + ' '.join(a))
         return '\n'.join(lines)
 
