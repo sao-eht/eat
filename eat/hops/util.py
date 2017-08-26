@@ -30,6 +30,8 @@ import matplotlib.pyplot as plt
 from ..plots import util as putil
 from matplotlib.offsetbox import AnchoredText
 import glob
+import re
+from collections import OrderedDict
 import os
 
 # convenient reduces columns to print
@@ -687,27 +689,100 @@ def fplot(b=None, pol=None):
     out = PDF(proc.communicate(input=ps)[0])
     return out
 
-# extract parameters out of simple control files
-# pass filename or control file contents as string
-# returns OrderedDict of {condition:statements}
-# condition: string with condition
-# statements: OrderedDict of {action:value}
-def controlfile(cf):
-    import re
-    from collections import OrderedDict
-    # action keyword match -- needs to match only beginning of keyword but be careful not to match anything else
-    action_kw = "adhoc_ delay_offs dr_ freqs gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
-    if os.path.exists(cf):
-        cf = open(cf).read()
-    cf = re.sub('\*.*', '', cf) # strip comments, assume DOTALL is not set
-    cf = re.sub('\s+', ' ', cf) # simplify whitespace
-    blocks = re.split('\s+if\s+', cf) # isolate if statement blocks
+# helper class for HOPS control file parsing
+class ControlFile(object):
 
-    # separate out actions using reverse findall search
-    def splitactions(actions):
+    # extract parameters out of simple control files
+    # pass filename or control file contents as string
+    # returns OrderedDict of {condition:statements}
+    # condition: string with condition
+    # statements: OrderedDict of {action:value}
+    def open(self, cf):
+        # action keyword match -- needs to match only beginning of keyword but be careful not to match anything else
+        action_kw = "adhoc_ dc_block delay_offs dr_ freqs est_pc gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
         pat_act = '\s*(.+?)\s*(\w*' + '|\w*'.join((kw[::-1] for kw in action_kw)) + ')'
-        return OrderedDict([(b[::-1], a[::-1]) for (a, b) in re.findall(pat_act, actions[::-1])][::-1])
+        pat_blk = '(.*?)\s*(' + '.*|'.join(action_kw) + '.*)'
+        if os.path.exists(cf):
+            cf = open(cf).read()
+        cf = re.sub('\*.*', '', cf) # strip comments, assume DOTALL is not set
+        cf = re.sub('\s+', ' ', cf) # simplify whitespace
+        blocks = re.split('\s+if\s+', cf) # isolate if statement blocks
 
-    # separate conditions from actions in blocks
-    pat_blk = '(.*?)\s*(' + '.*|'.join(action_kw) + '.*)'
-    return OrderedDict((a, splitactions(b)) for (a, b) in (re.match(pat_blk, blk).groups() for blk in blocks))
+        # separate out actions using reverse findall search
+        def splitactions(actions):
+            return OrderedDict([(b[::-1], a[::-1]) for (a, b) in re.findall(pat_act, actions[::-1])][::-1])
+
+        # separate conditions from actions in blocks
+        return OrderedDict((a, splitactions(b)) for (a, b) in (re.match(pat_blk, blk).groups() for blk in blocks))
+
+    # evaluate control file conditional given input parameters
+    # assume comments are dropped and all whitespace is reduced to one space (e.g. by controlfile())
+    # station: 1 character HOPS code
+    # baseline: 2 characters
+    # source: source name
+    # scan: time-tag with scan start time
+    # fourfit syntax: if, else (NYI), and, or, not, () (NYI), <>, to, ?
+    # dropmissing: if True, drop condition with missing (undefined) selectors
+    def evaluate(self, cond, station=None, baseline=None, source=None, scan=None, dropmissing=False):
+        kw = dict(station=station, baseline=baseline, source=source, scan=scan, dropmissing=dropmissing)
+        if cond == '':
+            return True
+        # split operators in reverse precedence
+        if " or " in cond:
+            (a, b) = cond.split(' or ', 1)
+            return(self.evaluate(a, **kw) or self.evaluate(b, **kw))
+        if " and " in cond:
+            (a, b) = cond.split(' and ', 1)
+            return(self.evaluate(a, **kw) and self.evaluate(b, **kw))
+        if "not " == cond[:4]:
+            return(not self.evaluate(cond[4:], **kw))
+        # evaluate conditions
+        tok = cond.split(' ')
+        if tok[0] == "station":
+            return(not dropmissing if station is None else
+                   (tok[1] == station) or (tok[1] == '?'))
+        if tok[0] == "baseline":
+            return(not dropmissing if baseline is None else
+                   bool(re.match(tok[1].replace('?', '.'), baseline)))
+        if tok[0] == "source":
+            return(not dropmissing if baseline is None else
+                   bool(re.match(tok[1].replace('?', '.*'), source)))
+        if tok[0] == "scan":
+            if scan is None:
+                return not dropmissing
+            if len(tok) == 2: # scan xxx
+                return bool(re.match(tok[1].replace('?', '.*'), scan))
+            if len(tok) == 3: # scan < xxx
+                return cmp(scan, tok[2]) == {'<':-1, '>':1}[tok[1]]
+            if len(tok) == 4 and tok[2] == 'to': # scan xxx to yyy
+                return((tok[1] <= scan) and (scan <= tok[3]))
+
+    # filter control file dictionary using parameters given to function
+    # see evaluate() for details
+    def filter(self, station=None, baseline=None, source=None, scan=None, dropmissing=False):
+        return ControlFile(OrderedDict((condition, actions) for (condition, actions) in self.cfdict.items() if
+            self.evaluate(condition, station=station, baseline=baseline, source=source, scan=scan, dropmissing=dropmissing)))
+
+    # initialize a control file object from file or string
+    def __init__(self, cf):
+        if type(cf) == str:
+            self.cfdict = self.open(cf)
+        else:
+            self.cfdict = cf
+
+    # write out control codes to string
+    def __str__(self):
+        lines = []
+        for (condition, actions) in self.cfdict.items():
+            if condition == '': # defaults
+                for a in actions.items():
+                    lines.append(' '.join(a))
+            else:
+                lines.append('if ' + condition)
+                for a in actions.items():
+                    lines.append('    ' + ' '.join(a))
+        return '\n'.join(lines)
+
+    def __repr(self):
+        return self.str()
+
