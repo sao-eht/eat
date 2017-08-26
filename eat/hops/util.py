@@ -515,11 +515,12 @@ def vecplot(vs, dtvec, dfvec, delay, rate, ref_freq, dt=1, df=1):
     vtot = np.sum(vrot) / len(vrot.ravel())
     plt.plot([0,0], [vtot.re, vtot.im], 'r.-', lw=2, ms=4, alpha=1.0)
 
-def timeseries(bs, dt=1):
+def timeseries(bs, dt=1, pol=None):
     if not hasattr(bs, '__iter__'):
         bs = [bs,]
     nrow = len(bs)
     for (i, b) in enumerate(bs):
+        b = getfringefile(b, pol=pol)
         p = params(b)
         plt.subplot(nrow, 1, 1+i)
         v = pop212(b).sum(axis=1) # stack over channels
@@ -685,3 +686,28 @@ def fplot(b=None, pol=None):
     # proc = subprocess.Popen("cat".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     out = PDF(proc.communicate(input=ps)[0])
     return out
+
+# extract parameters out of simple control files
+# pass filename or control file contents as string
+# returns OrderedDict of {condition:statements}
+# condition: string with condition
+# statements: OrderedDict of {action:value}
+def controlfile(cf):
+    import re
+    from collections import OrderedDict
+    # action keyword match -- needs to match only beginning of keyword but be careful not to match anything else
+    action_kw = "adhoc_ delay_offs dr_ freqs gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
+    if os.path.exists(cf):
+        cf = open(cf).read()
+    cf = re.sub('\*.*', '', cf) # strip comments, assume DOTALL is not set
+    cf = re.sub('\s+', ' ', cf) # simplify whitespace
+    blocks = re.split('\s+if\s+', cf) # isolate if statement blocks
+
+    # separate out actions using reverse findall search
+    def splitactions(actions):
+        pat_act = '\s*(.+?)\s*(\w*' + '|\w*'.join((kw[::-1] for kw in action_kw)) + ')'
+        return OrderedDict([(b[::-1], a[::-1]) for (a, b) in re.findall(pat_act, actions[::-1])][::-1])
+
+    # separate conditions from actions in blocks
+    pat_blk = '(.*?)\s*(' + '.*|'.join(action_kw) + '.*)'
+    return OrderedDict((a, splitactions(b)) for (a, b) in (re.match(pat_blk, blk).groups() for blk in blocks))
