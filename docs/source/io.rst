@@ -41,6 +41,12 @@ eat.io
    :inherited-members:
    :show-inheritance:
 
+.. automodule:: eat.io.ovex
+   :members:
+   :undoc-members:
+   :inherited-members:
+   :show-inheritance:
+
 .. automodule:: eat.io.sma
    :members:
    :undoc-members:
