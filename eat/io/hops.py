@@ -251,6 +251,14 @@ def get_alist_version(filename):
 # mk4 correlated data will have az,el = 0
 # difx correlated data will have az,el != 0, but may still have u,v = 0
 def read_alist(filename):
+    """Read alist file into pandas table, automatically deteremine version (v5 or v6)
+
+    Args:
+        filename (str): alist filename
+
+    Returns:
+        pandas.DataFrame with alist contents
+    """
     ver = get_alist_version(filename)
     if ver == 5:
         table = read_alist_v5(filename)

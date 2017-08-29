@@ -5,12 +5,6 @@
 eat.io
 ======
 
-.. automodule:: eat.io.difx
-   :members:
-   :undoc-members:
-   :inherited-members:
-   :show-inheritance:
-
 .. automodule:: eat.io.fits
    :members:
    :undoc-members:
@@ -24,12 +18,6 @@ eat.io
    :show-inheritance:
 
 .. automodule:: eat.io.misc
-   :members:
-   :undoc-members:
-   :inherited-members:
-   :show-inheritance:
-
-.. automodule:: eat.io.mk4
    :members:
    :undoc-members:
    :inherited-members:

@@ -1,7 +1,7 @@
-from future import standard_library
-standard_library.install_aliases()
-from builtins import next
-from builtins import object
+# from future import standard_library
+# standard_library.install_aliases()
+# from builtins import next
+# from builtins import object
 from astropy.io import fits
 
 # some easier interactive fits interface
@@ -62,6 +62,14 @@ class fitshdu(object):
             return next(self.hdu.data[a.name] for a in self.hdu.columns if attr.upper() in a.name)
 
 def open(filename):
+    """open fits file into convenient contained class for interactive work
+
+    Args:
+        filename: fits filename
+
+    Returns:
+        container object (:class:`.fitshdulist`)
+    """
     # mode='denywrite' here to avoid annoying memmap preallocation problem with mmap.ACCESS_COPY on large files
     # https://github.com/astropy/astropy/issues/1380
     hdulist = fits.open(filename, mode='denywrite')
