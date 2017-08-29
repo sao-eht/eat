@@ -11,6 +11,7 @@ Welcome to EHT Analysis Toolkit's documentation!
    :caption: Contents:
 
    factor
+   tests
 
 Indices and tables
 ==================
