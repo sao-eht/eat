@@ -38,6 +38,17 @@ showcol_v5 = "datetime timetag scan_id source baseline band polarization amp snr
 # parity columns which should be flipped if baseline is flipped
 flipcol_v5 = "phase_deg sbdelay mbdelay delay_rate u v ecphase delay_rate total_phas total_rate total_mbdelay total_sbresid".split()
 
+sites = """
+A ALMA
+X APEX
+L LMT
+S SMAP
+R SMAR
+Z SMT
+P Pico
+"""
+sdict = dict((line.strip().split() for line in sites.strip().split('\n')))
+
 def getpolarization(f):
     b = mk4.mk4fringe(f)
     ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
@@ -761,6 +772,11 @@ class ControlFile(object):
     def filter(self, station=None, baseline=None, source=None, scan=None, dropmissing=False):
         return ControlFile([[condition, actions] for (condition, actions) in self.cfblocks if
             self.evaluate(condition, station=station, baseline=baseline, source=source, scan=scan, dropmissing=dropmissing)])
+
+    # run through the complete list of control blocks in order and set actions by name
+    # returns dictionary with {action: value}
+    def actions(self):
+        return dict(av for block in self.cfblocks for actionlist in block[1:] for av in actionlist)
 
     # initialize a control file object from file or string
     def __init__(self, cf):
