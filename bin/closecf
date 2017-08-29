@@ -26,6 +26,7 @@ args = parser.parse_args()
 # read alist file (autodetect version 5 or 6)
 a = hops.read_alist(args.filename)
 a = a[a.snr > 7] # loss function not super robust..
+a = a[~a.baseline.str.contains('R')] # SR baseline messes things up, ignore SMA Reference
 
 # stations grouped according to having related fringe parameters
 if int(a.iloc[0].year) <= 2013:

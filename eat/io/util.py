@@ -88,7 +88,6 @@ def add_id(df, col=['timetag', 'baseline', 'polarization']):
 def add_scanno(df):
     df['scan_no'] = df.scan_id.str[2:].astype(int) 
 
-def add_scanno(df):
 # add a path to each alist line for easier finding
 def add_path(df):
     df['path'] = ['%s/%s/%s.%.1s.%s.%s' % par for par in zip(df.expt_no, df.scan_id, df.baseline, df.freq_code, df.extent_no, df.root_id)]
