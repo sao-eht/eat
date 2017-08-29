@@ -10,7 +10,7 @@ Welcome to EHT Analysis Toolkit's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-
+   factor
 
 Indices and tables
 ==================
