@@ -86,7 +86,7 @@ def add_id(df, col=['timetag', 'baseline', 'polarization']):
 
 # add scan number based on 2017 scan_id e.g. No0012 -> 12
 def add_scanno(df):
-    df['scan_no'] = df.scan_id.str[2:].astype(int) 
+    df['scan_no'] = df.scan_id.str[2:].astype(int)
 
 # add a path to each alist line for easier finding
 def add_path(df):

@@ -1,6 +1,12 @@
 from ctypes import *
 
-difxio = cdll.LoadLibrary('/home/lindy/difx/lib/libdifxio.so')
+try:
+    difxio = cdll.LoadLibrary('/home/lindy/difx/lib/libdifxio.so')
+except:
+    # TOOD: avoid this ugly code
+    import sys
+    if 'sphinx' not in sys.modules:
+        raise
 
 class DifxAntennaFlag(Structure):
     _fields_ = [

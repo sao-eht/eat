@@ -72,7 +72,7 @@ class Ovex(object):
         raw = f.readlines()
         f.close()
 
-	self.filename = filename
+        self.filename = filename
 
         # Divide 'raw' data into sectors of '$' marks
         # ASSUMING '$' is the very first character in a line (no space in front)
@@ -95,36 +95,36 @@ class Ovex(object):
         self.metalist = metalist
 
         # MODE ==========================================================
-	MODE = self.get_sector('MODE')
-	modes = []
+        MODE = self.get_sector('MODE')
+        modes = []
 
         indef = False
-	for i in range(len(MODE)):
+        for i in range(len(MODE)):
 
             line = MODE[i]
 
-	    if indef==False:
+            if indef==False:
                 idx = self.find_variable('def',line)
                 if idx>=0:
-		    temp = {}
-		    temp['mode'] = self.get_def_name(line)
-		    temp['site_dic'] = {}
-		    cnt = 0
-		    indef=True
+                    temp = {}
+                    temp['mode'] = self.get_def_name(line)
+                    temp['site_dic'] = {}
+                    cnt = 0
+                    indef=True
 
-	    if indef==True:
-	        idx = self.find_variable('ref',line)
-	        var = self.get_ref_special('$FREQ',line)
-		if var!=False:
-		    temp['site_dic'][cnt] = var
-		    cnt += 1
+            if indef==True:
+                idx = self.find_variable('ref',line)
+                var = self.get_ref_special('$FREQ',line)
+                if var!=False:
+                    temp['site_dic'][cnt] = var
+                    cnt += 1
 
-	    if indef==True:
-	        idx = self.find_variable('enddef',line)
+            if indef==True:
+                idx = self.find_variable('enddef',line)
                 if idx>=0:
-		    modes.append(temp)
-		    indef=False
-	self.modes = modes
+                    modes.append(temp)
+                    indef=False
+        self.modes = modes
 
 
         # Extract desired information
@@ -157,47 +157,47 @@ class Ovex(object):
 
 
         # FREQ ==========================================================
-	FREQ = self.get_sector('FREQ')
-	freq = []
+        FREQ = self.get_sector('FREQ')
+        freq = []
         indef = False
 
-	for i in range(len(FREQ)):
+        for i in range(len(FREQ)):
 
             line = FREQ[i]
 
-	    if indef==False:
+            if indef==False:
                 idx = self.find_variable('def',line)
                 if idx>=0:
-		    temp = {}
-		    temp['chans'] = {}
-		    cnt = 0
-		    temp['antenna'] = self.get_def_name(line)
-		    indef=True
+                    temp = {}
+                    temp['chans'] = {}
+                    cnt = 0
+                    temp['antenna'] = self.get_def_name(line)
+                    indef=True
 
             if indef:
                 idx = line.find('chan_def')
-	        if idx>=0:
-		    chan_name = self.get_variable("chan_def",line)
+                if idx>=0:
+                    chan_name = self.get_variable("chan_def",line)
                     chan_def = re.findall("[-+]?\d+[\.]?\d*",line)
-		    temp['chans'][cnt] = {'chan_name':chan_name,'freq':float(chan_def[1]),'bw':float(chan_def[2])} #MHz
-		    cnt+=1
+                    temp['chans'][cnt] = {'chan_name':chan_name,'freq':float(chan_def[1]),'bw':float(chan_def[2])} #MHz
+                    cnt+=1
                 ret = self.get_variable("sample_rate",line)
                 if len(ret)>0:
                     temp['sample_rate'] = ret
 
-	    if indef==True:
-	        idx = self.find_variable('enddef',line)
+            if indef==True:
+                idx = self.find_variable('enddef',line)
                 if idx>=0:
-		    freq.append(temp)
-		    indef=False
+                    freq.append(temp)
+                    indef=False
 
-	self.freqs = freq
+        self.freqs = freq
 
 
         # SITE ==========================================================
         SITE = self.get_sector('SITE')
         sites = []
-	site_ID_dict = {}
+        site_ID_dict = {}
         indef = False
 
         for i in range(len(SITE)):
@@ -233,7 +233,7 @@ class Ovex(object):
                     sites.append({'site_name':site_name,'site_ID':site_ID,'mk4_site_ID':mk4_site_ID,'site_position':site_position})
                     indef=False
 
-	self.sites = sites
+        self.sites = sites
 
 
         # SCHED  =========================================================
@@ -247,9 +247,9 @@ class Ovex(object):
             if line[0:4]=="scan":
                 inscan=True
                 temp={}
-		temp['scan_number'] = re.findall("[-+]?\d+[\.]?\d*",line)
-		temp['scan']={}
-		cnt = 0
+                temp['scan_number'] = re.findall("[-+]?\d+[\.]?\d*",line)
+                temp['scan']={}
+                cnt = 0
 
             if inscan:
                 ret = self.get_variable("start",line)
@@ -257,7 +257,7 @@ class Ovex(object):
                     #mjd,hr = self.vexdate_to_MJD_hr(ret) # convert vex time format to mjd and hour
                     #temp['mjd_floor'] = mjd
                     #temp['start_hr'] = hr
-		    temp['start'] = ret
+                    temp['start'] = ret
 
                 ret = self.get_variable("mode",line)
                 if len(ret)>0: temp['mode'] = ret
@@ -314,16 +314,16 @@ class Ovex(object):
 
 
         # list of various ways of calling the same site ================
-	sites_dic = []
-	for i in range(len(self.modes[0]['site_dic'])):
-	    id0 = site_ID_dict[self.modes[0]['site_dic'][i][1]]
-	    id1 = self.modes[0]['site_dic'][i][1]
-	    for j in range(len(self.sites)):
-	        if self.sites[j]['site_ID'] == id1:
-	            id2 = self.sites[j]['mk4_site_ID']
-	    id3 = self.modes[0]['site_dic'][i][0]
-	    sites_dic.append([id0,id1,id2,id3])
-	self.sites_dic = sites_dic
+        sites_dic = []
+        for i in range(len(self.modes[0]['site_dic'])):
+            id0 = site_ID_dict[self.modes[0]['site_dic'][i][1]]
+            id1 = self.modes[0]['site_dic'][i][1]
+            for j in range(len(self.sites)):
+                if self.sites[j]['site_ID'] == id1:
+                    id2 = self.sites[j]['mk4_site_ID']
+            id3 = self.modes[0]['site_dic'][i][0]
+            sites_dic.append([id0,id1,id2,id3])
+        self.sites_dic = sites_dic
 
 
     # ====================================================================
@@ -369,44 +369,44 @@ class Ovex(object):
     # returns index of vname[0] in a line, or -1
     def find_variable(self, vname, line):
         idx = line.find(vname)
-	if ((idx>0 and line[idx-1]==' ') or idx==0) and line[0]!='*':
+        if ((idx>0 and line[idx-1]==' ') or idx==0) and line[0]!='*':
             if idx+len(vname)==len(line): return idx
             if line[idx+len(vname)]=='=' or line[idx+len(vname)]==' ' or line[idx+len(vname)]==':' or line[idx+len(vname)]==';': return idx
         return -1
 
     # extract def 'def_name'; (or :)
     def get_def_name(self, line):
-	idx = self.find_variable('def', line)
-	if idx<0: return False
+        idx = self.find_variable('def', line)
+        if idx<0: return False
 
-	var = ''
-	invar = False
-	for i in range(idx+3,len(line)):
-	    if invar == True and (line[i]==' ' or line[i]==';' or line[i]==':'): return var
-	    if line[i]!=' ': invar = True
-	    if invar==True: var += line[i]
-	return False
+        var = ''
+        invar = False
+        for i in range(idx+3,len(line)):
+            if invar == True and (line[i]==' ' or line[i]==';' or line[i]==':'): return var
+            if line[i]!=' ': invar = True
+            if invar==True: var += line[i]
+        return False
 
     # extract 'ref $FREQ = ant00:Aa;' kind of format
     def get_ref_special(self, vname, line):
-	idx = self.find_variable('ref', line)
-	if idx<0: return False
-	line = line[idx+3:]
+        idx = self.find_variable('ref', line)
+        if idx<0: return False
+        line = line[idx+3:]
 
-	idx = self.find_variable(vname, line)
-	if idx<0: return False
+        idx = self.find_variable(vname, line)
+        if idx<0: return False
 
-	var1 = self.get_variable(vname,line)
+        var1 = self.get_variable(vname,line)
 
-	idx = line.find(var1)
-	for i in range(idx+len(var1),len(line)):
-	    if line[i]==';' or line[i]==':': break
-	idx = i+1
+        idx = line.find(var1)
+        for i in range(idx+len(var1),len(line)):
+            if line[i]==';' or line[i]==':': break
+        idx = i+1
 
-	var2 = ''
-	invar = False
-	for i in range(idx,len(line)):
-	    if invar == True and (line[i]==' ' or line[i]==';' or line[i]==':'): break
-	    if invar == False and line[i]!=' ': invar = True
-	    if invar==True: var2 += line[i]
-	return var1,var2
+        var2 = ''
+        invar = False
+        for i in range(idx,len(line)):
+            if invar == True and (line[i]==' ' or line[i]==';' or line[i]==':'): break
+            if invar == False and line[i]!=' ': invar = True
+            if invar==True: var2 += line[i]
+        return var1,var2
