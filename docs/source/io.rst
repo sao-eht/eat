@@ -23,12 +23,6 @@ eat.io
    :inherited-members:
    :show-inheritance:
 
-.. automodule:: eat.io.jdcal
-   :members:
-   :undoc-members:
-   :inherited-members:
-   :show-inheritance:
-
 .. automodule:: eat.io.misc
    :members:
    :undoc-members:
