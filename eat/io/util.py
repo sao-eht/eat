@@ -46,10 +46,7 @@ def unwrap_mbd_old(df, mbd_ambiguity=None):
     df['mbd_unwrap'] = df.sbd - offset + 0.5*mbd_ambiguity
 
 def unwrap_mbd(df, mbd_ambiguity=None):
-    """Unwrap in place the MBD based on the ambiguity [us], choose value closest to SBD
-
-    Returns:
-        additional column added to original DataFrame: "mbd_unwrap"
+    """Add *mbd_unwrap* to DataFrame based on ambiguity [us], choose value closest to SBD
     """
 
     if mbd_ambiguity is None:      # we may want to set this manually
@@ -64,7 +61,7 @@ def rewrap_mbd(df, mbd_ambiguity=None):
     df['mbdelay'] = np.remainder(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
 
 def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001, crosspol_systematic=0.):
-    """Add (in place) error to delay and rate fit from fourfit.
+    """Add in place error to delay and rate fit from fourfit.
 
     This is re-derived and close in spirit to the code in fourfit/fill_208.c
     but there are small different factors, not sure what is origin of the fourfit eqns
@@ -76,7 +73,7 @@ def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001, cr
         crosspol_systematic: added in quadrature to delay error for cross polarization products
 
     Returns:
-        additional column added to original DataFrame: "mdb_err" and "rate_err"
+        additional columns *mbd_err* and *rate_err* added directly to original DataFrame
     """
     if bw is None:
         nchan = pd.to_numeric(df.freq_code.str[1:])
@@ -95,38 +92,38 @@ def tt2dt(timetag, year=2017):
     return pd.to_datetime(str(year) + timetag, format="%Y%j-%H%M%S")
 
 def add_id(df, col=['timetag', 'baseline', 'polarization']):
-    """add unique ID tuple to data frame based on columns"""
+    """add unique *id* tuple to data frame based on columns"""
     df['id'] = list(zip(*[df[c] for c in col]))
 
 def add_scanno(df):
-    """add scan number based on 2017 scan_id e.g. No0012 -> 12"""
+    """add *scan_no* based on 2017 scan_id e.g. No0012 -> 12"""
     df['scan_no'] = df.scan_id.str[2:].astype(int)
 
 def add_path(df):
-    """add a path to each alist line for easier file access"""
+    """add a *path* to each alist line for easier file access"""
     df['path'] = ['%s/%s/%s.%.1s.%s.%s' % par for par in zip(df.expt_no, df.scan_id, df.baseline, df.freq_code, df.extent_no, df.root_id)]
 
 def add_utime(df):
-    """add UNIX time"""
+    """add UNIX time *utime*"""
     df['utime'] = 1e-9*np.array(df.datetime).astype('float')
 
 def add_hour(df):
-    """add hour if HOPS timetag available"""
+    """add *hour* if HOPS timetag available"""
     if 'timetag' in df:
         df['hour'] = df.timetag.apply(lambda x: float(x[4:6]) + float(x[6:8])/60. + float(x[8:10])/3600.)
     elif 'hhmm' in df:
         df['hour'] = df.hhmm.apply(lambda x: float(x[0:2]) + float(x[2:4])/60.)
 
 def add_doy(df):
-    """add day-of-year (doy) extracted from time-tag"""
+    """add day-of-year *doy* extracted from time-tag"""
     df['doy'] = df.timetag.str[:3].astype(int)
 
 def add_days(df):
-    """decimal days since beginning of year = (DOY - 1) + hour/24."""
+    """decimal *days* since beginning of year = (DOY - 1) + hour/24."""
     df['days'] = df.timetag.apply(lambda x: float(x[0:3])-1. + float(x[4:6])/24. + float(x[6:8])/1440. + float(x[8:10])/86400.)
 
 def add_gmst(df):
-    """add GMST column to data frame with 'datetime' field using astropy for conversion"""
+    """add *gmst* column to data frame with *datetime* field using astropy for conversion"""
     from astropy import time
     g = df.groupby('datetime')
     (timestamps, indices) = list(zip(*iter(g.groups.items())))
@@ -145,7 +142,7 @@ def add_gmst(df):
         df.ix[idx, 'gmst'] = gmst
 
 def noauto(df):
-    """remove autocorrelations from data frame"""
+    """returns new data frame with autocorrelations removed regardless of polarziation"""
     auto = df.baseline.str[0] == df.baseline.str[1]
     return df[~auto].copy()
 
