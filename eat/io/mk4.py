@@ -1,7 +1,13 @@
 from builtins import object
 from ctypes import *
 
-mk4io = cdll.LoadLibrary('/home/lindy/hops-3.10/sub/mk4.so')
+try:
+    mk4io = cdll.LoadLibrary('/home/lindy/hops-3.10/sub/mk4.so')
+except:
+    # TOOD: avoid this ugly code
+    import sys
+    if 'sphinx' not in sys.modules:
+        raise
 
 # int
 # read_mk4corel (char *filename,
