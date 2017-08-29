@@ -12,6 +12,7 @@ Welcome to EHT Analysis Toolkit's documentation!
 
    factor
    hops
+   io
    plots
    tests
 
