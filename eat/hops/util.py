@@ -715,7 +715,7 @@ class ControlFile(object):
         if os.path.exists(cf):
             cf = open(cf).read()
         cf = re.sub('\*.*', '', cf) # strip comments, assume DOTALL is not set
-        cf = re.sub('\s+', ' ', cf) # simplify whitespace
+        cf = re.sub('\s+', ' ', cf).strip() # simplify whitespace
         blocks = re.split('\s+if\s+', cf) # isolate if statement blocks
 
         # separate out actions using reverse findall search
