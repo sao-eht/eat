@@ -3,7 +3,7 @@
 
 # You can set these variables from the command line.
 SPHINXOPTS    =
-SPHINXBUILD   = python3 -msphinx
+SPHINXBUILD   = /usr/bin/env python -msphinx
 SPHINXPROJ    = EHTAnalysisToolkit
 SOURCEDIR     = .
 BUILDDIR      = _build
