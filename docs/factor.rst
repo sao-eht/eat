@@ -5,7 +5,7 @@
 eat.factor
 ==========
 
-.. automodule:: factor
+.. automodule:: eat.factor
    :members:
    :undoc-members:
    :inherited-members:
