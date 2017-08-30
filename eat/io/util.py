@@ -8,7 +8,7 @@ from __future__ import absolute_import
 from builtins import zip
 from pkg_resources import parse_version
 import pandas as pd
-if parse_version(pd.__version__) < parse_version('0.15.1dev'):
+if pd.__version__ and parse_version(pd.__version__) < parse_version('0.15.1dev'):
     print("pandas version too old and buggy, please update")
 import datetime
 import numpy as np
