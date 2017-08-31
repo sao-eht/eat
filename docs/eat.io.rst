@@ -20,14 +20,6 @@ eat\.io\.hops module
     :undoc-members:
     :show-inheritance:
 
-eat\.io\.jdcal module
----------------------
-
-.. automodule:: eat.io.jdcal
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 eat\.io\.misc module
 --------------------
 
