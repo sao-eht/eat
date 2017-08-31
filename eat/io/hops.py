@@ -6,8 +6,10 @@ from builtins import zip
 from builtins import range
 from pkg_resources import parse_version
 import pandas as pd
-if pd.__version__ and parse_version(pd.__version__) < parse_version('0.15.1dev'):
-    print("pandas version too old and buggy, please update")
+try:
+    assert(parse_version(pd.__version__) >= parse_version('0.15.1dev'))
+except:
+    print("pandas version too old")
 import datetime
 import numpy as np
 import os
