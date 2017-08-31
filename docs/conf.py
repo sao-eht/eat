@@ -184,4 +184,4 @@ texinfo_documents = [
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
 
-autodoc_mock_imports = ['numpy', 'matplotlib', 'matplotlib.pyplot', 'pandas', 'scipy', 'scipy.optimize', 'astropy', 'astropy.io', 'future', 'builtins']
+autodoc_mock_imports = ['numpy', 'numpy.fft', 'matplotlib', 'matplotlib.pyplot', 'pandas', 'scipy', 'scipy.optimize', 'astropy', 'astropy.io', 'future', 'builtins']
