@@ -22,7 +22,8 @@ locations = ['C', 'H', 'Z', 'A']
 dishes = ['DE', 'FG', 'J', 'PQ', 'ST', 'A']
 feeds = [l for l in "DEFGJPQSTA"]
 # reverse index of lookup for single dish station code
-site2loc = {site:location for (sitelist, location) in zip(sites, locations) for site in sitelist}
+# for now builtins mock module for sphinx doc will not work, remove site2loc since it is not used anywhere
+# site2loc = {site:location for (sitelist, location) in zip(sites, locations) for site in sitelist}
 isite = {f:i for i, flist in enumerate(sites) for f in flist}
 idish = {f:i for i, flist in enumerate(dishes) for f in flist}
 ifeed = {f:i for i, f in enumerate(feeds)}
