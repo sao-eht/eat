@@ -119,8 +119,8 @@ def mk4time(time):
 
 # populate the type_212 visib data into array
 # (nap, nchan)
-def pop212(b=None):
-    b = getfringefile(b)
+def pop212(b=None, pol=None):
+    b = getfringefile(b, pol=pol)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     data212 = np.zeros((nchan, nap, 3), dtype=np.float32)
     for i in range(nchan):
@@ -131,8 +131,8 @@ def pop212(b=None):
 
 # populate the type_230 visib data into array automatically detect sideband
 # (nchan, nap, nspec)
-def pop230(b=None):
-    b = getfringefile(b)
+def pop230(b=None, pol=None):
+    b = getfringefile(b, pol=pol)
     (nchan, nap, nspec) = (b.n212, b.t212[0].contents.nap, b.t230[0].contents.nspec_pts)
     data230 = np.zeros((nchan, nap, nspec//2), dtype=np.complex128)
     for i in range(nchan): # loop over HOPS channels
@@ -152,10 +152,10 @@ def pop230(b=None):
 # output data will match fourfit CHANNELS and will contain all DiFX processed AP's (no fourfit time cuts)
 # we don't bother flipping LSB because convention is unknown, and recent data should be USB (zoom-band)
 # fill value will fill visibs with value for missing data (Null pointer)
-def pop120(b=None, fill=0):
+def pop120(b=None, pol=pol, fill=0):
     if type(b) is str and b[-8:-6] == "..":
         raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
-    b = getfringefile(b) # fringe file
+    b = getfringefile(b, pol=pol) # fringe file
     ctok = getfringefile.last[-1].split('.')
     c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
     # use fringe file to get ap length, note that nap in fringe file is not necessarily same as corel
@@ -703,7 +703,7 @@ def adhoc(b, pol=None, window_length=5, polyorder=2, complex=True):
         im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
         if complex:
             vchop[:,i] = re + 1j*im
-        else
+        else:
             # we need to unwrap in case this needs to be interpolated/averaged
             vchop[:,i] = np.unwrap(np.arctan2(im, re))
 
