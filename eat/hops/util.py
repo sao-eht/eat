@@ -152,7 +152,7 @@ def pop230(b=None, pol=None):
 # output data will match fourfit CHANNELS and will contain all DiFX processed AP's (no fourfit time cuts)
 # we don't bother flipping LSB because convention is unknown, and recent data should be USB (zoom-band)
 # fill value will fill visibs with value for missing data (Null pointer)
-def pop120(b=None, pol=pol, fill=0):
+def pop120(b=None, pol=None, fill=0):
     if type(b) is str and b[-8:-6] == "..":
         raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
     b = getfringefile(b, pol=pol) # fringe file
@@ -675,26 +675,32 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-def adhoc(b, pol=None, window_length=5, polyorder=2, complex=True):
+def adhoc(b, pol=None, window_length=5, polyorder=2, complex=False):
     """
     create ad-hoc phases from fringe file (type 212)
     use round-robin training/evaluation to avoid self-tuning bias
     compensate for delay-rate rotator bias for frequencies away from reference frequency (not done)
 
     Args:
-        b: fringe filename or mk4fringe object
+        b: numpy array of shape (nap, nchan), of fringe filename, or mk4fringe object from which visibs will be read
         pol: will filter for pol if multiple files or pattern given
         window_length: odd integer length of scipy.signal.savgol_filter applied to data for smoothing (default=7)
         polyorder: order of piecewise smoothing polynomial (default=3)
-        complex: return as complex number not angle (default=True)
+        complex: return as unnomralized complex number not angle (default=True)
     """
     from scipy.signal import savgol_filter
-    b = getfringefile(b, pol=pol)
-    v = pop212(b)
+    if type(b) is np.ndarray:
+        v = b
+    else:
+        b = getfringefile(b, pol=pol)
+        v = pop212(b)
     (nap, nchan) = v.shape
 
     vfull = v.sum(axis=1) # full frequency average
-    vchop = np.zeros_like(v, dtype=np.float)
+    if complex:
+        vchop = np.zeros_like(v)
+    else:
+        vchop = np.zeros_like(v, dtype=np.float)
 
     for i in range(nchan): # i is the channel to exclude in fit
         # remove evaluation channel
