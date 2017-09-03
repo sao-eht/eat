@@ -49,6 +49,12 @@ P Pico
 """
 sdict = dict((line.strip().split() for line in sites.strip().split('\n')))
 
+# from fourfit code lex.c
+lex = ''.join(['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p',
+     'q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F',
+     'G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V',
+     'W','X','Y','Z','0','1','2','3','4','5','6','7','8','9','$','%'])
+
 def getpolarization(f):
     b = mk4.mk4fringe(f)
     ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
@@ -669,18 +675,39 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-# create ad-hoc phases from fringe file (type 212)
-# use round-robin training/evaluation to avoid self-tuning bias
-# compensate for delay-rate rotator bias for frequencies away from reference frequency
-def adhoc(b, pol=None):
+def adhoc(b, pol=None, window_length=5, polyorder=2, complex=True):
+    """
+    create ad-hoc phases from fringe file (type 212)
+    use round-robin training/evaluation to avoid self-tuning bias
+    compensate for delay-rate rotator bias for frequencies away from reference frequency (not done)
+
+    Args:
+        b: fringe filename or mk4fringe object
+        pol: will filter for pol if multiple files or pattern given
+        window_length: odd integer length of scipy.signal.savgol_filter applied to data for smoothing (default=7)
+        polyorder: order of piecewise smoothing polynomial (default=3)
+        complex: return as complex number not angle (default=True)
+    """
+    from scipy.signal import savgol_filter
     b = getfringefile(b, pol=pol)
     v = pop212(b)
     (nap, nchan) = v.shape
-    p = param(b)
-    for i in nchan: # i is the channel to exclude in fit
-        # parameters = (alpha, tau, spec)
-        par = np.zeros(2 + nap)
-    raise Exception("unfinished")
+
+    vfull = v.sum(axis=1) # full frequency average
+    vchop = np.zeros_like(v, dtype=np.float)
+
+    for i in range(nchan): # i is the channel to exclude in fit
+        # remove evaluation channel
+        vtemp = vfull - v[:,i]
+        re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
+        im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
+        if complex:
+            vchop[:,i] = re + 1j*im
+        else
+            # we need to unwrap in case this needs to be interpolated/averaged
+            vchop[:,i] = np.unwrap(np.arctan2(im, re))
+
+    return vchop
 
 # helper class for embedded PDF in ipython notebook
 class PDF(object):
