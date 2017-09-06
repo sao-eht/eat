@@ -94,6 +94,10 @@ def tt2dt(timetag, year=2017):
     """convert HOPS timetag to pandas Timestamp (np.datetime64)"""
     return pd.to_datetime(str(year) + timetag, format="%Y%j-%H%M%S")
 
+def dt2tt(dt):
+    """convert datetime to HOPS timetag"""
+    return dt.strftime("%j-%H%M%S")
+
 def add_id(df, col=['timetag', 'baseline', 'polarization']):
     """add unique *id* tuple to data frame based on columns"""
     df['id'] = list(zip(*[df[c] for c in col]))
