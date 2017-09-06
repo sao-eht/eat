@@ -726,7 +726,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0):
+def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix=''):
     """
     create ad-hoc phases from fringe file (type 212)
     use round-robin training/evaluation to avoid self-tuning bias
@@ -742,6 +742,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0):
         polyorder: order of piecewise smoothing polynomial (default=3)
         snr: manually set SNR to auto determine window_length and polyorder, else take from fringe file
         ref: 0 (first site), 1 (second site), or station letter (e.g. A)
+        prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
     """
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
@@ -770,7 +771,11 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0):
         parity = 1
     if ref == 1:
         parity = -1
-    nfit = int((snr / 7.)**2) # number of parameters we might be able to fit
+    # note that snr=10 per measurement is 36deg phase error
+    # this should really be balanced against how rapidly the phase may vary between estimates
+    nfit = int((snr / 10.)**2) # number of parameters we might be able to fit
+    # qualitative behavior of fit depends primarily on window_length/polyorder which sets
+    # timescale for free parameters. actual poly degree doesn't matter as much.
     if polyorder is None:
         polyorder = min(nfit, 3)
     if window_length is None:
@@ -787,7 +792,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0):
     if type(b) is mk4.mk4_fringe:
         timetag = p.scantime.strftime("%j-%H%M%S")
         (ref, rem) = [p.baseline[0], p.baseline[1]][::parity]
-        adhoc_filename = "adhoc_%s_%s.dat" % (rem, timetag)
+        adhoc_filename = prefix + "adhoc_%s_%s.dat" % (rem, timetag)
         cf = """
 if station %s and scan %s
     adhoc_phase file
