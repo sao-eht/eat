@@ -311,13 +311,15 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
             delay = b.t208[0].resid_mbd * 1e-6 # delay in sec
             rate = b.t208[0].resid_rate * 1e-6 # rate in sec/sec^2
-            centertime = (totaltime - inttime_fixed)/2.
- 
+            centertime = (mk4time(b.t205[0].utc_central) - mk4time(b.t205.contents.start)).total_seconds()
+            
+
             shift = np.zeros((nchan, nap))
             
             if rot_rate:
                 rate_mtx = ref_freq*(np.matlib.repmat( ( inttime_fixed * np.arange(nap) ).reshape(1,nap), nchan, 1 ) - centertime)
                 shift = shift + (2 * np.pi *  rate * rate_mtx )
+            
                 
             if rot_delay:
                 fedge = np.array([ ch.ref_freq for ch in cinfo])
