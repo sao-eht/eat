@@ -91,7 +91,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
         baselineNames.append(os.path.basename(filename).split(os.extsep)[0])
 
     baselineNames = set(baselineNames)
-
+    
     ##########################  LOAD DATA ##########################
     for baselineName in baselineNames:
         nap = 0
@@ -110,6 +110,10 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             if baselineName.split("_")[-2] == "hops":
                 continue
         except IndexError: pass
+        
+        # remove auto correlations 
+        if baselineName[0] == baselineName[1]:
+            continue
 
         #print "Making uvfits for baseline: ", baselineName        
         for filename in glob.glob(datadir + baselineName + '*'):
@@ -846,7 +850,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
 #######################################################################
 ##########################  Main FUNCTION #############################
 ####################################################################### 
-def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, rot_rate=False, rot_delay=False):
+def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, clean_bl_fits=False, rot_rate=False, rot_delay=False):
     
     print "****************HOPS2UVFITS*******************"
     print "Creating merged single-source uvfits files for hops fringe files in directory: ", datadir
@@ -865,6 +869,12 @@ def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, rot_rate=False, rot_de
         scandir = scandir + '/'
         
         if recompute_bl_fits:
+            # clean up the files in case there were extra ones already there that we no longer want
+            if clean_bl_fits:
+                print 'REMOVING the old uvfits baseline files due to --clean flag'
+                for filename in glob.glob(scandir + '*_hops_bl.uvfits'):
+                    os.remove(filename)
+            # convert the finge files to baseline uv files  
             print "scan directory %i/%i: %s" % (i,N, scandir)
             convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay)
         
@@ -914,6 +924,9 @@ if __name__=='__main__':
 
     recompute_bl_fits = True
     if "--skip_bl" in sys.argv: recompute_bl_fits = False
+
+    clean_bl_fits = False
+    if "--clean" in sys.argv: clean_bl_fits = True
     
     rot_rate = False
     if "--rot_rate" in sys.argv: rot_rate = True
@@ -921,4 +934,4 @@ if __name__=='__main__':
     rot_delay = False
     if "--rot_delay" in sys.argv: rot_delay = True
 
-    main(datadir=datadir, recompute_bl_fits=recompute_bl_fits, rot_rate=rot_rate, rot_delay=rot_delay)
+    main(datadir=datadir, recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits, rot_rate=rot_rate, rot_delay=rot_delay)
