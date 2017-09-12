@@ -38,6 +38,23 @@ showcol_v5 = "datetime timetag scan_id source baseline band polarization amp snr
 # parity columns which should be flipped if baseline is flipped
 flipcol_v5 = "phase_deg sbdelay mbdelay delay_rate u v ecphase delay_rate total_phas total_rate total_mbdelay total_sbresid".split()
 
+sites = """
+A ALMA
+X APEX
+L LMT
+S SMAP
+R SMAR
+Z SMT
+P Pico
+"""
+sdict = dict((line.strip().split() for line in sites.strip().split('\n')))
+
+# from fourfit code lex.c
+lex = ''.join(['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p',
+     'q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F',
+     'G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V',
+     'W','X','Y','Z','0','1','2','3','4','5','6','7','8','9','$','%'])
+
 def getpolarization(f):
     b = mk4.mk4fringe(f)
     ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
@@ -102,8 +119,8 @@ def mk4time(time):
 
 # populate the type_212 visib data into array
 # (nap, nchan)
-def pop212(b=None):
-    b = getfringefile(b)
+def pop212(b=None, pol=None):
+    b = getfringefile(b, pol=pol)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     data212 = np.zeros((nchan, nap, 3), dtype=np.float32)
     for i in range(nchan):
@@ -114,8 +131,8 @@ def pop212(b=None):
 
 # populate the type_230 visib data into array automatically detect sideband
 # (nchan, nap, nspec)
-def pop230(b=None):
-    b = getfringefile(b)
+def pop230(b=None, pol=None):
+    b = getfringefile(b, pol=pol)
     (nchan, nap, nspec) = (b.n212, b.t212[0].contents.nap, b.t230[0].contents.nspec_pts)
     data230 = np.zeros((nchan, nap, nspec//2), dtype=np.complex128)
     for i in range(nchan): # loop over HOPS channels
@@ -135,10 +152,10 @@ def pop230(b=None):
 # output data will match fourfit CHANNELS and will contain all DiFX processed AP's (no fourfit time cuts)
 # we don't bother flipping LSB because convention is unknown, and recent data should be USB (zoom-band)
 # fill value will fill visibs with value for missing data (Null pointer)
-def pop120(b=None, fill=0):
+def pop120(b=None, pol=None, fill=0):
     if type(b) is str and b[-8:-6] == "..":
         raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
-    b = getfringefile(b) # fringe file
+    b = getfringefile(b, pol=pol) # fringe file
     ctok = getfringefile.last[-1].split('.')
     c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
     # use fringe file to get ap length, note that nap in fringe file is not necessarily same as corel
@@ -170,11 +187,60 @@ def pop120(b=None, fill=0):
                 data120[i,j,:] = fill
     return data120
 
+    return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags,
+        code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
+        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
+        baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
+        scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
+
 # some HOPS channel parameter info
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
 # i.e. they subtract the delay, rate under multiplication
 def params(b=None, pol=None):
+    """extract many basic parameters from fringe file for easy access
+
+    The parameters attempt to follow metadata stored in fringe files.
+    This function should be moved to a class with better structure and lazy evaluation.
+
+    Args:
+        b: filename, filename pattern, or mk4fringe structure
+        pol: polarization to look for if filename pattern is given (see getfringe)
+
+    Returns:
+        Namespace with parameters:
+            name: fringe file path from datadir
+            ref_freq: reference frequency in MHz
+            nchan: number of channels (processed)
+            nap: number of accumulation periods (processed)
+            nspec: number of spectral points per channel in type_230 (usually double the original number)
+            nlags: number of lags from type_202 (also probably double the original FX data)
+            code: ffit_chan_id's for the channels in order (from type_205) a, b, c, ...
+            pol: baseline polarization product label e.g. LL
+            sbd: single band residual delay average [us]
+            mbd: multi band residual delay fitted value [us]
+            delay: unwrapped mbd [us]
+            rate: residual delay rate [us/s]
+            amplitude: correlation coefficient estimate [10^-4]
+            snr: signal-to-noise of scan-average visibility amplitude
+            T: processed time [s]
+            ap: accumulation period spacing [s]
+            days: days since Jan 1 00:00:00 UT of each processed AP center time
+            dtvec: a time vector dictionary by visib type with zero centered in middle of processed time
+            dfvec: a frequency vector by visib type with zero at ref_freq
+            trot: time rotators to rotate out fringe solution
+            fedge: frequency edge of each channel
+            bw: bandwidth of all channels as derived as best as possible from sample frequency info
+            foffset: offset of middle of channel from channel edge
+            baseline: baseline code
+            source: source name
+            start: start datetime of processed segment
+            stop: stop datetime of processed segment (marks end of last segment) 
+            utc_centeral: from fringe file, probaby marks reference time for delay rate compensation
+            scan_name: name of scan (various conventions)
+            scantime: scantime, generally start time of scan
+    """
+            
     if type(b) is str:
         name = b
         b = getfringefile(b, pol=pol)
@@ -203,6 +269,8 @@ def params(b=None, pol=None):
     T = (stop-start).total_seconds()
     # ref_time = mk4time(b.t205.contents.start) + T/2. # place reference time in middle
     ap = T / nap
+    days0 = (start - datetime.datetime(start.year, 1, 1)).total_seconds() / 86400. # days since jan1
+    days = days0 + (ap * np.arange(nap) + ap/2.)/86400. # days since jan1 of all AP center times
     dtvec = ap * np.arange(nap) - (T-ap)/2.
     trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate
     # frequency matrix (channel, spectrum) and rotator
@@ -219,7 +287,7 @@ def params(b=None, pol=None):
     frot[230] = np.exp(-1j * delay * dfvec[230] * 2*np.pi)
     frot[120] = np.exp(-1j * delay * dfvec[120] * 2*np.pi) # assuming nlags120 = nlags230/2
     frot[212] = np.exp(-1j * delay * dfvec[212] * 2*np.pi) # note type_212 is already rotated in data
-    return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags,
+    return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags, days=days,
         code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
@@ -658,18 +726,85 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-# create ad-hoc phases from fringe file (type 212)
-# use round-robin training/evaluation to avoid self-tuning bias
-# compensate for delay-rate rotator bias for frequencies away from reference frequency
-def adhoc(b, pol=None):
-    b = getfringefile(b, pol=pol)
-    v = pop212(b)
+def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix=''):
+    """
+    create ad-hoc phases from fringe file (type 212)
+    use round-robin training/evaluation to avoid self-tuning bias
+    some SNR-based selection of averaging timescale is done to tune Sav-Gol filter
+    compensate for delay-rate rotator bias for frequencies away from reference frequency (not done)
+    check for -1 bad flag data in type212 and interpolate over (not done)
+
+    Args:
+        b: numpy array of shape (nap, nchan), of fringe filename, or mk4fringe object from which visibs will be read
+           if fringe filename or object is sent, auxiliary information will be provided for control file
+        pol: will filter for pol if multiple files or pattern given
+        window_length: odd integer length of scipy.signal.savgol_filter applied to data for smoothing (default=7)
+        polyorder: order of piecewise smoothing polynomial (default=3)
+        snr: manually set SNR to auto determine window_length and polyorder, else take from fringe file
+        ref: 0 (first site), 1 (second site), or station letter (e.g. A)
+        prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
+    """
+    from scipy.signal import savgol_filter
+    if type(b) is np.ndarray:
+        v = b
+    else:
+        b = getfringefile(b, pol=pol)
+        v = pop212(b)
     (nap, nchan) = v.shape
-    p = param(b)
-    for i in nchan: # i is the channel to exclude in fit
-        # parameters = (alpha, tau, spec)
-        par = np.zeros(2 + nap)
-    raise Exception("unfinished")
+
+    vfull = v.sum(axis=1) # full frequency average
+    vchop = np.zeros_like(v)
+    phase = np.zeros_like(v, dtype=np.float)
+
+    if type(b) is mk4.mk4_fringe:
+        p = params(b)
+        if snr is None:
+            snr = p.snr
+        if ref == p.baseline[0]:
+            parity = 1
+        if ref == p.baseline[1]:
+            parity = -1
+    else:
+        if snr is None:
+            snr = 100.*np.sqrt(nap/300.) # some default
+    if ref == 0:
+        parity = 1
+    if ref == 1:
+        parity = -1
+    # note that snr=10 per measurement is 36deg phase error
+    # this should really be balanced against how rapidly the phase may vary between estimates
+    nfit = int((snr / 10.)**2) # number of parameters we might be able to fit
+    # qualitative behavior of fit depends primarily on window_length/polyorder which sets
+    # timescale for free parameters. actual poly degree doesn't matter as much.
+    if polyorder is None:
+        polyorder = min(nfit, 3)
+    if window_length is None:
+        window_length = 1+2*max(3, int(0.5 + float(nap * polyorder) / float(nfit) / 2.))
+
+    for i in range(nchan): # i is the channel to exclude in fit
+        # remove evaluation channel
+        vtemp = vfull - v[:,i]
+        re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
+        im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
+        vchop[:,i] = re + parity*1j*im
+        phase[:,i] = parity * np.unwrap(np.arctan2(im, re)) * 180./np.pi
+
+    if type(b) is mk4.mk4_fringe:
+        timetag = p.scantime.strftime("%j-%H%M%S")
+        (ref, rem) = [p.baseline[0], p.baseline[1]][::parity]
+        adhoc_filename = prefix + "adhoc_%s_%s.dat" % (rem, timetag)
+        cf = """
+if station %s and scan %s
+    adhoc_phase file
+    adhoc_file %s
+    adhoc_file_chans %s
+""" % (rem, timetag, adhoc_filename, ''.join(p.code))
+        string = '\n'.join(("%.10f " % day + np.array_str(-ph, precision=3, max_line_width=1e6)[1:-1]
+            for (day, ph) in zip(p.days, phase))) # note adhoc phase file needs sign flip, i.e. phase to be added to data
+        return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, scan_name=p.scan_name, scantime=p.scantime,
+                         scantimetag=timetag, filename=adhoc_filename, cfcode=cf, string=string)
+    else:
+        return Namespace(v=vchop)
 
 # helper class for embedded PDF in ipython notebook
 class PDF(object):
@@ -704,7 +839,7 @@ class ControlFile(object):
         if os.path.exists(cf):
             cf = open(cf).read()
         cf = re.sub('\*.*', '', cf) # strip comments, assume DOTALL is not set
-        cf = re.sub('\s+', ' ', cf) # simplify whitespace
+        cf = re.sub('\s+', ' ', cf).strip() # simplify whitespace
         blocks = re.split('\s+if\s+', cf) # isolate if statement blocks
 
         # separate out actions using reverse findall search
@@ -761,6 +896,11 @@ class ControlFile(object):
     def filter(self, station=None, baseline=None, source=None, scan=None, dropmissing=False):
         return ControlFile([[condition, actions] for (condition, actions) in self.cfblocks if
             self.evaluate(condition, station=station, baseline=baseline, source=source, scan=scan, dropmissing=dropmissing)])
+
+    # run through the complete list of control blocks in order and set actions by name
+    # returns dictionary with {action: value}
+    def actions(self):
+        return dict(av for block in self.cfblocks for actionlist in block[1:] for av in actionlist)
 
     # initialize a control file object from file or string
     def __init__(self, cf):

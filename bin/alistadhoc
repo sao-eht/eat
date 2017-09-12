@@ -24,6 +24,23 @@ a = hops.read_alist(args.filename)
 
 util.add_days(a)
 
+"""
+Note: according to doc/fourfit/file_based_pcal.tex,
+
+The time points are considered to be either instantaneous values, or the
+result of a linear average of the phase, symmetric about the specified epoch.
+The algorithm within fourfit performs a linear interpolation between the
+specified points, and then finds the average value of the piece-wise linear
+function so derived over each accumulation period in a fringe fit. If the ap
+data extends beyond the range of the piecewise linear pcal function, then the
+function is extrapolated linearly (if possible) to cover the ap.
+
+so an effort should be made to accurately timestamp the middle of the segment
+
+add_days converts straight from timetag, which is halfway into scan for fingex
+output, but rounded (?) to the nearest second boundary
+"""
+
 a['phase_unwrap'] = (-1. if args.flip else 1.) * np.unwrap(a.resid_phas, 180.)
 
 # fmt = ['{:10.6f}'.format,] + ['{:6.1f}'.format,]*args.nchan

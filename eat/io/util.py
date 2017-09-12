@@ -8,8 +8,10 @@ from __future__ import absolute_import
 from builtins import zip
 from pkg_resources import parse_version
 import pandas as pd
-if parse_version(pd.__version__) < parse_version('0.15.1dev'):
-    print("pandas version too old and buggy, please update")
+try:
+    assert(parse_version(pd.__version__) >= parse_version('0.15.1dev'))
+except:
+    print("pandas version too old")
 import datetime
 import numpy as np
 import os
@@ -20,20 +22,23 @@ locations = ['C', 'H', 'Z', 'A']
 dishes = ['DE', 'FG', 'J', 'PQ', 'ST', 'A']
 feeds = [l for l in "DEFGJPQSTA"]
 # reverse index of lookup for single dish station code
-site2loc = {site:location for (sitelist, location) in zip(sites, locations) for site in sitelist}
+# for now builtins mock module for sphinx doc will not work, remove site2loc since it is not used anywhere
+# site2loc = {site:location for (sitelist, location) in zip(sites, locations) for site in sitelist}
 isite = {f:i for i, flist in enumerate(sites) for f in flist}
 idish = {f:i for i, flist in enumerate(dishes) for f in flist}
 ifeed = {f:i for i, f in enumerate(feeds)}
 
-def istrivial(triangle):
-    locs = set((site2loc[s] for s in triangle))
-    return len(locs) < 3
-
-# return True if data frame rows are uniquely identified by columns
-# e.g. check for single root_id per (timetag, baseline, polarization)
 def isunique(df, cols=['timetag', 'baseline', 'polarization']):
-	count = set(len(rows) for (name, rows) in df.groupby(cols))
-	return count == {1,}
+    """Return True if data frame rows are uniquely identified by columns
+
+    e.g. check for single root_id per (timetag, baseline, polarization)
+
+    Args:
+        df (pandas.DataFrame): input data frame with necessary columns
+        cols: list of columns to use for checking uniquness
+    """
+    count = set(len(rows) for (name, rows) in df.groupby(cols))
+    return count == {1,}
 
 # unwrap the MBD based on the 32 MHz ambiguity in HOPS, choose value closest to SBD
 # this old version uses some old column names (instead of the HOPS code defined names)
@@ -43,27 +48,36 @@ def unwrap_mbd_old(df, mbd_ambiguity=None):
     offset = np.remainder(df.sbd - df.mbd + 1.5*mbd_ambiguity, mbd_ambiguity)
     df['mbd_unwrap'] = df.sbd - offset + 0.5*mbd_ambiguity
 
-# unwrap the MBD based on the 32 MHz ambiguity, choose value closest to SBD
 def unwrap_mbd(df, mbd_ambiguity=None):
+    """Add *mbd_unwrap* to DataFrame based on ambiguity [us], choose value closest to SBD
+    """
+
     if mbd_ambiguity is None:      # we may want to set this manually
         mbd_ambiguity = df.ambiguity # if alist file does not contain sufficient precision
     offset = np.remainder(df.sbdelay - df.mbdelay + 1.5*mbd_ambiguity, df.ambiguity)
     df['mbd_unwrap'] = df.sbdelay - offset + 0.5*mbd_ambiguity
 
-# rewrap the MBD based on the 32 MHz ambiguity, choose value within +/-ambiguity window
 def rewrap_mbd(df, mbd_ambiguity=None):
+    """Rewrap in place the MBD based on the ambiguity [us], choose value within +/-ambiguity window"""
     if mbd_ambiguity is None:      # we may want to set this manually
         mbd_ambiguity = df.ambiguity # if alist file does not contain sufficient precision
     df['mbdelay'] = np.remainder(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
 
-# add statistical error from fitting straight lines here, note no systematics!
-# this is re-derived and close in spirit to the code in fourfit/fill_208.c
-# but there are small different factors, not sure what is origin of the fourfit eqns
-# add some sytematic errors in quadrature.. (alist precision, linear approx systematics..)
-# bw: bw spread in MHz (not in alist..) default: guess based on ambiguity and freq code
-# mbd_systematic, rate_systematic: added in quadrature to statistical error (us, ps/s)
-# crosspol_systematic: added in quadrature to delay error for cross polarization products
 def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001, crosspol_systematic=0.):
+    """Add in place error to delay and rate fit from fourfit.
+
+    This is re-derived and close in spirit to the code in fourfit/fill_208.c
+    but there are small different factors, not sure what is origin of the fourfit eqns
+    add some sytematic errors in quadrature.. (alist precision, linear approx systematics..)
+
+    Args:
+        bw: bw spread in MHz (not in alist..) [default guess based on ambiguity and freq code]
+        mbd_systematic, rate_systematic: added in quadrature to statistical error (us, ps/s)
+        crosspol_systematic: added in quadrature to delay error for cross polarization products
+
+    Returns:
+        additional columns *mbd_err* and *rate_err* added directly to original DataFrame
+    """
     if bw is None:
         nchan = pd.to_numeric(df.freq_code.str[1:])
         sbw   = 1./pd.to_numeric(df.ambiguity) # bw of single channel
@@ -76,43 +90,47 @@ def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001, cr
                             crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
     df['rate_err'] = np.sqrt(df['rate_err']**2 + rate_systematic**2)
 
-# convert HOPS timetag to pandas Timestamp (np.datetime64)
 def tt2dt(timetag, year=2017):
+    """convert HOPS timetag to pandas Timestamp (np.datetime64)"""
     return pd.to_datetime(str(year) + timetag, format="%Y%j-%H%M%S")
 
-# add unique ID tuple to data frame based on columns
+def dt2tt(dt):
+    """convert datetime to HOPS timetag"""
+    return dt.strftime("%j-%H%M%S")
+
 def add_id(df, col=['timetag', 'baseline', 'polarization']):
+    """add unique *id* tuple to data frame based on columns"""
     df['id'] = list(zip(*[df[c] for c in col]))
 
-# add scan number based on 2017 scan_id e.g. No0012 -> 12
 def add_scanno(df):
+    """add *scan_no* based on 2017 scan_id e.g. No0012 -> 12"""
     df['scan_no'] = df.scan_id.str[2:].astype(int)
 
-# add a path to each alist line for easier finding
 def add_path(df):
+    """add a *path* to each alist line for easier file access"""
     df['path'] = ['%s/%s/%s.%.1s.%s.%s' % par for par in zip(df.expt_no, df.scan_id, df.baseline, df.freq_code, df.extent_no, df.root_id)]
 
-# add UNIX time
 def add_utime(df):
+    """add UNIX time *utime*"""
     df['utime'] = 1e-9*np.array(df.datetime).astype('float')
 
-# add hour if HOPS timetag available
 def add_hour(df):
+    """add *hour* if HOPS timetag available"""
     if 'timetag' in df:
         df['hour'] = df.timetag.apply(lambda x: float(x[4:6]) + float(x[6:8])/60. + float(x[8:10])/3600.)
     elif 'hhmm' in df:
         df['hour'] = df.hhmm.apply(lambda x: float(x[0:2]) + float(x[2:4])/60.)
 
-# day of year tag as integer (from timetag)
 def add_doy(df):
+    """add day-of-year *doy* extracted from time-tag"""
     df['doy'] = df.timetag.str[:3].astype(int)
 
-# decimal days since beginning of year = (DOY - 1) + hour/24.
 def add_days(df):
+    """decimal *days* since beginning of year = (DOY - 1) + hour/24."""
     df['days'] = df.timetag.apply(lambda x: float(x[0:3])-1. + float(x[4:6])/24. + float(x[6:8])/1440. + float(x[8:10])/86400.)
 
-# add GMST column to data frame with 'datetime' field
 def add_gmst(df):
+    """add *gmst* column to data frame with *datetime* field using astropy for conversion"""
     from astropy import time
     g = df.groupby('datetime')
     (timestamps, indices) = list(zip(*iter(g.groups.items())))
@@ -130,13 +148,13 @@ def add_gmst(df):
     for (gmst, idx) in zip(times_gmst, indices):
         df.ix[idx, 'gmst'] = gmst
 
-# remove autocorrelations from data frame
 def noauto(df):
+    """returns new data frame with autocorrelations removed regardless of polarziation"""
     auto = df.baseline.str[0] == df.baseline.str[1]
     return df[~auto].copy()
 
-# take calibration output data frame, and make UV dictionary lookup table
 def uvdict(filename):
+    """take calibration output data frame, and make UV dictionary lookup table"""
     from . import hops
     df = hops.read_caltable(filename, sort=False)
     uvdict = {}

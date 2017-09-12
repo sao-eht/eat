@@ -2,12 +2,16 @@
 # 2016-10-11 Lindy Blackburn
 
 from __future__ import print_function
-from builtins import zip
-from builtins import range
+import builtins
+if 'zip' in dir(builtins):
+    zip = builtins.zip
+    range = builtins.range
 from pkg_resources import parse_version
 import pandas as pd
-if parse_version(pd.__version__) < parse_version('0.15.1dev'):
-    print("pandas version too old and buggy, please update")
+try:
+    assert(parse_version(pd.__version__) >= parse_version('0.15.1dev'))
+except:
+    print("pandas version too old")
 import datetime
 import numpy as np
 import os
@@ -251,6 +255,14 @@ def get_alist_version(filename):
 # mk4 correlated data will have az,el = 0
 # difx correlated data will have az,el != 0, but may still have u,v = 0
 def read_alist(filename):
+    """Read alist file into pandas table, automatically deteremine version (v5 or v6)
+
+    Args:
+        filename (str): alist filename
+
+    Returns:
+        pandas.DataFrame with alist contents
+    """
     ver = get_alist_version(filename)
     if ver == 5:
         table = read_alist_v5(filename)
