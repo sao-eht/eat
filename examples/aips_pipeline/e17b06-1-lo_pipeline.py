@@ -18,7 +18,7 @@ import eat.aips.ehtutil as ehtutil
 workdir = 'XXXX/eht2017/e17b06-1-lo-rev1'
 fitsdir = 'XXXX/eht2017data/fitsidi-rev1/aipsloader-e17b06-1-lo'
 fitsname = "LOADER.FITS"
-ancortab = os.path.join(workdir, "corrtab_2017apr.csv")
+ancortab = os.path.join(workdir, "ancortab_2017apr.csv")
 userno = 2
 disk=1
 uvname = "E17B06-1L"
