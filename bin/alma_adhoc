@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+
+# use ALMA to reference adhoc phases to other sites
+# 2017-09-15 Lindy Blackburn
+
+from eat.io import hops, util
+from eat.hops import util as hu
+import os
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('filename', help='alist file')
+parser.add_argument('-d', '--datadir', help='use fringe files from this data directory', default='.')
+parser.add_argument('-o', '--outdir', help='output directory for adhoc files (one per scan)', default=None)
+parser.add_argument('-q', '--quiet', help='do not print cfcodes to stdout (they are saved in adhoc_codes)', action='store_true', default=False)
+args = parser.parse_args()
+
+# read alist file (autodetect version 5 or 6)
+a = hops.read_alist(args.filename)
+
+"""
+Note: according to doc/fourfit/file_based_pcal.tex,
+
+The time points are considered to be either instantaneous values, or the
+result of a linear average of the phase, symmetric about the specified epoch.
+The algorithm within fourfit performs a linear interpolation between the
+specified points, and then finds the average value of the piece-wise linear
+function so derived over each accumulation period in a fringe fit. If the ap
+data extends beyond the range of the piecewise linear pcal function, then the
+function is extrapolated linearly (if possible) to cover the ap.
+
+so an effort should be made to accurately timestamp the middle of the segment
+
+however currently fourfit has an off-by-one bug so the timestamp must be 1 AP prior
+
+add_days converts straight from timetag, which is halfway into scan for fingex
+but only a 1s precision
+"""
+
+if args.outdir is not None and not os.path.exists(args.outdir):
+    os.makedirs(args.outdir)
+
+def adhocref(df, ref='A', outdir=None, timeoffset=0.):
+    """use reference site to make adhoc phases to other stations in data frame
+    
+    Args:
+        df: pandas.DataFrame in alist format covering only one scan
+        ref: reference site code (default A)
+        **kwargs: extra conditional (e.g. scan_id) filter to apply on df
+    """
+    import datetime
+    import mk4
+    import itertools
+    cfcodes = []
+    # apply any filters given in kwargs
+
+    outdir = '.' if outdir is None else outdir
+
+    # for each baseline, take polarization product with the highest SNR
+    df = df.sort_values('snr').groupby(['timetag', 'baseline']).last().reset_index()
+    # filter only baselines to ref
+    df = df[df.baseline.str.contains(ref)]
+    util.add_path(df)
+    # reverse sign of phases where ref is second site
+    for (name, g) in df.groupby('timetag'):
+        snr = df.snr.min() # base smoothing timescale on lowest SNR
+        for (idx, row) in g.iterrows():
+            b = hu.getfringefile(row.path, quiet=True)
+            ah = hu.adhoc(b, ref=ref, timeoffset=timeoffset, prefix='' if outdir == '.' else outdir + '/')
+            out = open(ah.filename, 'w')
+            out.write(ah.string)
+            if not args.quiet:
+                print(ah.cfcode.strip())
+            cfcodes.append(ah.cfcode.strip())
+    outcf = open(outdir + '/' + 'adhoc_cfcodes', 'w')
+    outcf.write('\n'.join(cfcodes))
+
+hu.set_datadir(args.datadir)
+a = util.noauto(hops.read_alist(args.filename))
+codes = adhocref(a, outdir=args.outdir, timeoffset=-1.)
+

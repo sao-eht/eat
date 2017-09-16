@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+
+# evaluate R-L delay offsets for sites using ALMA as reference
+# 2017-09-15 Lindy Blackburn
+
+from eat.io import hops, util
+from eat.hops import util as hu
+import pandas as pd
+import numpy as np
+import sys
+import re
+import argparse
+
+# systematics parameters
+sys_fac = 1.0 # systematic factor on thermal delay error
+sys_par = 2e-6 # 2 ps on fringe delay
+sys_cross = 20e-6 # 20 ps on cross hand delay
+
+# special segments list of restarts in days since year
+restarts = {'X':map(util.tt2dt, ['101-010200'])} # need to check once M87 scans are available
+
+parser = argparse.ArgumentParser()
+parser.add_argument('filename', help='alist txt file')
+parser.add_argument('-n', '--nchan', help='number of channels', nargs='?', type=int, default=32)
+parser.add_argument('-o', '--outfile', help='output csv filename', type=str, default=None)
+parser.add_argument('-c', '--controlcodes', help='construct control codes rather than csv table', action='store_true', default=False)
+parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=2e-6)
+parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
+parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=20e-6)
+parser.add_argument('-ao', '--alma_offset', help='MBD is <offset> ns larger than SBD', type=float, default=7.2)
+args = parser.parse_args()
+
+# read alist file (autodetect version 5 or 6)
+a = util.noauto(hops.read_alist(args.filename))
+a = a[(a.snr > 9) & (a.baseline.str[0] == 'A')]
+
+# add delay and rate errors, with systematic limits on resolution
+util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_error,
+                     crosspol_systematic=args.crosspol_delay_error)
+
+
+# RRLL stats after segmentation
+(p, stats) = hu.rrll_segmented(a, restarts=restarts, start='2017-04-04 21:00:00', stop='2017-04-12 21:00:00')
+
+# make delay out table
+offs = stats.reset_index()
+offs['site'] = offs.baseline.str[1]
+offs['LR_delay'] = offs.LLRR_mean
+offs['LR_delay_err'] = offs.LLRR_mean_err
+
+if args.outfile == None:
+    out = sys.stdout
+else:
+    out = open(args.outfile, 'w')
+
+if args.controlcodes:
+    cflines = offs.apply(hu.doff2cf, axis=1)
+    out.write(''.join(cflines))
+else:
+    offs["start stop site LR_delay LR_delay_err".split()].to_csv(out, float_format='%+9.7f', index=False)
+

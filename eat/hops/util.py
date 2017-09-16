@@ -73,9 +73,10 @@ def getpolarization(f):
 # maybe this should get latest HOPS rootcode instead..
 # remember file path to guess working directory for future calls
 # filelist=True will return a list of all files found
-def getfringefile(b=None, filelist=False, pol=None):
+# quiet: if True do not echo filename
+def getfringefile(b=None, filelist=False, pol=None, quiet=False):
     if b is None and hasattr(getfringefile, 'last'): # try to run with the last
-        return getfringefile('/'.join(getfringefile.last), filelist=filelist, pol=pol)
+        return getfringefile('/'.join(getfringefile.last), filelist=filelist, pol=pol, quiet=quiet)
     if type(b) is str:
         files = glob.glob(b)
         if len(files) == 0: # try harder to find file
@@ -94,7 +95,8 @@ def getfringefile(b=None, filelist=False, pol=None):
             return sorted(files)
         files.sort(key=os.path.getmtime)
         getfringefile.last = files[-1].split('/')
-        print(files[-1])
+        if not quiet:
+            print(files[-1])
         b = mk4.mk4fringe(files[-1]) # use last updated file
     return b
 
@@ -752,13 +754,13 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         snr: manually set SNR to auto determine window_length and polyorder, else take from fringe file
         ref: 0 (first site), 1 (second site), or station letter (e.g. A)
         prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
-        timeoffset: add timeoffset [s] to each timestamp in the adhoc string
+        timeoffset: add timeoffset [units of AP] to each timestamp in the adhoc string
     """
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
         v = b
     else:
-        b = getfringefile(b, pol=pol)
+        b = getfringefile(b, pol=pol, quiet=True)
         v = pop212(b)
     (nap, nchan) = v.shape
 
@@ -768,6 +770,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
 
     if type(b) is mk4.mk4_fringe:
         p = params(b)
+        timeoffset = timeoffset * p.ap # use AP if we can
         if snr is None:
             snr = p.snr
         if ref == p.baseline[0]:
