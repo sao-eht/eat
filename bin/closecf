@@ -3,6 +3,7 @@
 # close ALIST and create HOPS control file steered to global solution
 # 2016-10-11 Lindy Blackburn
 # 2017-07-20 Lindy Blackburn & CK Chan - update for 2015+ data
+# 2017-09-13 Lindy Blackburn, update for 2017 Rev1-Cal
 
 from eat.io import hops, util
 import numpy as np
@@ -14,39 +15,35 @@ import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist txt file')
-parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=3e-6)
+parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=2e-6)
 parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
 parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=20e-6)
-parser.add_argument('-pp', '--polarization_products', help='separate delays by polarization product', action='store_true')
 parser.add_argument('-sw', '--sigmas_to_window', help='sigmas to window for both delay and rate', type=float, default=0)
 parser.add_argument('-dw', '--delay_window', help='fixed delay window to apply in [us]', type=float, default=0)
 parser.add_argument('-rw', '--rate_window', help='fixed rate window to apply in [ps/s]', type=float, default=0)
+parser.add_argument('-ao', '--alma_offset', help='MBD is <offset> ns larger than SBD', type=float, default=7.2)
 args = parser.parse_args()
 
 # read alist file (autodetect version 5 or 6)
-a = hops.read_alist(args.filename)
-a = a[a.snr > 7] # loss function not super robust..
-a = a[~a.baseline.str.contains('R')] # SR baseline messes things up, ignore SMA Reference
+a = util.noauto(hops.read_alist(args.filename))
+a = a[a.snr > 9] # loss function not super robust..
+# a = a[~a.baseline.str.contains('R')] # SR baseline messes things up, ignore SMA Reference
+# a = a[(a.baseline == 'SR') | (~a.baseline.str.contains('R'))] # SR baseline messes things up
+a = a[~(a.baseline == 'SR')] # SR baseline messes things up
 
-# stations grouped according to having related fringe parameters
-if int(a.iloc[0].year) <= 2013:
-    dishes = ['DE', 'FG', 'J', 'PQ', 'ST', 'A']
-    feeds = [l for l in "DEFGJPQSTA"]
-elif args.polarization_products:
-    # ['J', 'L', 'S', 'Z']
-    dishes = sorted(set(chain(*a.baseline)))
-    # [('L', 'L'), ('L', 'R'), ('S', 'L'), ('S', 'R'), ('Z', 'L'), ('Z', 'R')]
-    feeds = sorted(set(chain(*[zip(*q) for q in zip(a.baseline, a.polarization)])))
-else:
-    dishes = sorted(set(chain(*a.baseline)))
-    feeds = dishes
+dishes = sorted(set(chain(*a.baseline)))
 
 # reverse index of lookup for single dish station code
-idish = {f:i for i, flist in enumerate(dishes) for f in flist}
-ifeed = {f:i for i, f in enumerate(feeds)}
+idish = {f:i for i, f in enumerate(dishes)}
+
+# correct for ALMA offset..
+a['sbdelay'] = a.sbdelay + 1e-3*args.alma_offset * a.baseline.str.contains('A')
 
 # unwrap mbd to be aligned to sbd
 util.unwrap_mbd(a)
+
+# there is one AS outlier to remove
+a = a[np.abs(a.mbd_unwrap) <= 40e-3]
 
 # add delay and rate errors, with systematic limits on resolution
 util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_error,
@@ -63,21 +60,12 @@ def errfunc(par, idx1, idx2, alldata, allerr):
     model = par[idx1] - par[idx2]
     return (alldata - model) / allerr
 
-# indices for unique feeds/dishes
+# indices for unique dishes/dishes
 a['idish0'] = [idish[bl[0]] for bl in a.baseline]
 a['idish1'] = [idish[bl[1]] for bl in a.baseline]
-if int(a.iloc[0].year) <= 2013:
-    a['ifeed0'] = [ifeed[bl[0]] for bl in a.baseline]
-    a['ifeed1'] = [ifeed[bl[1]] for bl in a.baseline]
-elif args.polarization_products:
-    a['ifeed0'] = [ifeed[(bl[0], pol[0])] for (bl, pol) in zip(a.baseline, a.polarization)]
-    a['ifeed1'] = [ifeed[(bl[1], pol[1])] for (bl, pol) in zip(a.baseline, a.polarization)]
-else:
-    a['ifeed0'] = [ifeed[bl[0]] for bl in a.baseline]
-    a['ifeed1'] = [ifeed[bl[1]] for bl in a.baseline]
 
-g = a.groupby('scan_id')
-scans = sorted(set(a.scan_id))
+g = a.groupby('timetag')
+scans = sorted(set(a.timetag))
 
 # loop over all scans and overwrite with new solution
 # for scan in scans:
@@ -89,37 +77,29 @@ for scan in scans:
     b = a.loc[idx]
     # initial guess
     rates = np.zeros(len(dishes))
-    delays = np.zeros(len(feeds))
+    delays = np.zeros(len(dishes))
     # f_scale will be the deviation [in sigma] where the loss function kicks in
     # it should be a function of the SNR of the detection ideally..
     # but it looks like scipy just supports a single float
-    fit_mbd = least_squares(errfunc, np.zeros(len(feeds)),
-                            args=(b.ifeed0, b.ifeed1, b.mbd_unwrap, b.mbd_err),
-                            loss='linear', f_scale=6).x
+    fit_mbd = least_squares(errfunc, np.zeros(len(dishes)),
+                            args=(b.idish0, b.idish1, b.mbd_unwrap, b.mbd_err),
+                            loss='soft_l1', f_scale=8).x
     fit_rate = least_squares(errfunc, np.zeros(len(dishes)),
                             args=(b.idish0, b.idish1, b.delay_rate, b.rate_err),
-                            loss='linear', f_scale=6).x
-    a.ix[idx,'mbd_unwrap'] = fit_mbd[b.ifeed0] - fit_mbd[b.ifeed1]
+                            loss='soft_l1', f_scale=8).x
+    a.ix[idx,'mbd_unwrap'] = fit_mbd[b.idish0] - fit_mbd[b.idish1]
     a.ix[idx,'delay_rate'] = fit_rate[b.idish0] - fit_rate[b.idish1]
 
 util.rewrap_mbd(a)
 
 # print out FF control file
 
-if args.polarization_products:
-    for pp in set(a.polarization):
-        out = open('%s.closecf.%s' % (os.path.split(args.filename)[-1], pp), 'w')
-        app = a[a.polarization == pp]
-        g = app.groupby('timetag')
-        for (scan, b) in g:
-            for c in b.itertuples():
-                out.write("if scan %s and baseline %s sb_win %9.6f %9.6f mb_win %9.6f %9.6f dr_win %15.12f %15.12f\n" %
-                    (c.timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate))
-        out.close()
-else:
-    g = a.groupby('timetag')
-    for (scan, b) in g:
-        for c in b.itertuples():
-            print("if scan %s and baseline %s sb_win %9.6f %9.6f mb_win %9.6f %9.6f dr_win %15.12f %15.12f" %
-                (c.timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate))
+g = a.groupby('timetag')
+for (scan, b) in g:
+    for c in b.groupby('baseline').first().reset_index().itertuples():
+        # offsets for ALMA SBD offset
+        offset0 = -1e-3*args.alma_offset - 0.5e-3 if 'A' in c.baseline else 0.
+        offset1 = -1e-3*args.alma_offset + 0.5e-3 if 'A' in c.baseline else 0.
+        print("if scan %s and baseline %s sb_win %10.7f %10.7f mb_win %10.7f %10.7f dr_win %15.12f %15.12f * expt_no %d" %
+            (c.timetag, c.baseline, c.mbd_unwrap + offset0, c.mbd_unwrap + offset1, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate, c.expt_no))
 

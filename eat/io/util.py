@@ -63,7 +63,7 @@ def rewrap_mbd(df, mbd_ambiguity=None):
         mbd_ambiguity = df.ambiguity # if alist file does not contain sufficient precision
     df['mbdelay'] = np.remainder(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
 
-def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001, crosspol_systematic=0.):
+def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000010, rate_systematic=0.001, crosspol_systematic=0.):
     """Add in place error to delay and rate fit from fourfit.
 
     This is re-derived and close in spirit to the code in fourfit/fill_208.c
@@ -72,6 +72,8 @@ def add_delayerr(df, bw=None, mbd_systematic=0.000010, rate_systematic=0.001, cr
 
     Args:
         bw: bw spread in MHz (not in alist..) [default guess based on ambiguity and freq code]
+        bw_factor: use bw*bw_factor "effective bandwidth" to calculate statistical error on estimate
+                   compensates for non-white data
         mbd_systematic, rate_systematic: added in quadrature to statistical error (us, ps/s)
         crosspol_systematic: added in quadrature to delay error for cross polarization products
 
