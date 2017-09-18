@@ -27,7 +27,7 @@ parser.add_argument('-c', '--controlcodes', help='construct control codes rather
 parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=2e-6)
 parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
 parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=20e-6)
-parser.add_argument('-ao', '--alma_offset', help='MBD is <offset> ns larger than SBD', type=float, default=7.2)
+parser.add_argument('-ao', '--alma_offset', help='MBD is <offset> ns larger than SBD', type=float, default=7.25)
 args = parser.parse_args()
 
 # read alist file (autodetect version 5 or 6)
@@ -56,6 +56,7 @@ else:
 if args.controlcodes:
     cflines = offs.apply(hu.doff2cf, axis=1)
     out.write(''.join(cflines))
+    out.write('\nif station A\n    delay_offs ' + hu.lex[:args.nchan] + ''.join([" %.4f" % args.alma_offset] * args.nchan) + '\n')
 else:
     offs["start stop site LR_delay LR_delay_err".split()].to_csv(out, float_format='%+9.7f', index=False)
 
