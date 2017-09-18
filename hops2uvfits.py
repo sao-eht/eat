@@ -11,6 +11,7 @@ import astropy.io.fits as fits
 from argparse import Namespace
 import glob
 import os, sys
+import eat.hops.util
 from eat.io import util
 from eat.plots import util as putil
 from astropy.time import Time
@@ -20,7 +21,7 @@ import numpy.matlib
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
 
 # For Katie
-DATADIR_DEFAULT = '../3554/'# /098-0916/'
+DATADIR_DEFAULT = '/Users/klbouman/Downloads/apr2017s/3598_orig' #'../3554/'# /098-0916/'
 # source hops.bash in /Users/klbouman/Research/vlbi_imaging/software/hops/build
 # run this from /Users/klbouman/Research/vlbi_imaging/software/hops/eat
 
@@ -74,12 +75,6 @@ def mk4time(time):
                                       (time.year, time.day, time.hour, time.minute, int(time.second), int(0.5+1e6*(time.second-int(time.second)))),
                                       "%Y-%j %H:%M:%S.%f")
  
- 
-# unwrap short to positive int in multiples from 1e6 to 1024e6
-def short2int(short):
-    return short2int.lookup[short]
-
-short2int.lookup = {ctypes.c_short(i*1000000).value:i*1000000 for i in range(1024)}
 
 #######################################################################
 ##########################  Load/Save FUNCTIONS #######################
@@ -88,7 +83,10 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
     baselineNames = []
     for filename in glob.glob(datadir + '*'):
-        baselineNames.append(os.path.basename(filename).split(os.extsep)[0])
+        # remove type 1 and 3 files
+        #if ".." not in filename:
+        if filename.count('.')==3:
+            baselineNames.append(os.path.basename(filename).split(os.extsep)[0])
 
     baselineNames = set(baselineNames)
     
@@ -111,20 +109,27 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 continue
         except IndexError: pass
         
+        # remove type 3 files containing model spline coefficients, phasecal data, state count information, and tape error statistics
+        #if len(baselineName)==1:
+        #    continue
+        
         # remove auto correlations 
         if baselineName[0] == baselineName[1]:
             continue
 
         #print "Making uvfits for baseline: ", baselineName        
         for filename in glob.glob(datadir + baselineName + '*'):
-            if filename.split(os.extsep)[-1] == "uvfits":
+            
+            # remove type 1 and 2 files and uvfits files with the same basename
+            if filename.split(os.extsep)[-1] == "uvfits" or filename.count('.')!=3:
                 continue
-       
+                
             #print "reading hops fringe file: ", filename
             a = mk4.mk4fringe(filename)
             b = getfringefile(a)
 
             if first_pass_flag: #some info we get only once per baseline
+
 
                 ##########################  SOURCE INFO ##########################
                 # name of the source
@@ -207,7 +212,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 #print ant1,ant2, u_static/1.e9, v_static/1.e9, np.sqrt(u_static**2 + v_static**2)/1.e9
 
                 outdat = np.zeros((nap, 1, 1, nwindow, nchan, nstokes, 3))
-                outdat[:,:,:,:,:,:,2] = -1.0
+                outdat[:,:,:,:,:,:,2] = -1.0 
 
                 # this is a static u/v. we will want to change it with the real time later
                 u = u_static * np.ones(outdat.shape[0])
@@ -250,8 +255,8 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 channel_freq_ant2[count] = ch.rem_freq
 
                 # bandwidth of the channel (in Hz) - mutliply by 0.5 because it is the sample_rate
-                channel_bw_ant1[count] = 0.5*short2int(ch.sample_rate)
-                channel_bw_ant2[count] = 0.5*short2int(ch.sample_rate)
+                channel_bw_ant1[count] = 0.5*eat.hops.util.short2int(ch.sample_rate)
+                channel_bw_ant2[count] = 0.5*eat.hops.util.short2int(ch.sample_rate)
 
                 # the polarization 'L' or 'R'
                 channel_pol_ant1.append(ch.refpol)
@@ -274,10 +279,19 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 pass
                 #print 'warning: channel 1 != ref_freq'
             
+            
+            if len(set(np.diff(channel_freq_ant1)))>1:
+                raise Exception('the spacing between the channels is different')
+            else:
+                channel_spacing = channel_freq_ant1[1] - channel_freq_ant1[0]
+            
             channel_bw = channel_bw_ant1[0]
             channel1_freq = channel_freq_ant1[0]
             nsta = len(antennas)
             bw = channel_bw*numberofchannels
+            
+            print 'ERROR: REMOVE THIS!'
+            channel_bw = channel_spacing
             
             # the proportion of data used to generate each measurement.
             weights = np.zeros([nchan,nap])
@@ -306,9 +320,12 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             #print 'WARNING: the coherent average is currently off by 4 orders of magnitude - check it!'
         
             snr = b.t208[0].snr
-            sigma_full = amplitude/snr
-            sigma_ind = sigma_full * np.sqrt( np.sum(weights) / weights )
-            recover_snr = np.abs(np.mean(visibilities)) / np.sqrt(np.mean(sigma_ind**2)/np.prod(sigma_ind.shape))
+            if snr==0.0:
+                sigma_ind = -1 * np.ones(weights.shape)
+            else:
+                sigma_full = amplitude/snr
+                sigma_ind = sigma_full * np.sqrt( np.sum(weights) / weights )
+                recover_snr = np.abs(np.mean(visibilities)) / np.sqrt(np.mean(sigma_ind**2)/np.prod(sigma_ind.shape))
 
             ##########################  to uvfits style visibility table #################
             #TODO what is visweight ??
@@ -336,6 +353,9 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             for i in xrange(nchan):
                 
                 visweight = 1.0 / (sigma_ind[i,:]**2)
+                # set it to 0 if the snr is 0
+                visweight[sigma_ind[i,:] == -1 ] = 0.0 
+                
                 vis_i = visibilities[:,i]
                 vis_i = vis_i * np.exp( 1j * shift[i,:] )
                 
@@ -539,6 +559,7 @@ def merge_hops_uvfits(fitsFiles):
     
     firstfreq_min = np.min(np.array(firstfreq_list))
     lastfreq_max = np.max(np.array(lastfreq_list))
+    
     for i in range(len(firstfreq_list)):
         diff = (firstfreq_list[i] - firstfreq_min)/ch_bw
         if (np.abs(diff - np.round(diff)) > EP):
@@ -886,6 +907,7 @@ def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, clean_bl_fits=False, r
             bl_fitsFiles.append(filename)
         if not len(bl_fitsFiles):
             raise Exception("cannot find any fits files with extension _hops_bl.uvfits in %s" % scandir)
+            #print("cannot find any fits files with extension _hops_bl.uvfits in %s" % scandir)
 
 
         (obs_info, antenna_info, rg_params, outdat) = merge_hops_uvfits(bl_fitsFiles)
