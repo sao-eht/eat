@@ -991,7 +991,7 @@ def rrll_segmented(a, restarts={}, start='2017-04-04 21:00:00', stop='2017-04-12
     """rrll_segmented: general RR-LL delay statistics given alist data
 
     Args:
-        a: alist file with rates and delays, delay errors are added if missing
+        a: dataframe from alist file with rates and delays, delay errors are added if missing
         restarts: special times in which to segment certain stations
         start: start time for establishing day boundaries (default '2017-04-04 21:00:00')
         stop: stop time for establishing day boundaries (default '2017-04-12 21:00:00')
