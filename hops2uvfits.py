@@ -21,7 +21,7 @@ import numpy.matlib
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
 
 # For Katie
-DATADIR_DEFAULT = '/Users/klbouman/Downloads/apr2017s/3598_orig' #'../3554/'# /098-0916/'
+DATADIR_DEFAULT = '/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
 # source hops.bash in /Users/klbouman/Research/vlbi_imaging/software/hops/build
 # run this from /Users/klbouman/Research/vlbi_imaging/software/hops/eat
 
@@ -886,6 +886,16 @@ def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, clean_bl_fits=False, r
     i = 1
     N = len(scandirs)
     for scandir in sorted(scandirs):
+    
+        # make sure a type 2 file exists in the current directory
+        fileflag = 1
+        for filename in glob.glob(scandir + '/*'):
+            if filename.count('.')==3:
+                fileflag = 0
+                break
+        if fileflag:
+            continue
+
         
         scandir = scandir + '/'
         
