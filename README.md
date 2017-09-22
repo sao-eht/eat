@@ -13,9 +13,9 @@ Flags:
 
 --clean: remove each old baseline uvfits files in case the data/baselines have changed
 
---rot_rate: rotate back in time to the original values. Do not do this if you want to average in time after loading the uvfits files. 
+--rot_rate: de-rotate the fringe rate to the original values in order to form reliable closure phase. Do not do this if you want to average in time after loading the uvfits files. 
 
---rot_delay: rotate back in frequencies to the original values. Do not do this if you want to average down in frequency after loading the uvfits files. 
+--rot_delay: de-rotate the fringe delay-rate to the original values in order to form reliable closure phase. Do not do this if you want to average down in frequency after loading the uvfits files. 
 
 =============================
 
