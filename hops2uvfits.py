@@ -40,43 +40,6 @@ EP = 1.e-5
 
 
 #######################################################################
-##########################  HELPER FUNCTIONS ##########################
-####################################################################### 
-def getfringefile(b, filelist=False):
-    if type(b) is str:
-        files = glob.glob(b)
-        if len(files) == 0: # try harder to find file
-            tok = b.split('/')
-            last = getattr(getfringefile, 'last', [])
-            if len(tok) < len(last):
-                files = glob.glob('/'.join(last[:-len(tok)] + tok))
-        if len(files) == 0:
-            return "cannot find file: %s or %s" % (b, '/'.join(last[:-len(tok)] + tok))
-        files = [f for f in files if '..' not in f] # filter out correlator files
-        if filelist:
-            return sorted(files)
-        files.sort(key=os.path.getmtime)
-        getfringefile.last = files[-1].split('/')
-        b = mk4.mk4fringe(files[-1]) # use last updated file
-    return b
- 
-def pop212(b):
-    b = getfringefile(b)
-    (nchan, nap) = (b.n212, b.t212[0].contents.nap)
-    data212 = np.zeros((nchan, nap, 3), dtype=np.float32)
-    for i in range(nchan):
-        q = (mk4.newphasor*nap).from_address(ctypes.addressof(b.t212[i].contents.data))
-        data212[i] = np.frombuffer(q, dtype=np.float32, count=-1).reshape((nap, 3))
-    vis = data212[:,:,0] * np.exp(1j * data212[:,:,1])
-    return vis.T
- 
-def mk4time(time):
-    return datetime.datetime.strptime("%d-%03d %02d:%02d:%02d.%06d" %
-                                      (time.year, time.day, time.hour, time.minute, int(time.second), int(0.5+1e6*(time.second-int(time.second)))),
-                                      "%Y-%j %H:%M:%S.%f")
- 
-
-#######################################################################
 ##########################  Load/Save FUNCTIONS #######################
 ####################################################################### 
 def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False):
@@ -126,7 +89,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 
             #print "reading hops fringe file: ", filename
             a = mk4.mk4fringe(filename)
-            b = getfringefile(a)
+            b = eat.hops.util.getfringefile(a)
 
             if first_pass_flag: #some info we get only once per baseline
 
@@ -160,7 +123,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 obs_second =  b.t205.contents.start.second
 
                 # get the fixed integration time
-                totaltime  = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds()
+                totaltime  = (eat.hops.util.mk4time(b.t205.contents.stop) - eat.hops.util.mk4time(b.t205.contents.start)).total_seconds()
                 inttime_fixed = totaltime/nap
 
                 ##########################  ANTENNA INFO ##########################
@@ -302,16 +265,17 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             # the integration time for each measurement
             inttime = inttime_fixed*weights
             tints = np.mean(inttime,axis=0)
-            mjd = Time(mk4time(b.t205.contents.start)).mjd
+            mjd = Time(eat.hops.util.mk4time(b.t205.contents.start)).mjd
             jds = (2400000.5 + np.floor(mjd)) * np.ones(len(outdat))
             obsseconds = np.arange(0, len(outdat)*inttime_fixed, inttime_fixed )
             fractimes = (mjd - np.floor(mjd)) + ( obsseconds / 86400.)
             jds = jds + fractimes
+            
             #print filename
             #print len(outdat)*inttime_fixed, (np.max(fractimes) - np.min(fractimes)) * 3600 * 24, (np.max(jds) - np.min(jds)) * 3600 * 24
 
             # get the complex visibilities
-            visibilities = pop212(a)
+            visibilities = eat.hops.util.pop212(a)
             if antennas[ant2] < antennas[ant1]:
                 visibilities =  visibilities.conj()
 
@@ -332,7 +296,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
             delay = b.t208[0].resid_mbd * 1e-6 # delay in sec
             rate = b.t208[0].resid_rate * 1e-6 # rate in sec/sec^2
-            centertime = (mk4time(b.t205[0].utc_central) - mk4time(b.t205.contents.start)).total_seconds()
+            centertime = (eat.hops.util.mk4time(b.t205[0].utc_central) - eat.hops.util.mk4time(b.t205.contents.start)).total_seconds()
             
 
             shift = np.zeros((nchan, nap))
@@ -728,7 +692,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     header['CTYPE3'] = 'STOKES'
     header['NAXIS3'] = nstokes
     header['CRVAL3'] = -1.e0 #corresponds to RR LL RL LR
-    header['CRDELT3'] = -1.e0
+    header['CDELT3'] = -1.e0
     header['CRPIX3'] = 1.e0
     header['CROTA3'] = 0.e0
     # frequencies
