@@ -12,12 +12,19 @@ from itertools import chain
 import pandas as pd
 import argparse
 import os
+import sys
+import datetime
+
+# logging
+statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), os.getlogin(), os.uname()[1], os.getcwd(), ' '.join(sys.argv))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist txt file')
 parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=2e-6)
 parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
-parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=20e-6)
+# start with large 2ns delay systematic for delayed leakage, more realistic (2017) on-fringe systematic error is ~20ps
+# the large error will effectively drive solution by parallel hands
+parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=2e-3)
 parser.add_argument('-sw', '--sigmas_to_window', help='sigmas to window for both delay and rate', type=float, default=0)
 parser.add_argument('-dw', '--delay_window', help='fixed delay window to apply in [us]', type=float, default=0)
 parser.add_argument('-rw', '--rate_window', help='fixed rate window to apply in [ps/s]', type=float, default=0)
@@ -90,6 +97,7 @@ util.rewrap_mbd(a)
 
 # print out FF control file
 
+print '* ' + statline
 g = a.groupby('timetag')
 for (scan, b) in g:
     for c in b.groupby('baseline').first().reset_index().itertuples():

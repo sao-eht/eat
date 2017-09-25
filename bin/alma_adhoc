@@ -6,7 +6,12 @@
 from eat.io import hops, util
 from eat.hops import util as hu
 import os
+import sys
 import argparse
+import datetime
+
+# logging
+statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), os.getlogin(), os.uname()[1], os.getcwd(), ' '.join(sys.argv))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist file')
@@ -73,7 +78,10 @@ def adhocref(df, ref='A', outdir=None, timeoffset=0.):
                 print(ah.cfcode.strip())
             cfcodes.append(ah.cfcode.strip())
     outcf = open(outdir + '/' + 'adhoc_cfcodes', 'w')
+    outcf.write('* ' + statline + '\n')
+    outcf.write('\n')
     outcf.write('\n'.join(cfcodes))
+    outcf.write('\n')
 
 hu.set_datadir(args.datadir)
 a = util.noauto(hops.read_alist(args.filename))
