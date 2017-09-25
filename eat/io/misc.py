@@ -2,11 +2,11 @@
 # 2016-10-11 Lindy Blackburn
 
 from __future__ import print_function
-import builtins
-# hack to support sphinx mock module
-if 'zip' in dir(builtins):
-    zip = builtins.zip
-    range = builtins.range
+# import builtins
+# # hack to support sphinx mock module
+# if 'zip' in dir(builtins):
+#     zip = builtins.zip
+#     range = builtins.range
 from pkg_resources import parse_version
 import pandas as pd
 try:

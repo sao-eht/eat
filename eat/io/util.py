@@ -5,7 +5,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
-from builtins import zip
+# from builtins import zip
 from pkg_resources import parse_version
 import pandas as pd
 try:

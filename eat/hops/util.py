@@ -7,12 +7,12 @@ HOPS utilities
 from __future__ import division
 from __future__ import print_function
 
-from builtins import next
+# from builtins import next
 # from builtins import str
-str = type('') # python 2-3 compatibility issues
-from builtins import zip
-from builtins import range
-from builtins import object
+# str = type('') # python 2-3 compatibility issues
+# from builtins import zip
+# from builtins import range
+# from builtins import object
 
 from ..io import util
 import numpy as np

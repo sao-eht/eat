@@ -3,10 +3,10 @@
 from __future__ import division
 from __future__ import print_function
 
-from future import standard_library
-standard_library.install_aliases()
-from builtins import zip
-from builtins import map
+# from future import standard_library
+# standard_library.install_aliases()
+# from builtins import zip
+# from builtins import map
 from pkg_resources import parse_version
 import pandas as pd
 try:
