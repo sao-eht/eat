@@ -3,7 +3,7 @@ import pkg_resources as pr
 
 from .site import Site
 
-class eht:
+class EHT:
     """
     A class describing the EHT telescope array
     """
