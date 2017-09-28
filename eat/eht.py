@@ -13,7 +13,12 @@ class eht:
             if sites is None:
                 self.array = {d['site']: d
                               for d in reader}
+            elif isinstance(sites, str):
+                self.array = {d['site']: d
+                              for d in reader
+                              if  d['site_id'] is not ''
+                              and d['site_id'] in sites}
             else:
                 self.array = {d['site']: d
                               for d in reader
-                              if d['site'] in sites}
+                              if  d['site'] in sites}
