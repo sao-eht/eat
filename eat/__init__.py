@@ -7,3 +7,4 @@
 
 """
 from .factor import *
+from .eht    import *
