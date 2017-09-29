@@ -21,7 +21,7 @@ import numpy.matlib
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
 
 # For Katie
-DATADIR_DEFAULT = '/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
+DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3597' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
 # source hops.bash in /Users/klbouman/Research/vlbi_imaging/software/hops/build
 # run this from /Users/klbouman/Research/vlbi_imaging/software/hops/eat
 
@@ -37,7 +37,7 @@ DTPOL = [('time','f8'),('freq','f8'),('tint','f8'),
             ('rr','c16'),('ll','c16'),('rl','c16'),('lr','c16'),
             ('rrweight','f8'),('llweight','f8'),('rlweight','f8'),('lrweight','f8')]
 EP = 1.e-5
-
+CORRCOEFF = 10000.0
 
 #######################################################################
 ##########################  Load/Save FUNCTIONS #######################
@@ -323,15 +323,19 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 vis_i = visibilities[:,i]
                 vis_i = vis_i * np.exp( 1j * shift[i,:] )
                 
+                # account for the correlation coefficient
+                vis_i = vis_i / CORRCOEFF
+                visweight = visweight * (CORRCOEFF**2)
+                
                 #visweight = inttime[i,:] * channel_bw_ant1[i] #TODO: WHAT WERE WE DOING?
                 if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='R':
-                    outdat[:,0,0,0,i,0,0] = np.real(vis_i)
+                    outdat[:,0,0,0,i,0,0] = np.real(vis_i) 
                     outdat[:,0,0,0,i,0,1] = np.imag(vis_i)
-                    outdat[:,0,0,0,i,0,2] = visweight
+                    outdat[:,0,0,0,i,0,2] = visweight 
                 if channel_pol_ant1[i]=='L' and channel_pol_ant2[i]=='L':
                     outdat[:,0,0,0,i,1,0] = np.real(vis_i)
                     outdat[:,0,0,0,i,1,1] = np.imag(vis_i)
-                    outdat[:,0,0,0,i,1,2] = visweight
+                    outdat[:,0,0,0,i,1,2] = visweight 
                 if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='L':
                     outdat[:,0,0,0,i,2,0] = np.real(vis_i)
                     outdat[:,0,0,0,i,2,1] = np.imag(vis_i)
