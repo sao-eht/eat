@@ -5,9 +5,7 @@ A python module eat.aips
 
 This is a submodule of eat for running AIPS in python.
 '''
-
-
-def set_env(
+def setenv(
         aipsdir="/usr/local/aips",
         ptdir="/usr/share/parseltongue/python",
         obitdir="/usr/lib/obit/python"):
@@ -37,30 +35,30 @@ def set_env(
     else:
         print("  No: LOGIN.SH is not loaded.")
         sourcefile = os.path.join(aipsdir,"LOGIN.SH")
-        source(sourcefile)
+        _source(sourcefile)
     
     sourcefile = os.path.join(os.environ["AIPS_ROOT"], "PRDEVS.SH")
-    source(sourcefile)
+    _source(sourcefile)
     
     sourcefile = os.path.join(
         os.path.split(sourcefile)[0],
         os.path.split(os.readlink(sourcefile))[0],
         "DADEVS.SH"
     )
-    source(sourcefile)
+    _source(sourcefile)
     
     if os.path.isdir(ptdir):
         print("ParselTongue Python DIR: %s"%(ptdir))
     else:
         errmsg="ParselTongue Python Directory '%s' is not available. "%(ptdir)
-        errmsg+="Please set PYTHONPATH with eat.aips.set_env() first."
+        errmsg+="Please set PYTHONPATH with eat.aips.setenv() first."
         raise ValueError(errmsg)
     
     if os.path.isdir(obitdir):
         print("Obit Python DIR: %s"%(obitdir))
     else:
         errmsg="Obit Python Directory '%s' is not available. "%(obitdir)
-        errmsg+="Please set PYTHONPATH with eat.aips.set_env() first."
+        errmsg+="Please set PYTHONPATH with eat.aips.setenv() first."
         raise ValueError(errmsg)
     
     if ptdir not in sys.path:
@@ -69,10 +67,27 @@ def set_env(
     if obitdir not in sys.path:
         sys.path.insert(0,obitdir)
     
-    check_pt()
+    check()
 
 
-def source(script, update=True):
+def check(printver=True):
+    '''
+    This function checks the version of ParselTongue.
+    '''
+    try:
+        import ptversion
+        if printver:
+            print("ParselTongue Version: "+ptversion.version)
+    except ImportError:
+        print("[Error] PYTHONPATHs to ParselTongue and/or Obit are not correctly set.")
+        print("        Please set PYTHONPATHs with eat.aips.setenv().")
+        raise
+    except:
+        print("[Error] Internal Error in ParselTongue: import ptversion")
+        raise
+
+
+def _source(script, update=True):
     """
     Source variables from a shell script
     import them in the environment (if update==True)
@@ -95,20 +110,3 @@ def source(script, update=True):
         environ.update(env)
     else:
         return env
-
-
-def check_pt(printver=True):
-    '''
-    This function checks the version of ParselTongue.
-    '''
-    try:
-        import ptversion
-        if printver:
-            print("ParselTongue Version: "+ptversion.version)
-    except ImportError:
-        print("[Error] PYTHONPATHs to ParselTongue and/or Obit are not correctly set.")
-        print("        Please set PYTHONPATHs with eat.aips.set_env().")
-        raise
-    except:
-        print("[Error] Internal Error in ParselTongue: import ptversion")
-        raise
