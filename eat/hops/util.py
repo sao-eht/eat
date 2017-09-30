@@ -7,12 +7,12 @@ HOPS utilities
 from __future__ import division
 from __future__ import print_function
 
-from builtins import next
+# from builtins import next
 # from builtins import str
-str = type('') # python 2-3 compatibility issues
-from builtins import zip
-from builtins import range
-from builtins import object
+# str = type('') # python 2-3 compatibility issues
+# from builtins import zip
+# from builtins import range
+# from builtins import object
 
 from ..io import util
 import numpy as np
@@ -55,6 +55,14 @@ lex = ''.join(['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p',
      'G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V',
      'W','X','Y','Z','0','1','2','3','4','5','6','7','8','9','$','%'])
 
+# systematics parameters
+sys_fac = 1.0 # systematic factor on thermal delay error
+sys_par = 2e-6 # 2 ps on fringe delay
+sys_cross = 20e-6 # 20 ps on cross hand delay
+
+# restart of backend system
+restarts_2017_low = {'X':map(util.tt2dt, ['101-010200'])}
+
 def getpolarization(f):
     b = mk4.mk4fringe(f)
     ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
@@ -65,9 +73,10 @@ def getpolarization(f):
 # maybe this should get latest HOPS rootcode instead..
 # remember file path to guess working directory for future calls
 # filelist=True will return a list of all files found
-def getfringefile(b=None, filelist=False, pol=None):
+# quiet: if True do not echo filename
+def getfringefile(b=None, filelist=False, pol=None, quiet=False):
     if b is None and hasattr(getfringefile, 'last'): # try to run with the last
-        return getfringefile('/'.join(getfringefile.last), filelist=filelist, pol=pol)
+        return getfringefile('/'.join(getfringefile.last), filelist=filelist, pol=pol, quiet=quiet)
     if type(b) is str:
         files = glob.glob(b)
         if len(files) == 0: # try harder to find file
@@ -86,7 +95,8 @@ def getfringefile(b=None, filelist=False, pol=None):
             return sorted(files)
         files.sort(key=os.path.getmtime)
         getfringefile.last = files[-1].split('/')
-        print(files[-1])
+        if not quiet:
+            print(files[-1])
         b = mk4.mk4fringe(files[-1]) # use last updated file
     return b
 
@@ -328,10 +338,11 @@ def expmean(x, s=8, n=4): # robust mean of exponential distribution
 # unrotate_212: unrotate the fourfit soln from the 212 data before fringe search
 # delay_off, rate_off: subtract this from the data before doing search
 # manual offsets will show up in axis labels, automatic offsets (from centering) will not
+# replacedata: new visibility array to substitute with actual data before fringe fitting
 def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None, None),
                dt=2, df=None, ni=1, ret=False, showhops=False,
                delay_off=0., rate_off=0., flip=False, segment=(None, None), channels=(None,None),
-               pol=None, unrotate_212=True):
+               pol=None, unrotate_212=True, replacedata=None):
     b = getfringefile(fringefile, pol=pol)
     p = params(b)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
@@ -340,16 +351,16 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
     if kind==212:
         nspec = 1
         df = df or 1
-        v = pop212(b)[:,:,None]
+        v = (replacedata if replacedata is not None else pop212(b))[:,:,None]
     elif kind==230:
         nspec = b.t230[0].contents.nspec_pts // 2 # one sideband, assume all channels are same
         df = df or 4 # speed-up if using full spectral resolution
-        v = np.swapaxes(pop230(b), 1, 0)  # put AP as axis 0
+        v = np.swapaxes(replacedata if replacedata is not None else pop230(b), 1, 0)  # put AP as axis 0
         assert(v.shape == (nap, nchan, nspec))   # make sure loaded data has right dimensions
         if flip:
             v = v[:,:,::-1] # test flip frequency order of spectral points
     elif kind==120: # original correlator output
-        v = np.swapaxes(pop120(b), 1, 0)  # put AP as axis 0
+        v = np.swapaxes(replacedata if replacedata is not None else pop120(b), 1, 0)  # put AP as axis 0
         df = df or 2 # arbitrary, but compensate for type_230 inflation factor of x2 (SSB)
         nspec = v.shape[-1]
         assert(v.shape == (nap, nchan, nspec))
@@ -726,7 +737,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix=''):
+def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0.):
     """
     create ad-hoc phases from fringe file (type 212)
     use round-robin training/evaluation to avoid self-tuning bias
@@ -743,12 +754,13 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         snr: manually set SNR to auto determine window_length and polyorder, else take from fringe file
         ref: 0 (first site), 1 (second site), or station letter (e.g. A)
         prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
+        timeoffset: add timeoffset [units of AP] to each timestamp in the adhoc string
     """
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
         v = b
     else:
-        b = getfringefile(b, pol=pol)
+        b = getfringefile(b, pol=pol, quiet=True)
         v = pop212(b)
     (nap, nchan) = v.shape
 
@@ -758,6 +770,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
 
     if type(b) is mk4.mk4_fringe:
         p = params(b)
+        timeoffset = timeoffset * p.ap # use AP if we can
         if snr is None:
             snr = p.snr
         if ref == p.baseline[0]:
@@ -773,7 +786,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         parity = -1
     # note that snr=10 per measurement is 36deg phase error
     # this should really be balanced against how rapidly the phase may vary between estimates
-    nfit = int((snr / 10.)**2) # number of parameters we might be able to fit
+    nfit = max(1, int((snr / 10.)**2)) # number of parameters we might be able to fit
     # qualitative behavior of fit depends primarily on window_length/polyorder which sets
     # timescale for free parameters. actual poly degree doesn't matter as much.
     if polyorder is None:
@@ -784,8 +797,12 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     for i in range(nchan): # i is the channel to exclude in fit
         # remove evaluation channel
         vtemp = vfull - v[:,i]
-        re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
-        im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
+        try:
+            re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
+            im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
+        except:
+            re = np.ones_like(vtemp.real)
+            im = np.zeros_like(vtemp.imag)
         vchop[:,i] = re + parity*1j*im
         phase[:,i] = parity * np.unwrap(np.arctan2(im, re)) * 180./np.pi
 
@@ -799,7 +816,7 @@ if station %s and scan %s
     adhoc_file %s
     adhoc_file_chans %s
 """ % (rem, timetag, adhoc_filename, ''.join(p.code))
-        string = '\n'.join(("%.10f " % day + np.array_str(-ph, precision=3, max_line_width=1e6)[1:-1]
+        string = '\n'.join(("%.10f " % (timeoffset/86400. + day) + np.array_str(-ph, precision=3, max_line_width=1e6)[1:-1]
             for (day, ph) in zip(p.days, phase))) # note adhoc phase file needs sign flip, i.e. phase to be added to data
         return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, scan_name=p.scan_name, scantime=p.scantime,
                          scantimetag=timetag, filename=adhoc_filename, cfcode=cf, string=string)
@@ -925,3 +942,127 @@ class ControlFile(object):
     def __repr(self):
         return self.str()
 
+def wavg(x, sigma=1., col=None, w=None, robust=True):
+    """wavg: weighted average with error propagation
+
+    Args:
+        x: data values
+        sigma: std error on values, scalar or vector
+        col: return Dict labels, for automatic naming of pandas columns under conversion
+             col=(mean, [err], [chisq_r], [n_outliers])
+        w: optional weights for averaging (otherwise 1/sigma**2)
+        robust: if True, remove 10-sigma outliers from median value before averaging
+
+    Returns:
+        OrderedDict of col=(mean, [err], [chisq_r], [n_outliers])
+    """
+    sigma = np.broadcast_to(sigma, x.shape)
+    ssq = sigma**2
+    noutliers = 0
+    if robust:
+        sigsort = np.sort(sigma)
+        merr = 1.253 * sigsort / np.sqrt(np.arange(1, 1+len(x)))
+        imin = np.argmin(merr)
+        (merrmin, sigthr) = (merr[imin], sigsort[imin]) # at lowest median error
+        median = np.median(x[sigma <= sigthr])
+        igood = np.abs((x-median)/np.sqrt(merrmin**2 + ssq)) < 10
+        (x, sigma, ssq) = (x[igood], sigma[igood], ssq[igood])
+        noutliers = np.sum(~igood)
+    if w is None:
+        w = 1./ssq
+    wsq = w**2
+    xsum = np.sum(w*x)       # weighted sum
+    ssum = np.sum(wsq * ssq) # total variance
+    wsum = np.sum(w)         # common divisor
+    xavg = xsum / wsum
+    eavg = np.sqrt(ssum) / wsum
+    chi2 = np.sum((x-xavg)**2/ssq)/(max(1, len(x)-1))
+    if col is None:
+        return xavg, eavg
+    else:
+        return_cols = (xavg, eavg, chi2, noutliers)
+        from collections import OrderedDict
+        return OrderedDict(zip(col, return_cols[:len(col)]))
+
+# segmented RR-LL delay differences
+# restarts[site] = [pd.Timestamp list of clock resets]
+# assume additional clock reset at 21:00 UT for all sites
+def rrll_segmented(a, restarts={}, start='2017-04-04 21:00:00', stop='2017-04-12 21:00:00'):
+    """rrll_segmented: general RR-LL delay statistics given alist data
+
+    Args:
+        a: dataframe from alist file with rates and delays, delay errors are added if missing
+        restarts: special times in which to segment certain stations
+        start: start time for establishing day boundaries (default '2017-04-04 21:00:00')
+        stop: stop time for establishing day boundaries (default '2017-04-12 21:00:00')
+    """
+    import itertools
+    import pandas as pd
+    b = a[a.polarization.isin({'RR', 'LL'})].copy()
+    if 'mbd_unwrap' not in b.columns:
+        util.unwrap_mbd(b)
+    util.add_delayerr(b, bw_factor=sys_fac, mbd_systematic=sys_par, crosspol_systematic=sys_cross)
+    g = b.groupby('baseline')
+    drange = list(pd.date_range(start, stop))
+    for (bl, rows) in g:
+        # segments for baseline, adding in any known restarts for either site
+        tsbounds = sorted(set(
+            itertools.chain(drange, restarts.get(bl[0], []), restarts.get(bl[1], []))))
+        # leaving this as CategoryIndex (no "get_values") results in slow pivot_table
+        # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
+        # probably pass aggfunc='first' to handle non-numeric types
+        b.loc[rows.index, 'segment'] = pd.cut(
+            rows.datetime, tsbounds, right=False, labels=None).get_values()
+    # convert segment to start, stop values since only 1D objects supported well in pandas
+    # for indexing, lose meta-info about right or left closed segment -- too bad
+    b['start'] = b.segment.apply(lambda x: x.left)
+    b['stop'] = b.segment.apply(lambda x: x.right)
+    p = b.pivot_table(aggfunc='first',
+        index=['expt_no', 'start', 'stop', 'timetag', 'scan_id', 'source', 'baseline'],
+        columns=['polarization'],
+        values=['sbdelay', 'mbdelay', 'mbd_unwrap', 'mbd_err', 'snr'])
+    p = p.dropna().reset_index(['expt_no', 'source', 'scan_id', 'timetag'])
+    p['LLRR'] = p.mbd_unwrap.RR - p.mbd_unwrap.LL
+    p['LLRR_err'] = np.sqrt(p.mbd_err.RR**2 + p.mbd_err.LL**2)
+    p['LLRR_snr'] = 1./np.sqrt(1./p.snr.RR**2 + 1./p.snr.LL**2)
+    rrll_stats = p.groupby(['start', 'stop', 'baseline']).apply(lambda df:
+        pd.Series(wavg(df.LLRR, df.LLRR_err,
+                       col=['LLRR_mean', 'LLRR_mean_err', 'LLRR_x2', 'LLRR_nout'])))
+    rrll_stats['LLRR_nout'] = rrll_stats.LLRR_nout.astype(int)
+    # subtract mean RR-LL from each scan
+    p['mean_offset'] = rrll_stats.LLRR_mean
+    p['mean_err'] = rrll_stats.LLRR_mean_err
+    p['offset'] = p.LLRR - p.mean_offset
+    p['offset_err'] = np.sqrt(p.LLRR_err**2 + p.mean_err**2)
+    p['offset_std'] = p.offset / p.offset_err
+    p['outlier'] = p.offset_std.abs() > 10
+    p['mbdelay', 'mean'] = ((p.snr.LL**2*p.mbdelay.LL + p.snr.RR**2*(p.mbdelay.RR - p.mean_offset)) /
+                            (p.snr.LL**2 + p.snr.RR**2))
+    return((p.sort_index(), rrll_stats))
+
+# function to convert delay offsets table row to control code element
+def doff2cf(row, nchan=32):
+    """doff2cf: convert delay offsets table row to control file codes
+
+    Args:
+        row: delay offsets code
+        nchan: number of channels to define
+
+    Returns:
+        control file codes (str)
+    """
+    import datetime
+    fmt = "%Y-%m-%d %H:%M:%S"
+    onesec = datetime.timedelta(seconds=1)
+    # some padding on start and stop times
+    start_tt = util.dt2tt(datetime.datetime.strptime(str(row.start), fmt) - onesec)
+    stop_tt =  util.dt2tt(datetime.datetime.strptime(str(row.stop), fmt) + onesec)
+    codes = lex[:nchan]
+    delay = -row.LR_delay * 1e3 # convert from us to ns
+    delay_offs = ' '.join(["%.4f" % delay] * nchan)
+    cf = """
+if station %s and scan %s to %s
+    delay_offs_r %s %s
+    pc_delay_r %.4f
+""" % (row.site, start_tt, stop_tt, codes, delay_offs, delay)
+    return cf
