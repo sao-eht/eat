@@ -57,7 +57,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
     for baselineName in baselineNames:
         nap = 0
         nchan = 0
-        nwindow = 1
+        nsubchan = 1
         nstokes= 4
         first_pass_flag = True
 
@@ -112,7 +112,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 dec = np.sign(dec_degs)*(np.abs(dec_degs)+(dec_mins/60.+dec_secs/3600.))
 
                 ########################## OBSERVATION INFO ########################
-                ref_freq = b.t205.contents.ref_freq * MHZ2HZ # refrence frequency for all channels
+                ref_freq_hops = b.t205.contents.ref_freq * MHZ2HZ # refrence frequency for all channels
                 nchan = b.n212 # number of channels
                 nap = b.t212[0].contents.nap # number of data points
 
@@ -174,7 +174,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 v_static = (1./RADPERARCSEC) * b.t202.contents.v  #Fringes/arcsec N-S 1GHz
                 #print ant1,ant2, u_static/1.e9, v_static/1.e9, np.sqrt(u_static**2 + v_static**2)/1.e9
 
-                outdat = np.zeros((nap, 1, 1, nwindow, nchan, nstokes, 3))
+                outdat = np.zeros((nap, 1, 1, nchan, nsubchan, nstokes, 3))
                 outdat[:,:,:,:,:,:,2] = -1.0 
 
                 # this is a static u/v. we will want to change it with the real time later
@@ -220,7 +220,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 # bandwidth of the channel (in Hz) - mutliply by 0.5 because it is the sample_rate
                 channel_bw_ant1[count] = 0.5*eat.hops.util.short2int(ch.sample_rate)
                 channel_bw_ant2[count] = 0.5*eat.hops.util.short2int(ch.sample_rate)
-
+                
                 # the polarization 'L' or 'R'
                 channel_pol_ant1.append(ch.refpol)
                 channel_pol_ant2.append(ch.rempol)
@@ -238,9 +238,9 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             if len(set(channel_bw_ant1)) != 1:
                 print channel_bw_ant1
                 raise Exception('the channels on this baseline have different bandwidths')
-            if channel_freq_ant1[0] != ref_freq:
-                pass
-                #print 'warning: channel 1 != ref_freq'
+            #if channel_freq_ant1[0] != ref_freq_hops:
+            #    pass
+            #    #print 'warning: channel 1 != ref_freq'
             
             
             if len(set(np.diff(channel_freq_ant1)))>1:
@@ -253,8 +253,9 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             nsta = len(antennas)
             bw = channel_bw*numberofchannels
             
-            print 'ERROR: REMOVE THIS!'
-            channel_bw = channel_spacing
+            
+            #print 'ERROR: REMOVE THIS!'
+            #channel_bw = channel_spacing
             
             # the proportion of data used to generate each measurement.
             weights = np.zeros([nchan,nap])
@@ -302,14 +303,14 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             shift = np.zeros((nchan, nap))
             
             if rot_rate:
-                rate_mtx = ref_freq*(np.matlib.repmat( ( inttime_fixed * np.arange(nap) ).reshape(1,nap), nchan, 1 ) - centertime)
+                rate_mtx = ref_freq_hops*(np.matlib.repmat( ( inttime_fixed * np.arange(nap) ).reshape(1,nap), nchan, 1 ) - centertime)
                 shift = shift + (2 * np.pi *  rate * rate_mtx )
             
                 
             if rot_delay:
-                fedge = np.array([ ch.ref_freq for ch in cinfo])
+                fedge = np.array([ ch.ref_freq_hops for ch in cinfo])
                 flip = np.array([-1 if ch.refsb == 'L' else 1 for ch in cinfo])
-                dfvec = fedge + 0.5*flip*np.array([0.5 * short2int(ch.sample_rate) for ch in cinfo]) - ref_freq
+                dfvec = fedge + 0.5*flip*np.array([0.5 * short2int(ch.sample_rate) for ch in cinfo]) - ref_freq_hops
                 delay_mtx = np.matlib.repmat( dfvec.reshape(dfvec.shape[0], 1), 1, nap )
                 shift = shift + (2 * np.pi *  delay * delay_mtx )
 
@@ -329,27 +330,33 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 
                 #visweight = inttime[i,:] * channel_bw_ant1[i] #TODO: WHAT WERE WE DOING?
                 if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='R':
-                    outdat[:,0,0,0,i,0,0] = np.real(vis_i) 
-                    outdat[:,0,0,0,i,0,1] = np.imag(vis_i)
-                    outdat[:,0,0,0,i,0,2] = visweight 
+                    outdat[:,0,0,i,0,0,0] = np.real(vis_i) 
+                    outdat[:,0,0,i,0,0,1] = np.imag(vis_i)
+                    outdat[:,0,0,i,0,0,2] = visweight 
                 if channel_pol_ant1[i]=='L' and channel_pol_ant2[i]=='L':
-                    outdat[:,0,0,0,i,1,0] = np.real(vis_i)
-                    outdat[:,0,0,0,i,1,1] = np.imag(vis_i)
-                    outdat[:,0,0,0,i,1,2] = visweight 
+                    outdat[:,0,0,i,0,1,0] = np.real(vis_i)
+                    outdat[:,0,0,i,0,1,1] = np.imag(vis_i)
+                    outdat[:,0,0,i,0,1,2] = visweight 
                 if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='L':
-                    outdat[:,0,0,0,i,2,0] = np.real(vis_i)
-                    outdat[:,0,0,0,i,2,1] = np.imag(vis_i)
-                    outdat[:,0,0,0,i,2,2] = visweight
+                    outdat[:,0,0,i,0,2,0] = np.real(vis_i)
+                    outdat[:,0,0,i,0,2,1] = np.imag(vis_i)
+                    outdat[:,0,0,i,0,2,2] = visweight
                 if channel_pol_ant1[i]=='L' and channel_pol_ant2[i]=='R':
-                    outdat[:,0,0,0,i,3,0] = np.real(vis_i)
-                    outdat[:,0,0,0,i,3,1] = np.imag(vis_i)
-                    outdat[:,0,0,0,i,3,2] = visweight
+                    outdat[:,0,0,i,0,3,0] = np.real(vis_i)
+                    outdat[:,0,0,i,0,3,1] = np.imag(vis_i)
+                    outdat[:,0,0,i,0,3,2] = visweight
 
             print "     ", baselineName, ant1, ant2, ":",channel_pol_ant1[-1], channel_pol_ant2[-1]
 
         ##########################  save baseline uvfits file ############################
+        
+        # we are setting the ref_freq to be the first channel's freq to match aips. This is not the same ref_freq from hops
+        ref_freq = channel1_freq 
+        u = u * ref_freq/ref_freq_hops
+        v = v * ref_freq/ref_freq_hops
+        
         # pack data
-        obs_info = (srcname, ra, dec, ref_freq, channel_bw, channel1_freq, nchan)
+        obs_info = (srcname, ra, dec, ref_freq, channel_bw, channel_spacing, channel1_freq, nchan)
         antenna_info = (antnames, antnums, xyz)
         rg_params = (u,v,bls,jds, tints)
         fname= datadir + baselineName + '_hops_bl.uvfits'
@@ -377,14 +384,23 @@ def load_hops_uvfits(filename):
     dec = header['OBSDEC']   
     src = header['OBJECT']
     
-    rf = hdulist['AIPS AN'].header['FREQ']    
-    if header['CTYPE4'] == 'FREQ':
-        ch1_freq = header['CRVAL4']
-        ch_bw = header['CDELT4']
-        nchan = header['NAXIS4']
-    else: raise Exception('Cannot find observing frequency/bandwidth!')
+    rf = hdulist['AIPS AN'].header['FREQ']  
     
-    obs_info = (src, ra, dec, rf, ch_bw, ch1_freq, nchan)
+    if header['CTYPE4'] == 'FREQ':
+        ch1_freq = header['CRVAL4']  
+        ch_bw = header['CDELT4']
+    else: raise Exception('Cannot find observing frequency/bandwidth!')
+        
+    if header['CTYPE5'] == 'IF':
+        nchan = header['NAXIS5']
+    else: raise Exception('Cannot find number of channels!')
+    
+    num_ifs = len(hdulist['AIPS FQ'].data['IF FREQ'][0])
+    if (num_ifs>1):
+        ch_spacing = hdulist['AIPS FQ'].data['IF FREQ'][0][1]
+    else: raise Exception('Cannot find uvfits channel spacing in AIPS FREQ table!')
+        
+    obs_info = (src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan)
 
     # Load the random group parameters and the visibility data
     u = data['UU---SIN'] * rf     # Convert uv in lightsec to lambda by multiplying by rf
@@ -411,7 +427,8 @@ def load_and_convert_hops_uvfits(filename):
     obsdata =  alldata[3]
 
     # get the various header parameters
-    (src, ra, dec, rf, ch_bw, ch1_freq, nchan) = obs_info
+    # TODO!! GET THE CHANNEL SPACING FROM HEADER
+    (src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan) = obs_info
 
     # put the array data in a telescope array
     (tnames,tnums,xyz) = antenna_info
@@ -443,15 +460,15 @@ def load_and_convert_hops_uvfits(filename):
     tints = rg_params[4]
                         
     # Get vis data
-    rr = obsdata[:,0,0,0,:,0,0] + 1j*obsdata[:,0,0,0,:,0,1]
-    ll = obsdata[:,0,0,0,:,1,0] + 1j*obsdata[:,0,0,0,:,1,1]
-    rl = obsdata[:,0,0,0,:,2,0] + 1j*obsdata[:,0,0,0,:,2,1]
-    lr = obsdata[:,0,0,0,:,3,0] + 1j*obsdata[:,0,0,0,:,3,1]
+    rr = obsdata[:,0,0,:,0,0,0] + 1j*obsdata[:,0,0,:,0,0,1]
+    ll = obsdata[:,0,0,:,0,1,0] + 1j*obsdata[:,0,0,:,0,1,1]
+    rl = obsdata[:,0,0,:,0,2,0] + 1j*obsdata[:,0,0,:,0,2,1]
+    lr = obsdata[:,0,0,:,0,3,0] + 1j*obsdata[:,0,0,:,0,3,1]
 
-    rrweight = obsdata[:,0,0,0,:,0,2]
-    llweight = obsdata[:,0,0,0,:,1,2]
-    rlweight = obsdata[:,0,0,0,:,2,2]
-    lrweight = obsdata[:,0,0,0,:,3,2]
+    rrweight = obsdata[:,0,0,:,0,0,2]
+    llweight = obsdata[:,0,0,:,0,1,2]
+    rlweight = obsdata[:,0,0,:,0,2,2]
+    lrweight = obsdata[:,0,0,:,0,3,2]
     #mask = ((rrweight >= 0) + (llweight >= 0) + (rlweight >= 0) + (lrweight >= 0))     # Mask to screen bad data
 
     # Make a datatable
@@ -459,7 +476,7 @@ def load_and_convert_hops_uvfits(filename):
     datatable = []
     for i in xrange(len(jds)):
         for j in xrange(nchan):
-            freq = j*ch_bw + ch1_freq
+            freq = j*ch_spacing + ch1_freq
             datatable.append(np.array(
                              (jds[i], freq, tints[i], 
                               t1[i], t2[i],
@@ -470,7 +487,7 @@ def load_and_convert_hops_uvfits(filename):
                             )
     datatable = np.array(datatable)
     
-    params = (src, ra, dec, rf, ch_bw, ch1_freq, nchan)
+    params = (src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan)
     
     #!AC TODO get calibration flags from uvfits?
     return (params, tarr, datatable)
@@ -479,7 +496,7 @@ def merge_hops_uvfits(fitsFiles):
     """load and merge all uvfits files in a data directory
     """
 
-    nwindow = 1
+    nsubchan = 1
     nstokes = 4
 
     param_list = []
@@ -514,40 +531,49 @@ def merge_hops_uvfits(fitsFiles):
     else:
         dec = param_list[0][2]
 
-    if (len(set([param[3] for param in param_list]) )>1):
-        print [param[3] for param in param_list]
-        raise Exception('rf not the same!') 
-    else:
-        ref_freq = param_list[0][3]
+    # NOTE: ref_freq should be equal to the first channel's freq but if the channels are not 
+    # aligned on every baseline the ref_freqs wont be the same
+    
+    #if (len(set([param[3] for param in param_list]) )>1):
+    #    print [param[3] for param in param_list]
+    #    raise Exception('rf not the same!') 
+    #else:
+    #    ref_freq = param_list[0][3]
     
     if (len(set([param[4] for param in param_list]) )>1):
         raise Exception('channel bandwidth not the same!') 
     else:
         ch_bw = float(param_list[0][4])
     
+    if (len(set([param[5] for param in param_list]) )>1):
+        raise Exception('channel spacings not the same in merge!') 
+    else:
+        ch_spacing = float(param_list[0][5])
+    
     firstfreq_min = np.min(np.array(firstfreq_list))
     lastfreq_max = np.max(np.array(lastfreq_list))
     
     for i in range(len(firstfreq_list)):
-        diff = (firstfreq_list[i] - firstfreq_min)/ch_bw
+        diff = (firstfreq_list[i] - firstfreq_min)/ch_spacing
         if (np.abs(diff - np.round(diff)) > EP):
             raise Exception('all channels not aligned!')
+
     
-    nchan = (lastfreq_max - firstfreq_min)/ch_bw + 1
+    nchan = (lastfreq_max - firstfreq_min)/ch_spacing + 1
     if (np.abs(nchan - np.round(nchan)) > EP):
         raise Exception('channel number not an integer!')
     nchan = int(np.round(nchan))
     ch1_freq = firstfreq_min
-
-    if not (ch1_freq in [param[5] for param in param_list]):
+        
+    if not (ch1_freq in [param[6] for param in param_list]):
         raise Exception('ch1_freq determined from merging ehtim style datatable not in any read uvfits header!')
 
-    #print nchan, [param[6] for param in param_list]
-    #if not (nchan in [param[6] for param in param_list]):
+    #print nchan, [param[7] for param in param_list]
+    #if not (nchan in [param[7] for param in param_list]):
     #    raise Exception('nchan determined from merging ehtim style datatable not in any read uvfits header!')
 
-
-    obs_info = (src, ra, dec, ref_freq, ch_bw, ch1_freq, nchan)
+    ref_freq = ch1_freq
+    obs_info = (src, ra, dec, ref_freq, ch_bw, ch_spacing, ch1_freq, nchan)
 
     print "# baseline files: ", len(fitsFiles)
     print "source: ", src
@@ -612,7 +638,7 @@ def merge_hops_uvfits(fitsFiles):
     rg_params = (u,v,bls,jds, tints)
 
     #merged uvfits format data table
-    outdat = np.zeros((nap, 1, 1, nwindow, nchan, nstokes, 3))
+    outdat = np.zeros((nap, 1, 1, nchan, nsubchan, nstokes, 3))
     outdat[:,:,:,:,:,:,2] = -1.0  
     
     vistypes = ['rr','ll','rl','lr']
@@ -621,9 +647,9 @@ def merge_hops_uvfits(fitsFiles):
         row_dat_idx = idx_anttime[i]
         
         for j in range(len(vistypes)):
-            outdat[row_dat_idx,0,0,0,row_freq_idx,j,0] = np.real(datatable_merge[i][vistypes[j]])
-            outdat[row_dat_idx,0,0,0,row_freq_idx,j,1] = np.imag(datatable_merge[i][vistypes[j]])
-            outdat[row_dat_idx,0,0,0,row_freq_idx,j,2] = datatable_merge[i][vistypes[j]+'weight']
+            outdat[row_dat_idx,0,0,row_freq_idx,0,j,0] = np.real(datatable_merge[i][vistypes[j]])
+            outdat[row_dat_idx,0,0,row_freq_idx,0,j,1] = np.imag(datatable_merge[i][vistypes[j]])
+            outdat[row_dat_idx,0,0,row_freq_idx,0,j,2] = datatable_merge[i][vistypes[j]+'weight']
 
     # return data for saving
     return (obs_info, antenna_info, rg_params, outdat)
@@ -633,7 +659,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     """
 
     # unpack data
-    (src, ra, dec, ref_freq, ch_bw, ch1_freq, nchan) = obs_info
+    (src, ra, dec, ref_freq, ch_bw, ch_spacing, ch1_freq, nchan) = obs_info
     (antnames, antnums, xyz) = antenna_info
     nsta = len(antnames)
     bw = nchan*ch_bw
@@ -649,7 +675,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     jds_only = np.ones(ndat) * jd_start
 
     #print "timedur uvfits " , (np.max(jds) - np.min(jds)) * 3600 * 24, (np.max(fractimes) - np.min(fractimes)) * 3600 * 24
-    nwindow = 1
+    nsubchan = 1
     nstokes = 4
 
     # Open template UVFITS
@@ -701,14 +727,14 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     header['CROTA3'] = 0.e0
     # frequencies
     header['CTYPE4'] = 'FREQ'
-    header['NAXIS4'] = nchan
+    header['NAXIS4'] = nsubchan
     header['CRPIX4'] = 1.e0
     header['CRVAL4'] = ch1_freq # is this the right ref freq? in Hz
     header['CDELT4'] = ch_bw
     header['CROTA4'] = 0.e0
     # frequencies
     header['CTYPE5'] = 'IF'
-    header['NAXIS5'] = nwindow
+    header['NAXIS5'] = nchan
     header['CRPIX5'] = 1.e0
     header['CRVAL5'] = 1.e0 
     header['CDELT5'] = 1.e0
@@ -799,7 +825,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     head['XYZHAND'] = 'RIGHT'
     head['FRAME'] = '????'
     head['NUMORB'] = 0
-    head['NO_IF'] = nwindow
+    head['NO_IF'] = nchan
     head['NOPCAL'] = 0            #TODO add pol cal information
     head['POLTYPE'] = 'VLBI'
     head['FREQID'] = 1
@@ -808,24 +834,24 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
 
     ##################### AIPS FQ TABLE #######################################
     # Convert types & columns
-    freqid = np.array([1])                                                    #frequency setup
-    bandfreq = np.array([0.0 for i in range(nwindow)]).reshape([1,nwindow])   #frequency offset
-    chwidth = np.array([ch_bw for i in range(nwindow)]).reshape([1,nwindow])  #ch bw
-    totbw = np.array([bw for i in range(nwindow)]).reshape([1,nwindow])       #total bw
-    sideband = np.array([1 for i in range(nwindow)]).reshape([1,nwindow])     #sideband (>1 = upper)
+    freqid = np.array([1])                                               #frequency setup
+    bandfreq = np.array([ch_spacing*i for i in range(nchan)]).reshape([1,nchan])   #frequency offset
+    chwidth = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])  #ch bw
+    totbw = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])       #total bw
+    sideband = np.array([1 for i in range(nchan)]).reshape([1,nchan])     #sideband (>1 = upper)
 
     freqid = fits.Column(name="FRQSEL", format="1J", array=freqid)
-    bandfreq = fits.Column(name="IF FREQ", format="%dD"%(nwindow), array=bandfreq)
-    chwidth = fits.Column(name="CH WIDTH",format="%dE"%(nwindow), array=chwidth)
-    totbw = fits.Column(name="TOTAL BANDWIDTH",format="%dE"%(nwindow),array=totbw)
-    sideband = fits.Column(name="SIDEBAND",format="%dJ"%(nwindow),array=sideband)
+    bandfreq = fits.Column(name="IF FREQ", format="%dD"%(nchan), array=bandfreq)
+    chwidth = fits.Column(name="CH WIDTH",format="%dE"%(nchan), array=chwidth)
+    totbw = fits.Column(name="TOTAL BANDWIDTH",format="%dE"%(nchan),array=totbw)
+    sideband = fits.Column(name="SIDEBAND",format="%dJ"%(nchan),array=sideband)
     cols = fits.ColDefs([freqid, bandfreq, chwidth, totbw, sideband])
      
     # create table
     tbhdu = fits.BinTableHDU.from_columns(cols)
  
     # add header information
-    tbhdu.header.append(("NO_IF", nwindow, "Number IFs"))
+    tbhdu.header.append(("NO_IF", nchan, "Number IFs"))
     tbhdu.header.append(("EXTNAME","AIPS FQ"))
 
     hdulist.append(tbhdu) #TODO no AIPS FQ in template currently
