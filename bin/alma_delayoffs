@@ -12,9 +12,10 @@ import re
 import argparse
 import os
 import datetime
+import pwd
 
 # logging
-statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), os.getlogin(), os.uname()[1], os.getcwd(), ' '.join(sys.argv))
+statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(), ' '.join(sys.argv))
 
 # systematics parameters
 sys_fac = 1.0 # systematic factor on thermal delay error
