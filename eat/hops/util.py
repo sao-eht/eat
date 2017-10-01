@@ -129,7 +129,7 @@ def mk4time(time):
 
 # populate the type_212 visib data into array
 # (nap, nchan)
-def pop212(b=None, pol=None):
+def pop212(b=None, pol=None, weights=False):
     b = getfringefile(b, pol=pol)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     data212 = np.zeros((nchan, nap, 3), dtype=np.float32)
@@ -137,7 +137,10 @@ def pop212(b=None, pol=None):
         q = (mk4.newphasor*nap).from_address(ctypes.addressof(b.t212[i].contents.data))
         data212[i] = np.frombuffer(q, dtype=np.float32, count=-1).reshape((nap, 3))
     v = data212[:,:,0] * np.exp(1j * data212[:,:,1])
-    return v.T
+    if weights:
+        return v.T, data[:,:,2].T
+    else:
+        return v.T
 
 # populate the type_230 visib data into array automatically detect sideband
 # (nchan, nap, nspec)
@@ -282,7 +285,7 @@ def params(b=None, pol=None):
     days0 = (start - datetime.datetime(start.year, 1, 1)).total_seconds() / 86400. # days since jan1
     days = days0 + (ap * np.arange(nap) + ap/2.)/86400. # days since jan1 of all AP center times
     dtvec = ap * np.arange(nap) - (T-ap)/2.
-    trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate
+    trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate to first order
     # frequency matrix (channel, spectrum) and rotator
     fedge = np.array([1e-6 * ch.ref_freq for ch in cinfo])
     flip = np.array([-1 if ch.refsb == 'L' else 1 for ch in cinfo])
@@ -786,7 +789,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         parity = -1
     # note that snr=10 per measurement is 36deg phase error
     # this should really be balanced against how rapidly the phase may vary between estimates
-    nfit = max(1, int((snr / 10.)**2)) # number of parameters we might be able to fit
+    nfit = max(1, int((snr / 7.)**2)) # number of parameters we might be able to fit
     # qualitative behavior of fit depends primarily on window_length/polyorder which sets
     # timescale for free parameters. actual poly degree doesn't matter as much.
     if polyorder is None:
