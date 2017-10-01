@@ -9,9 +9,10 @@ import os
 import sys
 import argparse
 import datetime
+import pwd
 
 # logging
-statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), os.getlogin(), os.uname()[1], os.getcwd(), ' '.join(sys.argv))
+statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(), ' '.join(sys.argv))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist file')
@@ -48,7 +49,7 @@ if args.outdir is not None and not os.path.exists(args.outdir):
 
 def adhocref(df, ref='A', outdir=None, timeoffset=0.):
     """use reference site to make adhoc phases to other stations in data frame
-    
+
     Args:
         df: pandas.DataFrame in alist format covering only one scan
         ref: reference site code (default A)
