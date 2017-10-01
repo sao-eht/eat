@@ -27,4 +27,5 @@ setup(
     keywords="astronomy analysis",
 
     packages=find_packages(exclude=["doc*", "test*"]),
+    package_data={'eat': ["data/*.csv"]},
 )
