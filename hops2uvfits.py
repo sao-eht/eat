@@ -21,7 +21,7 @@ import numpy.matlib
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
 
 # For Katie
-DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3597' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
+DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
 # source hops.bash in /Users/klbouman/Research/vlbi_imaging/software/hops/build
 # run this from /Users/klbouman/Research/vlbi_imaging/software/hops/eat
 
@@ -38,6 +38,8 @@ DTPOL = [('time','f8'),('freq','f8'),('tint','f8'),
             ('rrweight','f8'),('llweight','f8'),('rlweight','f8'),('lrweight','f8')]
 EP = 1.e-5
 CORRCOEFF = 10000.0
+
+station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR'}
 
 #######################################################################
 ##########################  Load/Save FUNCTIONS #######################
@@ -130,6 +132,13 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 # names of antennas
                 ant1 = b.t202.contents.ref_name # antenna 1 name
                 ant2 = b.t202.contents.rem_name # anetnna 2 name
+                
+                # change names to match with aips
+                if ant1 in station_dic:
+                    ant1 = station_dic[ant1]
+                if ant2 in station_dic:
+                    ant2 = station_dic[ant2]
+                
                 baselineName = b.t202.contents.baseline # first one is ref antenna second one is rem
 
                 # x, y, z coordinate of antenna 1
@@ -350,13 +359,9 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
         ##########################  save baseline uvfits file ############################
         
-        # we are setting the ref_freq to be the first channel's freq to match aips. This is not the same ref_freq from hops
-        ref_freq = channel1_freq 
-        u = u * ref_freq/ref_freq_hops
-        v = v * ref_freq/ref_freq_hops
-        
+
         # pack data
-        obs_info = (srcname, ra, dec, ref_freq, channel_bw, channel_spacing, channel1_freq, nchan)
+        obs_info = (srcname, ra, dec, ref_freq_hops, channel_bw, channel_spacing, channel1_freq, nchan)
         antenna_info = (antnames, antnums, xyz)
         rg_params = (u,v,bls,jds, tints)
         fname= datadir + baselineName + '_hops_bl.uvfits'
@@ -397,7 +402,7 @@ def load_hops_uvfits(filename):
     
     num_ifs = len(hdulist['AIPS FQ'].data['IF FREQ'][0])
     if (num_ifs>1):
-        ch_spacing = hdulist['AIPS FQ'].data['IF FREQ'][0][1]
+        ch_spacing = hdulist['AIPS FQ'].data['IF FREQ'][0][1] - hdulist['AIPS FQ'].data['IF FREQ'][0][0]
     else: raise Exception('Cannot find uvfits channel spacing in AIPS FREQ table!')
         
     obs_info = (src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan)
@@ -534,11 +539,11 @@ def merge_hops_uvfits(fitsFiles):
     # NOTE: ref_freq should be equal to the first channel's freq but if the channels are not 
     # aligned on every baseline the ref_freqs wont be the same
     
-    #if (len(set([param[3] for param in param_list]) )>1):
-    #    print [param[3] for param in param_list]
-    #    raise Exception('rf not the same!') 
-    #else:
-    #    ref_freq = param_list[0][3]
+    if (len(set([param[3] for param in param_list]) )>1):
+        print [param[3] for param in param_list]
+        raise Exception('rf not the same!') 
+    else:
+        ref_freq = param_list[0][3]
     
     if (len(set([param[4] for param in param_list]) )>1):
         raise Exception('channel bandwidth not the same!') 
@@ -572,7 +577,6 @@ def merge_hops_uvfits(fitsFiles):
     #if not (nchan in [param[7] for param in param_list]):
     #    raise Exception('nchan determined from merging ehtim style datatable not in any read uvfits header!')
 
-    ref_freq = ch1_freq
     obs_info = (src, ra, dec, ref_freq, ch_bw, ch_spacing, ch1_freq, nchan)
 
     print "# baseline files: ", len(fitsFiles)
@@ -835,7 +839,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     ##################### AIPS FQ TABLE #######################################
     # Convert types & columns
     freqid = np.array([1])                                               #frequency setup
-    bandfreq = np.array([ch_spacing*i for i in range(nchan)]).reshape([1,nchan])   #frequency offset
+    bandfreq = np.array([ch1_freq + ch_spacing*i - ref_freq for i in range(nchan)]).reshape([1,nchan])   #frequency offset
     chwidth = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])  #ch bw
     totbw = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])       #total bw
     sideband = np.array([1 for i in range(nchan)]).reshape([1,nchan])     #sideband (>1 = upper)
@@ -935,7 +939,7 @@ def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, clean_bl_fits=False, r
         print 'WARNING - U,V coordinate units unknown!'
         source_scan_fitsFiles = scan_fitsFiles[scan_sources==source]
         (obs_info, antenna_info, rg_params, outdat) = merge_hops_uvfits(source_scan_fitsFiles)
-        outname = datadir + source + "_full_hops_merged.uvfits"
+        outname = datadir + '_' + source + "_full_hops_merged.uvfits"
         save_uvfits(obs_info, antenna_info, rg_params, outdat, outname)
         print "Saved full merged data to ", outname
 
