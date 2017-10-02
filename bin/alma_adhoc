@@ -9,14 +9,16 @@ import os
 import sys
 import argparse
 import datetime
+import pwd
 
 # logging
-statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), os.getlogin(), os.uname()[1], os.getcwd(), ' '.join(sys.argv))
+statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(), ' '.join(sys.argv))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist file')
 parser.add_argument('-d', '--datadir', help='use fringe files from this data directory', default='.')
 parser.add_argument('-o', '--outdir', help='output directory for adhoc files (one per scan)', default=None)
+parser.add_argument('-s', '--snrdof', help='target phase signal-to-noise per degree-of-freedom', type=float, default=10.)
 parser.add_argument('-q', '--quiet', help='do not print cfcodes to stdout (they are saved in adhoc_codes)', action='store_true', default=False)
 args = parser.parse_args()
 
@@ -47,7 +49,7 @@ if args.outdir is not None and not os.path.exists(args.outdir):
 
 def adhocref(df, ref='A', outdir=None, timeoffset=0.):
     """use reference site to make adhoc phases to other stations in data frame
-    
+
     Args:
         df: pandas.DataFrame in alist format covering only one scan
         ref: reference site code (default A)
@@ -68,10 +70,9 @@ def adhocref(df, ref='A', outdir=None, timeoffset=0.):
     util.add_path(df)
     # reverse sign of phases where ref is second site
     for (name, g) in df.groupby('timetag'):
-        snr = df.snr.min() # base smoothing timescale on lowest SNR
         for (idx, row) in g.iterrows():
             b = hu.getfringefile(row.path, quiet=True)
-            ah = hu.adhoc(b, ref=ref, timeoffset=timeoffset, prefix='' if outdir == '.' else outdir + '/')
+            ah = hu.adhoc(b, ref=ref, snr=row.snr, snrdof=args.snrdof, timeoffset=timeoffset, prefix='' if outdir == '.' else outdir + '/')
             out = open(ah.filename, 'w')
             out.write(ah.string)
             if not args.quiet:
