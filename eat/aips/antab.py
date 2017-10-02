@@ -28,13 +28,15 @@ def remove_ifs(tsysdata,bif=2,eif=32):
         aftcols = ["DOY","TIME",
                    orgcols[0].replace("32","%d"%(eif-bif+1)),
                    orgcols[1].replace("32","%d"%(eif-bif+1))]
+        outdata["INDEX"] = aftcols[2:]
 
         # modify data
+        outdata["DATA"] = pd.DataFrame()
         for i in range(len(aftcols)):
             aftcol = aftcols[i]
             modcol = modcols[i]
             outdata["DATA"][aftcol] = tsysdata["DATA"][modcol]
-        outdata["DATA"] = outdata["DATA"][aftcol]
+        outdata["DATA"] = outdata["DATA"][aftcols]
     return outdata
 
 def apply_tsys(tsysdata, year=2017):
@@ -67,7 +69,7 @@ def apply_tsys(tsysdata, year=2017):
         outdata["DATA"].loc[:, "TIME"] = np.asarray(hms)
     return outdata
 
-def concat_tsys(tsysdata1,tsysdata2,pad_IF_lower=True, year=2017):
+def concat_tsys(tsysdata1,tsysdata2,pad_IF_lower=False, year=2017):
     import copy
     tsysdata3 = {}
 
