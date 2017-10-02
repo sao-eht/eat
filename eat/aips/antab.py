@@ -37,6 +37,36 @@ def remove_ifs(tsysdata,bif=2,eif=32):
         outdata["DATA"] = outdata["DATA"][aftcol]
     return outdata
 
+def apply_tsys(tsysdata, year=2017):
+    import copy
+    import astropy.time as at
+    outdata = copy.deepcopy(tsysdata)
+
+    # Get index
+    indexes = outdata["INDEX"]
+    cols = ["DOY","TIME"] + indexes
+
+    if tsysdata["FT"] is not None:
+        for index in indexes:
+            outdata["DATA"].loc[:, index] *= tsysdata["FT"]
+        outdata["FT"] = None
+
+    if tsysdata["TIMEOFF"] is not None:
+        timetags = get_datetime(outdata["DATA"], year)
+        timetags = at.Time(timetags, scale="utc")
+        timetags+= at.TimeDelta(tsysdata["TIMEOFF"], format="sec")
+        timetags = timetags.yday
+        doy = []
+        hms = []
+        for timetag in timetags:
+            dhms = timetag.split(":")
+            doy.append(np.int64(dhms[1]))
+            hms.append(":".join(dhms[2:]))
+        outdata["TIMEOFF"] = None
+        outdata["DATA"].loc[:, "DOY"] = np.asarray(doy)
+        outdata["DATA"].loc[:, "TIME"] = np.asarray(hms)
+    return outdata
+
 def concat_tsys(tsysdata1,tsysdata2,pad_IF_lower=True, year=2017):
     import copy
     tsysdata3 = {}
