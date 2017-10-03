@@ -50,11 +50,11 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
     for filename in glob.glob(datadir + '*'):
         # remove type 1 and 3 files
         #if ".." not in filename:
-        if filename.count('.')==3:
+        if os.path.basename(filename).count('.')==3:
             baselineNames.append(os.path.basename(filename).split(os.extsep)[0])
 
     baselineNames = set(baselineNames)
-    
+        
     ##########################  LOAD DATA ##########################
     for baselineName in baselineNames:
         nap = 0
@@ -86,7 +86,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
         for filename in glob.glob(datadir + baselineName + '*'):
             
             # remove type 1 and 2 files and uvfits files with the same basename
-            if filename.split(os.extsep)[-1] == "uvfits" or filename.count('.')!=3:
+            if filename.split(os.extsep)[-1] == "uvfits" or os.path.basename(filename).count('.')!=3:
                 continue
                 
             #print "reading hops fringe file: ", filename
@@ -698,7 +698,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     header['TELESCOP'] = 'ALMA' # !AC TODO Can we change this field?  
     header['INSTRUME'] = 'ALMA'
     header['BSCALE'] = 1.0
-    header['BZERO'] = 1.0
+    header['BZERO'] = 0.0  
     header['BUNIT'] = 'JY'
     header['EQUINOX'] = 'J2000'
     header['ALTRPIX'] = 1.e0 #??
@@ -869,7 +869,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
 #######################################################################
 ##########################  Main FUNCTION #############################
 ####################################################################### 
-def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, clean_bl_fits=False, rot_rate=False, rot_delay=False):
+def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl_fits=True, clean_bl_fits=False, rot_rate=False, rot_delay=False):
     
     print "****************HOPS2UVFITS*******************"
     print "Creating merged single-source uvfits files for hops fringe files in directory: ", datadir
@@ -888,7 +888,7 @@ def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, clean_bl_fits=False, r
         # make sure a type 2 file exists in the current directory
         fileflag = 1
         for filename in glob.glob(scandir + '/*'):
-            if filename.count('.')==3:
+            if os.path.basename(filename).count('.')==3:
                 fileflag = 0
                 break
         if fileflag:
@@ -914,9 +914,9 @@ def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, clean_bl_fits=False, r
         for filename in glob.glob(scandir + '*_hops_bl.uvfits'):
             bl_fitsFiles.append(filename)
         if not len(bl_fitsFiles):
-            raise Exception("cannot find any fits files with extension _hops_bl.uvfits in %s" % scandir)
-            #print("cannot find any fits files with extension _hops_bl.uvfits in %s" % scandir)
-
+            #raise Exception("cannot find any fits files with extension _hops_bl.uvfits in %s" % scandir)
+            print("cannot find any fits files with extension _hops_bl.uvfits in %s" % scandir)
+        
 
         (obs_info, antenna_info, rg_params, outdat) = merge_hops_uvfits(bl_fitsFiles)
         outname = scandir + "scan_hops_merged.uvfits"
@@ -939,7 +939,7 @@ def main(datadir=DATADIR_DEFAULT, recompute_bl_fits=True, clean_bl_fits=False, r
         print 'WARNING - U,V coordinate units unknown!'
         source_scan_fitsFiles = scan_fitsFiles[scan_sources==source]
         (obs_info, antenna_info, rg_params, outdat) = merge_hops_uvfits(source_scan_fitsFiles)
-        outname = datadir + '_' + source + "_full_hops_merged.uvfits"
+        outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.uvfits'
         save_uvfits(obs_info, antenna_info, rg_params, outdat, outname)
         print "Saved full merged data to ", outname
 
@@ -963,5 +963,17 @@ if __name__=='__main__':
         
     rot_delay = False
     if "--rot_delay" in sys.argv: rot_delay = True
+    
+    ident = ""
+    if "--ident" in sys.argv: 
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--ident'):
+                ident = "_" + sys.argv[a+1] 
+    
+    outdir = datadir 
+    if "--outdir" in sys.argv: 
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--outdir'):
+                outdir = sys.argv[a+1] 
 
-    main(datadir=datadir, recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits, rot_rate=rot_rate, rot_delay=rot_delay)
+    main(datadir=datadir, outdir=outdir, ident=ident, recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits, rot_rate=rot_rate, rot_delay=rot_delay)
