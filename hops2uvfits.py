@@ -28,7 +28,7 @@ DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/U
 #reference date 
 RDATE = '2000-01-01T00:00:00.0'
 RDATE_JD = Time(RDATE, format='isot', scale='utc').jd
-RDATE_GSTIA0 = 114.38389781355 # GST in degrees for refdate TODO for jan 1 2000
+RDATE_GSTIA0 = Time(RDATE, format='isot', scale='utc').sidereal_time('apparent','greenwich').degree
 RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000
 
 #conversion factors and data types
@@ -428,7 +428,20 @@ def load_hops_uvfits(filename):
         
     rg_params = (u,v,baselines,jds, tints)
     
-    return (obs_info, antenna_info, rg_params, obsdata)
+    # load the scan information
+    refdate_str = hdulist['AIPS AN'].header['RDATE'] # in iso
+    refdate = Time(refdate_str, format='isot', scale='utc').jd
+    scan_starts = hdulist['AIPS NX'].data['TIME'] #in days since reference date
+    scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
+    scan_info = []
+    for kk in range(len(scan_starts)):
+        scan_start = scan_starts[kk]
+        scan_dur = scan_durs[kk]
+        scan_info.append([scan_start - 0.5*scan_dur + refdate, 
+                          scan_start + 0.5*scan_dur + refdate])
+    scan_info = np.array(scan_info)
+
+    return (obs_info, antenna_info, scan_info, rg_params, obsdata)
 
 def load_and_convert_hops_uvfits(filename):
     """Load uvfits data from a uvfits file.
@@ -439,8 +452,9 @@ def load_and_convert_hops_uvfits(filename):
     alldata = load_hops_uvfits(filename)
     obs_info = alldata[0]
     antenna_info = alldata[1]
-    rg_params = alldata[2]
-    obsdata =  alldata[3]
+    scan_info = alldata[2]
+    rg_params = alldata[3]
+    obsdata =  alldata[4]
 
     # get the various header parameters
     # TODO!! GET THE CHANNEL SPACING FROM HEADER
@@ -505,9 +519,6 @@ def load_and_convert_hops_uvfits(filename):
     
     params = (src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan)
     
-    #TODO scan_info
-    #scan_info = 
-
     #!AC TODO get calibration flags from uvfits?
     return (params, scan_info, tarr, datatable)
 
@@ -610,9 +621,10 @@ def merge_hops_uvfits(fitsFiles):
     #print "Merging data ... "
 
     # Merge scans
-    scan_info = np.hstack(tarr_list)
+    scan_info = np.hstack(scan_list)
     scan_info = np.sort(scan_info, axis=0)
-    
+    scan_info = np.vstack({tuple(row) for row in scan_info}) #TODO hacky way to delete duplicate rows
+
     start_time_last = 0.
     for scan in scan_info:
         end_time =  scan[1]
@@ -907,12 +919,11 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
         scan_stop = scan[1]
         scan_dur = scan_stop - scan_start
         
-        jd = jds[jj]
-        if (jd <= scan_stop) and (jd >= scan_start): #TODO <= or <??
+        if (jds[jj] <= scan_stop) and (jds[jj] >= scan_start): #TODO <= or <??
             start_vis.append(jj)
             scan_times.append(scan_start + 0.5*scan_dur - RDATE_JD)
             scan_time_ints.append(scan_dur)
-            while (jd[jj] <= scan_stop):
+            while (jj < len(jds) and jds[jj] <= scan_stop):
                 jj += 1
             stop_vis.append(jj-1)
         else: 
@@ -922,15 +933,14 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
 
      
     time_nx = fits.Column(name="TIME", format="1D", array=np.array(scan_times))
-    timeint_nx = fits.Column(name="TIME_INTERVAL", format="IE", array=np.array(scan_time_ints))
-    sourceid_nx = fits.Column(name="SOURCE_ID",format="1J", array=np.ones(len(scan_times)))
+    timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", array=np.array(scan_time_ints))
+    sourceid_nx = fits.Column(name="SOURCE ID",format="1J", array=np.ones(len(scan_times)))
     subarr_nx = fits.Column(name="SUBARRAY",format="1J", array=np.ones(len(scan_times)))
     freqid_nx = fits.Column(name="FREQ ID",format="1J", array=np.ones(len(scan_times)))
     startvis_nx = fits.Column(name="START VIS",format="1J", array=np.array(start_vis))
     endvis_nx = fits.Column(name="END VIS",format="1J", array=np.array(stop_vis))
     cols = fits.ColDefs([time_nx, timeint_nx, sourceid_nx, subarr_nx, freqid_nx, startvis_nx, endvis_nx])
 
-    #PIN
     tbhdu = fits.BinTableHDU.from_columns(cols)
  
     # header information
