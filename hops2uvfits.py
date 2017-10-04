@@ -25,7 +25,13 @@ DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/U
 # source hops.bash in /Users/klbouman/Research/vlbi_imaging/software/hops/build
 # run this from /Users/klbouman/Research/vlbi_imaging/software/hops/eat
 
+#reference date 
+RDATE = '2000-01-01T00:00:00.0'
+RDATE_JD = Time(RDATE, format='isot', scale='utc').jd
+RDATE_GSTIA0 = 114.38389781355 # GST in degrees for refdate TODO for jan 1 2000
+RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000
 
+#conversion factors and data types
 MHZ2HZ = 1e6
 RADPERARCSEC = (np.pi / 180.) / 3600.
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
@@ -119,12 +125,13 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 nap = b.t212[0].contents.nap # number of data points
 
                 # observation time
-                obs_year = b.t205.contents.start.year
-                obs_day = b.t205.contents.start.day
-                obs_minute = b.t205.contents.start.minute
-                obs_second =  b.t205.contents.start.second
+#                obs_year = b.t205.contents.start.year
+#                obs_day = b.t205.contents.start.day
+#                obs_minute = b.t205.contents.start.minute
+#                obs_second =  b.t205.contents.start.second
 
                 # get the fixed integration time
+                #TODO is this right?
                 totaltime  = (eat.hops.util.mk4time(b.t205.contents.stop) - eat.hops.util.mk4time(b.t205.contents.start)).total_seconds()
                 inttime_fixed = totaltime/nap
 
@@ -275,10 +282,14 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             # the integration time for each measurement
             inttime = inttime_fixed*weights
             tints = np.mean(inttime,axis=0)
-            mjd = Time(eat.hops.util.mk4time(b.t205.contents.start)).mjd
-            jds = (2400000.5 + np.floor(mjd)) * np.ones(len(outdat))
+            mjd_start = Time(eat.hops.util.mk4time(b.t205.contents.start)).mjd #fractional mjd of start time
+            mjd_stop = Time(eat.hops.util.mk4time(b.t205.contents.stop)).mjd #fractional mjd of start time
+            jd_start = 2400000.5 + mjd_start
+            jd_stop = 2400000.5 + mjd_stop
+
+            jds = (2400000.5 + np.floor(mjd_start)) * np.ones(len(outdat))
             obsseconds = np.arange(0, len(outdat)*inttime_fixed, inttime_fixed )
-            fractimes = (mjd - np.floor(mjd)) + ( obsseconds / 86400.)
+            fractimes = (mjd_start - np.floor(mjd_start)) + ( obsseconds / 86400.)
             jds = jds + fractimes
             
             #print filename
@@ -303,7 +314,6 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
             ##########################  to uvfits style visibility table #################
             #TODO what is visweight ??
-
             delay = b.t208[0].resid_mbd * 1e-6 # delay in sec
             rate = b.t208[0].resid_rate * 1e-6 # rate in sec/sec^2
             centertime = (eat.hops.util.mk4time(b.t205[0].utc_central) - eat.hops.util.mk4time(b.t205.contents.start)).total_seconds()
@@ -362,11 +372,12 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
         # pack data
         obs_info = (srcname, ra, dec, ref_freq_hops, channel_bw, channel_spacing, channel1_freq, nchan)
+        scan_info = np.array([[jd_start, jd_stop]]) # single scan info -- in JD!!
         antenna_info = (antnames, antnums, xyz)
         rg_params = (u,v,bls,jds, tints)
         fname= datadir + baselineName + '_hops_bl.uvfits'
         #print "Saving baseline uvfits file: ", fname 
-        save_uvfits(obs_info, antenna_info, rg_params, outdat, fname)
+        save_uvfits(obs_info, antenna_info, scan_info, rg_params, outdat, fname)
 
 
 def load_hops_uvfits(filename):
@@ -494,10 +505,14 @@ def load_and_convert_hops_uvfits(filename):
     
     params = (src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan)
     
+    #TODO scan_info
+    #scan_info = 
+
     #!AC TODO get calibration flags from uvfits?
-    return (params, tarr, datatable)
+    return (params, scan_info, tarr, datatable)
 
 def merge_hops_uvfits(fitsFiles):
+
     """load and merge all uvfits files in a data directory
     """
 
@@ -509,18 +524,23 @@ def merge_hops_uvfits(fitsFiles):
     datatable_list = []
     firstfreq_list = []
     lastfreq_list = []
+    scan_list = []
 
+    # Collect all the 
     for fitsFile in fitsFiles:
         fname=  fitsFile
+
         #print "read baseline uvfits file: ", fname 
         out = load_and_convert_hops_uvfits(fname)
         
         param_list.append(out[0])
-        tarr_list.append(out[1])
-        datatable_list.append(out[2])
-        firstfreq_list.append(np.min(out[2]['freq']))
-        lastfreq_list.append(np.max(out[2]['freq']))
+        scan_list.append(out[1])
+        tarr_list.append(out[2])
+        datatable_list.append(out[3])
+        firstfreq_list.append(np.min(out[3]['freq']))
+        lastfreq_list.append(np.max(out[3]['freq']))
 
+    # Check that observation parameters are all the same
     if (len(set([param[0] for param in param_list]) ) >1 ):
         raise Exception('sources not the same!')
     else:
@@ -538,7 +558,6 @@ def merge_hops_uvfits(fitsFiles):
 
     # NOTE: ref_freq should be equal to the first channel's freq but if the channels are not 
     # aligned on every baseline the ref_freqs wont be the same
-    
     if (len(set([param[3] for param in param_list]) )>1):
         print [param[3] for param in param_list]
         raise Exception('rf not the same!') 
@@ -555,6 +574,8 @@ def merge_hops_uvfits(fitsFiles):
     else:
         ch_spacing = float(param_list[0][5])
     
+
+    # Merge bands -- find the channel 1 frequency and number of channels
     firstfreq_min = np.min(np.array(firstfreq_list))
     lastfreq_max = np.max(np.array(lastfreq_list))
     
@@ -563,7 +584,6 @@ def merge_hops_uvfits(fitsFiles):
         if (np.abs(diff - np.round(diff)) > EP):
             raise Exception('all channels not aligned!')
 
-    
     nchan = (lastfreq_max - firstfreq_min)/ch_spacing + 1
     if (np.abs(nchan - np.round(nchan)) > EP):
         raise Exception('channel number not an integer!')
@@ -589,6 +609,17 @@ def merge_hops_uvfits(fitsFiles):
 
     #print "Merging data ... "
 
+    # Merge scans
+    scan_info = np.hstack(tarr_list)
+    scan_info = np.sort(scan_info, axis=0)
+    
+    start_time_last = 0.
+    for scan in scan_info:
+        end_time =  scan[1]
+        if start_time_last < end_time:
+            raise Exception("Overlapping Scans in Merge!!!")
+        start_time_last = scan[0]
+
     # merge telescope arrays
     tarr_merge = np.hstack(tarr_list)
     _, idx = np.unique(tarr_merge, return_index=True)  
@@ -606,6 +637,7 @@ def merge_hops_uvfits(fitsFiles):
     # merge data table 
     datatable_merge = np.hstack(datatable_list)
     datatable_merge.sort(order=['time','t1'])
+
     #print 'SORT BY TIME!!!'
     bl_list = []
     for i in xrange(len(datatable_merge)):
@@ -625,7 +657,7 @@ def merge_hops_uvfits(fitsFiles):
             datatable_merge[i] = entry
         bl_list.append(np.array((entry['time'],entry['t1'],entry['t2']),dtype=BLTYPE))
     
-    # get unique baseline data
+    # get unique time and baseline data
     unique_bl_list, unique_idx_anttime, idx_anttime = np.unique(bl_list, return_index=True, return_inverse=True) 
     _, unique_idx_freq, idx_freq = np.unique(datatable_merge['freq'], return_index=True, return_inverse=True) 
     nap = len(unique_idx_anttime)
@@ -656,9 +688,9 @@ def merge_hops_uvfits(fitsFiles):
             outdat[row_dat_idx,0,0,row_freq_idx,0,j,2] = datatable_merge[i][vistypes[j]+'weight']
 
     # return data for saving
-    return (obs_info, antenna_info, rg_params, outdat)
+    return (obs_info, antenna_info, scan_info, rg_params, outdat)
             
-def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):   
+def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):   
     """save information already in uvfits format to uvfits file
     """
 
@@ -682,14 +714,11 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     nsubchan = 1
     nstokes = 4
 
-    # Open template UVFITS
-    #hdulist = fits.open('./template.uvfits')
-
     # Create new HDU
     hdulist = fits.HDUList()
     hdulist.append(fits.GroupsHDU())
 
-   ##################### DATA TABLE #######################################
+    ##################### DATA TABLE ##################################################################################################
     # Data header 
     header = hdulist['PRIMARY'].header
 
@@ -701,7 +730,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     header['BZERO'] = 0.0  
     header['BUNIT'] = 'JY'
     header['EQUINOX'] = 'J2000'
-    header['ALTRPIX'] = 1.e0 #??
+    header['ALTRPIX'] = 1.e0 
 
     #optional
     header['OBSRA'] = ra * 180./12.
@@ -711,7 +740,7 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     #header['DATE-OBS'] = ??
     #header['DATE-MAP'] = ??
 
-    ## DATA AXES ##
+    # DATA AXES #
     header['NAXIS'] = 7
     header['NAXIS1'] = 0
 
@@ -788,14 +817,14 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     hdulist['PRIMARY'].data = x
     hdulist['PRIMARY'].header = header
 
-    ####################### AIPS AN TABLE ########################
-    #Antenna Header params - TODO do we need to change more of these?? 
+    ####################### AIPS AN TABLE ###############################################################################################
+    #Antenna Table entries
     col1 = fits.Column(name='ANNAME', format='8A', array=antnames)
     col2 = fits.Column(name='STABXYZ', format='3D', unit='METERS', array=xyz)
     col3= fits.Column(name='ORBPARM', format='0D', array=np.zeros(0))
     col4 = fits.Column(name='NOSTA', format='1J', array=antnums)
  
-    #TODO get the actual information for these parameters
+    #TODO get the actual information for these parameters for each station
     col5 = fits.Column(name='MNTSTA', format='1J', array=np.zeros(nsta)) #zero = alt-az
     col6 = fits.Column(name='STAXOF', format='1E', unit='METERS', array=np.zeros(nsta)) #zero = no axis  offset
     col7 = fits.Column(name='POLTYA', format='1A', array=np.array(['R' for i in range(nsta)], dtype='|S1')) #RCP 
@@ -805,18 +834,20 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     col11 = fits.Column(name='POLAB', format='1E', unit='DEGREES', array=90*np.ones(nsta)) #feed orientation A
     col12 = fits.Column(name='POLCALB', format='2E', array=np.zeros((nsta,2))) #zero = no pol cal info
 
+    # create table
     tbhdu = fits.BinTableHDU.from_columns(fits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12]), name='AIPS AN')
     hdulist.append(tbhdu)
 
+    # header information
     head = hdulist['AIPS AN'].header
     head['EXTVER'] = 1
     head['ARRAYX'] = 0.e0
     head['ARRAYY'] = 0.e0
     head['ARRAYZ'] = 0.e0
 
-    head['RDATE'] = '2000-01-01T00:00:00.0'
-    head['GSTIA0'] = 114.38389781355 # GST in degrees for refdate TODO for jan 1 2000
-    head['DEGPDY'] = 360.9856 # TODO for jan 1 2000
+    head['RDATE'] = RDATE
+    head['GSTIA0'] = RDATE_GSTIA0
+    head['DEGPDY'] = RDATE_DEGPERDY
     head['FREQ']= ref_freq
     head['POLARX'] = 0.e0
     head['POLARY'] = 0.e0
@@ -830,13 +861,13 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     head['FRAME'] = '????'
     head['NUMORB'] = 0
     head['NO_IF'] = nchan
-    head['NOPCAL'] = 0            #TODO add pol cal information
+    head['NOPCAL'] = 0  #TODO add pol cal information
     head['POLTYPE'] = 'VLBI'
     head['FREQID'] = 1
     
-    hdulist['AIPS AN'].header = head # TODO necessary, or is it a pointer?
+    hdulist['AIPS AN'].header = head
 
-    ##################### AIPS FQ TABLE #######################################
+    ##################### AIPS FQ TABLE #####################################################################################################
     # Convert types & columns
     freqid = np.array([1])                                               #frequency setup
     bandfreq = np.array([ch1_freq + ch_spacing*i - ref_freq for i in range(nchan)]).reshape([1,nchan])   #frequency offset
@@ -854,21 +885,67 @@ def save_uvfits(obs_info, antenna_info, rg_params, outdat, fname):
     # create table
     tbhdu = fits.BinTableHDU.from_columns(cols)
  
-    # add header information
+    # header information
     tbhdu.header.append(("NO_IF", nchan, "Number IFs"))
     tbhdu.header.append(("EXTNAME","AIPS FQ"))
 
     hdulist.append(tbhdu) #TODO no AIPS FQ in template currently
 
+    ##################### AIPS NX TABLE #####################################################################################################
+
+    scan_times = []
+    scan_time_ints = []
+    start_vis = []
+    stop_vis = []
+    
+
+    #jds AND scan_info should be time sorted!! TODO make sure
+    
+    jj = 0
+    for scan in  scan_info:
+        scan_start = scan[0]
+        scan_stop = scan[1]
+        scan_dur = scan_stop - scan_start
+        
+        jd = jds[jj]
+        if (jd <= scan_stop) and (jd >= scan_start): #TODO <= or <??
+            start_vis.append(jj)
+            scan_times.append(scan_start + 0.5*scan_dur - RDATE_JD)
+            scan_time_ints.append(scan_dur)
+            while (jd[jj] <= scan_stop):
+                jj += 1
+            stop_vis.append(jj-1)
+        else: 
+            continue
+
+    if jj < len(scan_info): raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
+
+     
+    time_nx = fits.Column(name="TIME", format="1D", array=np.array(scan_times))
+    timeint_nx = fits.Column(name="TIME_INTERVAL", format="IE", array=np.array(scan_time_ints))
+    sourceid_nx = fits.Column(name="SOURCE_ID",format="1J", array=np.ones(len(scan_times)))
+    subarr_nx = fits.Column(name="SUBARRAY",format="1J", array=np.ones(len(scan_times)))
+    freqid_nx = fits.Column(name="FREQ ID",format="1J", array=np.ones(len(scan_times)))
+    startvis_nx = fits.Column(name="START VIS",format="1J", array=np.array(start_vis))
+    endvis_nx = fits.Column(name="END VIS",format="1J", array=np.array(stop_vis))
+    cols = fits.ColDefs([time_nx, timeint_nx, sourceid_nx, subarr_nx, freqid_nx, startvis_nx, endvis_nx])
+
+    #PIN
+    tbhdu = fits.BinTableHDU.from_columns(cols)
+ 
+    # header information
+    tbhdu.header.append(("EXTNAME","AIPS NX"))
+
+    hdulist.append(tbhdu) #TODO no AIPS FQ in template currently
 
     # Write final HDUList to file
     hdulist.writeto(fname, clobber=True)
 
 
 
-#######################################################################
+##################################################################################################################################
 ##########################  Main FUNCTION #############################
-####################################################################### 
+################################################################################################################################## 
 def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl_fits=True, clean_bl_fits=False, rot_rate=False, rot_delay=False):
     
     print "****************HOPS2UVFITS*******************"
@@ -918,9 +995,9 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
             print("cannot find any fits files with extension _hops_bl.uvfits in %s" % scandir)
         
 
-        (obs_info, antenna_info, rg_params, outdat) = merge_hops_uvfits(bl_fitsFiles)
+        (obs_info, antenna_info, scan_info, rg_params, outdat) = merge_hops_uvfits(bl_fitsFiles)
         outname = scandir + "scan_hops_merged.uvfits"
-        save_uvfits(obs_info, antenna_info, rg_params, outdat, outname)
+        save_uvfits(obs_info, antenna_info, scan_info, rg_params, outdat, outname)
         
         scan_fitsFiles.append(outname)
         scan_sources.append(obs_info[0])
@@ -938,9 +1015,9 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
         print "Merging all scan uvfits files in directory: ", datadir, "for source: ", source
         print 'WARNING - U,V coordinate units unknown!'
         source_scan_fitsFiles = scan_fitsFiles[scan_sources==source]
-        (obs_info, antenna_info, rg_params, outdat) = merge_hops_uvfits(source_scan_fitsFiles)
+        (obs_info, antenna_info, scan_info, rg_params, outdat) = merge_hops_uvfits(source_scan_fitsFiles)
         outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.uvfits'
-        save_uvfits(obs_info, antenna_info, rg_params, outdat, outname)
+        save_uvfits(obs_info, antenna_info, scan_info, rg_params, outdat, outname)
         print "Saved full merged data to ", outname
 
     return
