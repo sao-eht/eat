@@ -534,7 +534,7 @@ def ehtapcal(indata, tyver=0, gcver=0, dif=8):
     # run APCAL
     Nif = indata.header.naxis[3]
     SNver0 = indata.table_highver("SN")+1
-    for bif in range(1,Nif,dif):
+    for bif in range(1,Nif+1,dif):
         task=tget("apcal")
         task.getn(indata)
         task.bif=bif
