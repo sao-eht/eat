@@ -740,7 +740,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0.):
+def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10.):
     """
     create ad-hoc phases from fringe file (type 212)
     use round-robin training/evaluation to avoid self-tuning bias
@@ -758,6 +758,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         ref: 0 (first site), 1 (second site), or station letter (e.g. A)
         prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
         timeoffset: add timeoffset [units of AP] to each timestamp in the adhoc string
+        snrdof: target signal-to-noise per degree-of-freedom in adhoc solution (higher is smoother)
     """
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
@@ -789,7 +790,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         parity = -1
     # note that snr=10 per measurement is 36deg phase error
     # this should really be balanced against how rapidly the phase may vary between estimates
-    nfit = max(1, int((snr / 7.)**2)) # number of parameters we might be able to fit
+    nfit = max(1, int((snr / snrdof)**2)) # number of parameters we might be able to fit
     # qualitative behavior of fit depends primarily on window_length/polyorder which sets
     # timescale for free parameters. actual poly degree doesn't matter as much.
     if polyorder is None:

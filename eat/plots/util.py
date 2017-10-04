@@ -28,6 +28,7 @@ def breakplot(x, y, *args, **kwargs):
 			plt.plot(x[i3], y[i3], *args, **kwargs)
 
 # remove lines across gaps in data
+# this appears to stop working for N>=1000, probably due to lines.py:706 in matplotlib 2.0.0
 def rmgaps(dbreakx=2., dbreaky=None):
     if dbreaky == None:
         dbreaky = 1e12
