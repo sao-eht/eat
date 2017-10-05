@@ -18,10 +18,10 @@ from astropy.time import Time
 import numpy.matlib
 
 # For Andrew:
-#DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
+DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
 
 # For Katie
-DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
+#DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
 # source hops.bash in /Users/klbouman/Research/vlbi_imaging/software/hops/build
 # run this from /Users/klbouman/Research/vlbi_imaging/software/hops/eat
 
@@ -30,6 +30,9 @@ RDATE = '2000-01-01T00:00:00.0'
 RDATE_JD = Time(RDATE, format='isot', scale='utc').jd
 RDATE_GSTIA0 = Time(RDATE, format='isot', scale='utc').sidereal_time('apparent','greenwich').degree
 RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000
+
+# decimal precision for the scan start & stop times (fractional day)
+ROUND_SCAN_INT = 8
 
 #conversion factors and data types
 MHZ2HZ = 1e6
@@ -435,6 +438,7 @@ def load_hops_uvfits(filename):
     scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
     scan_info = []
     for kk in range(len(scan_starts)):
+        #ANDREW TODO precision??
         scan_start = scan_starts[kk]
         scan_dur = scan_durs[kk]
         scan_info.append([scan_start - 0.5*scan_dur + refdate, 
@@ -621,14 +625,14 @@ def merge_hops_uvfits(fitsFiles):
     #print "Merging data ... "
 
     # Merge scans
-    scan_info = np.hstack(scan_list)
+    scan_info = np.vstack(scan_list)
     scan_info = np.sort(scan_info, axis=0)
-    scan_info = np.vstack({tuple(row) for row in scan_info}) #TODO hacky way to delete duplicate rows
+    scan_info = np.vstack({tuple(np.round(row,decimals=ROUND_SCAN_INT)) for row in scan_info}) 
 
     start_time_last = 0.
     for scan in scan_info:
         end_time =  scan[1]
-        if start_time_last < end_time:
+        if start_time_last > end_time:
             raise Exception("Overlapping Scans in Merge!!!")
         start_time_last = scan[0]
 
@@ -911,25 +915,35 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
     stop_vis = []
     
 
-    #jds AND scan_info should be time sorted!! TODO make sure
-    
+    #TODO!! jds AND scan_info should be time sorted!! TODO make sure
     jj = 0
+    print scan_info
     for scan in  scan_info:
-        scan_start = scan[0]
-        scan_stop = scan[1]
+        scan_start = round(scan[0],ROUND_SCAN_INT)
+        scan_stop = round(scan[1],ROUND_SCAN_INT)
         scan_dur = scan_stop - scan_start
+
+        if jj>=len(jds):
+            #print start_vis, stop_vis
+            
+            break
         
-        if (jds[jj] <= scan_stop) and (jds[jj] >= scan_start): #TODO <= or <??
+        # print "%.12f %.12f %.12f" %( jds[jj], scan_start, scan_stop)   
+        jd = round(jds[jj],ROUND_SCAN_INT) # ANDREW TODO precision??     
+        if (jd <= scan_stop) and (jd >= scan_start): #TODO <= or <??
             start_vis.append(jj)
             scan_times.append(scan_start + 0.5*scan_dur - RDATE_JD)
             scan_time_ints.append(scan_dur)
-            while (jj < len(jds) and jds[jj] <= scan_stop):
+            while (jj < len(jds) and round(jds[jj],ROUND_SCAN_INT) <= scan_stop):
                 jj += 1
             stop_vis.append(jj-1)
         else: 
             continue
 
-    if jj < len(scan_info): raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
+    if jj < len(jds): 
+        print jj,len(jds)
+        print stop_vis
+        raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
 
      
     time_nx = fits.Column(name="TIME", format="1D", array=np.array(scan_times))
