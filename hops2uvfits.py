@@ -32,7 +32,7 @@ RDATE_GSTIA0 = Time(RDATE, format='isot', scale='utc').sidereal_time('apparent',
 RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000
 
 # decimal precision for the scan start & stop times (fractional day)
-ROUND_SCAN_INT = 8
+ROUND_SCAN_INT = 7
 
 #conversion factors and data types
 MHZ2HZ = 1e6
@@ -626,15 +626,27 @@ def merge_hops_uvfits(fitsFiles):
 
     # Merge scans
     scan_info = np.vstack(scan_list)
-    scan_info = np.sort(scan_info, axis=0)
     scan_info = np.vstack({tuple(np.round(row,decimals=ROUND_SCAN_INT)) for row in scan_info}) 
+    scan_info = np.sort(scan_info, axis=0)
 
     start_time_last = 0.
+    end_time_last = 0.
+    scan_info2 = []
     for scan in scan_info:
+        start_time =  scan[0]
         end_time =  scan[1]
-        if start_time_last > end_time:
-            raise Exception("Overlapping Scans in Merge!!!")
-        start_time_last = scan[0]
+
+        #ANDREW TODO -- get rid of cases with different scan lengths?
+        if end_time<=end_time_last:
+            continue
+        elif start_time==start_time_last:
+            continue
+
+        scan_info2.append(scan)
+        
+        end_time_last = end_time
+        start_time_last = start_time
+    scan_info = np.array(scan_info2)
 
     # merge telescope arrays
     tarr_merge = np.hstack(tarr_list)
@@ -914,34 +926,36 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
     start_vis = []
     stop_vis = []
     
-
     #TODO!! jds AND scan_info should be time sorted!! TODO make sure
     jj = 0
     print scan_info
+
+    comp_fac = 3600*24*100 # compare to 100th of a second
+
     for scan in  scan_info:
-        scan_start = round(scan[0],ROUND_SCAN_INT)
-        scan_stop = round(scan[1],ROUND_SCAN_INT)
-        scan_dur = scan_stop - scan_start
+        scan_start = round(scan[0], ROUND_SCAN_INT)
+        scan_stop = round(scan[1], ROUND_SCAN_INT)
+        scan_dur = (scan_stop - scan_start)
 
         if jj>=len(jds):
             #print start_vis, stop_vis
-            
             break
         
         # print "%.12f %.12f %.12f" %( jds[jj], scan_start, scan_stop)   
-        jd = round(jds[jj],ROUND_SCAN_INT) # ANDREW TODO precision??     
-        if (jd <= scan_stop) and (jd >= scan_start): #TODO <= or <??
+        jd = round(jds[jj], ROUND_SCAN_INT)*comp_fac # ANDREW TODO precision??     
+        if (np.floor(jd) >= np.floor(scan_start*comp_fac)) and (np.ceil(jd) <= np.ceil(comp_fac*scan_stop)):
             start_vis.append(jj)
             scan_times.append(scan_start + 0.5*scan_dur - RDATE_JD)
             scan_time_ints.append(scan_dur)
-            while (jj < len(jds) and round(jds[jj],ROUND_SCAN_INT) <= scan_stop):
+            while (jj < len(jds) and np.floor(jds[jj]*comp_fac) <= np.ceil(comp_fac*scan_stop)):
                 jj += 1
             stop_vis.append(jj-1)
         else: 
             continue
 
     if jj < len(jds): 
-        print jj,len(jds)
+        
+        print jj, len(jds)
         print stop_vis
         raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
 
