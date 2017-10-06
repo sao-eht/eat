@@ -32,7 +32,7 @@ RDATE_GSTIA0 = Time(RDATE, format='isot', scale='utc').sidereal_time('apparent',
 RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000
 
 # decimal precision for the scan start & stop times (fractional day)
-ROUND_SCAN_INT = 8
+ROUND_SCAN_INT = 6
 
 #conversion factors and data types
 MHZ2HZ = 1e6
@@ -626,15 +626,17 @@ def merge_hops_uvfits(fitsFiles):
 
     # Merge scans
     scan_info = np.vstack(scan_list)
-    scan_info = np.sort(scan_info, axis=0)
     scan_info = np.vstack({tuple(np.round(row,decimals=ROUND_SCAN_INT)) for row in scan_info}) 
+    scan_info = np.sort(scan_info, axis=0)
 
     start_time_last = 0.
-    for scan in scan_info:
-        end_time =  scan[1]
-        if start_time_last > end_time:
-            raise Exception("Overlapping Scans in Merge!!!")
-        start_time_last = scan[0]
+#     for scan in scan_info:
+#         end_time =  scan[1]
+#         if start_time_last > end_time:
+#             raise Exception("Overlapping Scans in Merge!!!")
+#         start_time_last = scan[0]
+
+    print scan_info
 
     # merge telescope arrays
     tarr_merge = np.hstack(tarr_list)
@@ -951,8 +953,8 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
     sourceid_nx = fits.Column(name="SOURCE ID",format="1J", array=np.ones(len(scan_times)))
     subarr_nx = fits.Column(name="SUBARRAY",format="1J", array=np.ones(len(scan_times)))
     freqid_nx = fits.Column(name="FREQ ID",format="1J", array=np.ones(len(scan_times)))
-    startvis_nx = fits.Column(name="START VIS",format="1J", array=np.array(start_vis))
-    endvis_nx = fits.Column(name="END VIS",format="1J", array=np.array(stop_vis))
+    startvis_nx = fits.Column(name="START VIS",format="1J", array=np.array(start_vis)+1)
+    endvis_nx = fits.Column(name="END VIS",format="1J", array=np.array(stop_vis)+1)
     cols = fits.ColDefs([time_nx, timeint_nx, sourceid_nx, subarr_nx, freqid_nx, startvis_nx, endvis_nx])
 
     tbhdu = fits.BinTableHDU.from_columns(cols)
