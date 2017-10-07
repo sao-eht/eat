@@ -23,11 +23,16 @@ def remove_ifs(tsysdata,bif=2,eif=32):
             modcol = modcols[i]
             outdata["DATA"][aftcol] = tsysdata["DATA"][modcol]
         outdata["DATA"] = outdata["DATA"].reset_index()
-    elif len(orgcols)==2:
+    elif len(orgcols)<=10:
         modcols = ["DOY","TIME"]+orgcols
-        aftcols = ["DOY","TIME",
-                   orgcols[0].replace("32","%d"%(eif-bif+1)),
-                   orgcols[1].replace("32","%d"%(eif-bif+1))]
+        Nidx = len(orgcols)
+        aftcols = ["DOY","TIME"]
+        if "32" in orgcols[0]:
+            for i in np.arange(Nidx):
+                aftcols.append(orgcols[i].replace("32","%d"%(eif-bif+1)))
+        elif "64" in orgcols[0]:
+            for i in np.arange(Nidx):
+                aftcols.append(orgcols[i].replace("64","%d"%(eif-bif+1)))
         outdata["INDEX"] = aftcols[2:]
 
         # modify data

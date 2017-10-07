@@ -32,19 +32,19 @@ def ehtfgout(indata, fgver=0):
         fgv = indata.table_highver("FG")
     else:
         fgv = fgver
-    
+
     # Get data
     fgtab = indata.table("FG", fgv)
     ants = indata.antennas
     srcs = indata.sources
     ants.insert(0,"ALL")
     srcs.insert(0,"ALL")
-    
+
     # Make a dictionary
     outdata = {}
     for key in fgtab_columns:
         outdata[key] = []
-    
+
     # Read data from the input FG table
     Ntab = len(fgtab)
     for itab in np.arange(Ntab):
@@ -75,19 +75,19 @@ def ehtfgout(indata, fgver=0):
     return outdata
 
 
-def ehtfgin(indata, fgtab, fgver=0, outfgver=-1, unflag=False):    
+def ehtfgin(indata, fgtab, fgver=0, outfgver=-1, unflag=False):
     # Correct information from indata
     ants = indata.antennas
     srcs = indata.sources
     ants.insert(0,"ALL")
     srcs.insert(0,"ALL")
     Nant = len(ants)
-    
+
     # check fgtab
     for key in fgtab_columns:
         fgtab[key]
     Ntab = fgtab.shape[0]
-    
+
     for itab in np.arange(Ntab):
         tab = fgtab.loc[itab, :]
         task = tget("uvflg")
@@ -113,7 +113,7 @@ def ehtfgin(indata, fgtab, fgver=0, outfgver=-1, unflag=False):
         else:
             task.fgver = outfgver
         task.outfgver = outfgver
-        
+
         # antennas
         ant1 = tab["ant1"].upper()
         ant2 = tab["ant2"].upper()
@@ -168,7 +168,7 @@ def ehtfgin(indata, fgtab, fgver=0, outfgver=-1, unflag=False):
 def ehtfgreset(indata, fgver=0):
     if fgver==0:
         fgver=indata.table_highver("FG")
-    
+
     fgtab=indata.table("FG", fgver)
     Ntab = len(fgtab)
     for itab in np.arange(Ntab):
@@ -272,12 +272,12 @@ def ehtsort(indata, outdata, clint=1/60.):
 def ehtancor(indata, inver=0, datain=""):
     '''
     Corrects mislabled reciever-mount types of EHT stations in AN table
-    
+
     Args:
       indata (AIPSUVData object):
         input data
       inver (int):
-        Version of the AN table to be corrected. This function overwrites this 
+        Version of the AN table to be corrected. This function overwrites this
         input AN table.
       datain (str):
         Filename for a csv correction table.
@@ -286,11 +286,11 @@ def ehtancor(indata, inver=0, datain=""):
     cortable = pd.read_csv(datain)
     print(cortable)
     annames_tab = list(set(cortable["ANNAME"]))
-    
+
     # Get Antennna information
     annames = indata.antennas
     Nan = len(annames)
-    
+
     # Correct a specified AIPS AN Table with TABED
     for ian in range(Nan):
         anname = annames[ian]
@@ -320,14 +320,14 @@ def ehtancor(indata, inver=0, datain=""):
 def ehtpang(indata):
     '''
     Corrects phases for parallactic angle effects.
-    
+
     Args:
       indata (AIPSUVData object):
         input data
     '''
     # get old tables
     oldtabs = indata.tables
-    
+
     # LISTR (SCAN)
     task = tget("clcor")
     task.getn(indata)
@@ -336,10 +336,10 @@ def ehtpang(indata):
     task.opcode = "PANG"
     task.clcorprm[1] = 1
     task()
-    
+
     # Show updated tables
     newtabs = indata.tables
-    diftables = difftables(oldtabs, newtabs) 
+    diftables = difftables(oldtabs, newtabs)
     print("ehtpang: new tables created")
     print(diftables)
     return diftables
@@ -356,25 +356,25 @@ def ehtaccor(
         flagmode=0):
     '''
     '''
-    
+
     if flagmode > 0.5:
         tv=AIPSTV()
         tv.restart()
-    
+
     # get number of IFs
     Nch = indata.header["naxis"][2]
     Nif = indata.header["naxis"][3]
-    
+
     # get old tables
     oldtabs = indata.tables
-    
+
     # Run ACSCL
     task = tget("accor")
     task.getn(indata)
     task.solint=solint
     task()
     SNver = indata.table_highver("SN")
-    
+
     if flagmode==1:
         # Flagging data
         task = tget("snedt")
@@ -393,7 +393,7 @@ def ehtaccor(
         task.reason="BAD ACCOR SOLUTION"
         task()
         ehtfgreset(indata, fgver=0)
-    
+
     # CLCAL
     task = tget("clcal")
     task.getn(indata)
@@ -404,9 +404,9 @@ def ehtaccor(
     task.gainver = indata.table_highver("CL")
     task.gainuse = indata.table_highver("CL")+1
     task()
-    
+
     newtabs = indata.tables
-    diftables = difftables(oldtabs, newtabs) 
+    diftables = difftables(oldtabs, newtabs)
     print("ehtaccor: new tables created")
     print(diftables)
     return diftables
@@ -428,14 +428,14 @@ def ehtacscl(
         tv=AIPSTV()
         if not tv.exists():
             tv.start()
-    
+
     # get number of IFs
     Nch = indata.header["naxis"][2]
     Nif = indata.header["naxis"][3]
-    
+
     # get old tables
     oldtabs = indata.tables
-    
+
     # Run ACSCL
     task = tget("acscl")
     task.getn(indata)
@@ -448,7 +448,7 @@ def ehtacscl(
     task.ichansel[1] = [None, 1, Nch, 1, 0]
     task()
     SNver = indata.table_highver("SN")
-    
+
     if flagmode==1:
         # Flagging data
         task = tget("snedt")
@@ -467,7 +467,7 @@ def ehtacscl(
         task.reason="BAD ACSCL SOLUTION"
         task()
         ehtfgreset(indata, fgver=0)
-    
+
     # CLCAL
     task = tget("clcal")
     task.getn(indata)
@@ -478,9 +478,9 @@ def ehtacscl(
     task.gainver = int(gainver)
     task.gainuse = int(gainuse)
     task()
-    
+
     newtabs = indata.tables
-    diftables = difftables(oldtabs, newtabs) 
+    diftables = difftables(oldtabs, newtabs)
     print("ehtacscl: new tables created")
     print(diftables)
     return diftables
@@ -488,24 +488,79 @@ def ehtacscl(
 # ------------------------------------------------------------------------------
 # A-Priori Calibration
 # ------------------------------------------------------------------------------
-def ehtapcal(indata):
+def ehtantab(indata, antabfileNA, antabfileAA1, antabfileAA2):
     '''
+    Args:
+        indata (AIPSUVData object):
+            input data
+        antabfileNA, antabfileAA1, antabfileAA2 (str):
+            filenames of antab files for Non ALMA station, and ALMA
+            (two files splitted by Michael Janssen's split_antab.py).
     '''
-    
-    # Run ACSCL
-    task = tget("bpass")
+    # get old tables
+    oldtabs = indata.tables
+
+    # run antab
+    task = tget("antab")
     task.getn(indata)
-    task.calsour=calsour
-    task.timerang=timerang
-    task.docalib=int(docal)
-    task.gainuse=int(gainuse)
-    task.doband=int(doband)
-    task.bpver=int(bpver)
-    task.bpassprm[1]=1
-    task.bpassprm[10]=1
-    task.solint=solint
+    task.tyver=indata.table_highver("TY")+1
+    task.gcver=indata.table_highver("GC")+1
+    task.calin=antabfileNA
+    task.check()
+    task()
+    task.tyver=indata.table_highver("TY")
+    task.gcver=indata.table_highver("GC")
+    task.calin=antabfileAA1
+    task.check()
+    task()
+    task.tyver=indata.table_highver("TY")
+    task.gcver=indata.table_highver("GC")
+    task.calin=antabfileAA2
+    task.check()
     task()
 
+    newtabs = indata.tables
+    diftables = difftables(oldtabs, newtabs)
+    print("ehtantab: new tables created")
+    print(diftables)
+    return diftables
+
+def ehtapcal(indata, tyver=0, gcver=0, dif=8):
+    '''
+    '''
+    # get old tables
+    oldtabs = indata.tables
+
+    # run APCAL
+    Nif = indata.header.naxis[3]
+    SNver0 = indata.table_highver("SN")+1
+    for bif in range(1,Nif+1,dif):
+        task=tget("apcal")
+        task.getn(indata)
+        task.bif=bif
+        task.eif=int(np.min([bif+dif,Nif]))
+        task.tyver=tyver
+        task.gcver=gcver
+        task.dofit[1]=-1
+        task()
+    SNver1 = indata.table_highver("SN")+1
+
+    # run CLCAL
+    task=tget("clcal")
+    task.getn(indata)
+    task.interpol="SELF"
+    task.snver=SNver0
+    task.invers=SNver1
+    task.gainver=indata.table_highver("CL")
+    task.gainuse=indata.table_highver("CL")+1
+    task.refant=-1
+    task()
+
+    newtabs = indata.tables
+    diftables = difftables(oldtabs, newtabs)
+    print("ehtapcal: new tables created")
+    print(diftables)
+    return diftables
 
 # ------------------------------------------------------------------------------
 # Band Pass
@@ -521,10 +576,10 @@ def ehtbpassac(
         solint=-1):
     '''
     '''
-    
+
     # get old tables
     oldtabs = indata.tables
-    
+
     # Run ACSCL
     task = tget("bpass")
     task.getn(indata)
@@ -538,9 +593,9 @@ def ehtbpassac(
     task.bpassprm[10]=1
     task.solint=solint
     task()
-    
+
     newtabs = indata.tables
-    diftables = difftables(oldtabs, newtabs) 
+    diftables = difftables(oldtabs, newtabs)
     print("ehtbpassac: new tables created")
     print(diftables)
     return diftables
@@ -557,10 +612,10 @@ def ehtbpasscc(
         solint=-1):
     '''
     '''
-    
+
     # get old tables
     oldtabs = indata.tables
-    
+
     # Run ACSCL
     task = tget("bpass")
     task.getn(indata)
@@ -574,9 +629,9 @@ def ehtbpasscc(
     task.bpassprm[10]=1
     task.solint=solint
     task()
-    
+
     newtabs = indata.tables
-    diftables = difftables(oldtabs, newtabs) 
+    diftables = difftables(oldtabs, newtabs)
     print("ehtbpasscc: new tables created")
     print(diftables)
     return diftables
@@ -606,26 +661,26 @@ def ehtsnplt(
         zappltabs=False):
     '''
     '''
-    
+
     Nant = len(indata.antennas)
     oldtabs = indata.tables
-    
+
     # TIMERANG
     if tmode.lower() == "eachscan":
         scantimes = indata.scantimes()
     else:
         scantimes = [timerang]
-    
+
     # BIF, EIF
     if np.isscalar(pltifs):
         pltifs = np.array([pltifs])
     bif = pltifs.min()
     eif = pltifs.max()
-    
+
     # BIF, EIF
     if np.isscalar(optypes):
         optypes = [optypes]
-    
+
     if eachant:
         if antennas[1]==0:
             antlist=np.arange(Nant)+1
@@ -633,7 +688,7 @@ def ehtsnplt(
             antlist=antennas[1:]
     else:
         antlist=[1]
-    
+
     # PLver
     PLverbef = indata.table_highver("PL")
     for optype in optypes:
@@ -666,7 +721,7 @@ def ehtsnplt(
                 except OSError:
                     pass
     PLveraft = indata.table_highver("PL")
-    
+
     task = tget("lwpla")
     task.getn(indata)
     task.plver=int(PLverbef+1)
@@ -677,9 +732,9 @@ def ehtsnplt(
     task.set_plcolors_aipstv()
     task.check(overwrite=overwrite)
     task()
-    
+
     newtabs = indata.tables
-    diftables = difftables(oldtabs, newtabs) 
+    diftables = difftables(oldtabs, newtabs)
     print("ehtsnplt: new tables created")
     print(diftables)
     if zappltabs:
@@ -707,12 +762,12 @@ def ehtpossmac(
         zappltabs=False):
     '''
     '''
-    
+
     # get some info
     Nant = len(indata.antennas)
     Nif = indata.header["naxis"][3]
     oldtabs = indata.tables
-    
+
     # set parameters
     if bindif:
         bifs=[1]
@@ -721,12 +776,12 @@ def ehtpossmac(
         bifs=np.arange(Nif)+1
         eifs=bifs
     Npltif = len(bifs)
-    
+
     if bindpol:
         stokess=["RRLL"]
     else:
         stokess=["RR","LL"]
-    
+
     # PLver
     PLverbef = indata.table_highver("PL")
     for iant in range(Nant):
@@ -762,7 +817,7 @@ def ehtpossmac(
                 task.dotv=-1
                 task()
     PLveraft = indata.table_highver("PL")
-    
+
     task = tget("lwpla")
     task.getn(indata)
     task.plver=int(PLverbef+1)
@@ -773,9 +828,9 @@ def ehtpossmac(
     task.set_plcolors_aipstv()
     task.check(overwrite=overwrite)
     task()
-    
+
     newtabs = indata.tables
-    diftables = difftables(oldtabs, newtabs) 
+    diftables = difftables(oldtabs, newtabs)
     print("ehtpltacspr: new tables created")
     print(diftables)
     if zappltabs:
@@ -799,12 +854,12 @@ def ehtpossmcc(
         zappltabs=False):
     '''
     '''
-    
+
     # get some info
     Nant = len(indata.antennas)
     Nif = indata.header["naxis"][3]
     oldtabs = indata.tables
-    
+
     # set parameters
     if bindif:
         bifs=[1]
@@ -813,7 +868,7 @@ def ehtpossmcc(
         bifs=np.arange(Nif)+1
         eifs=bifs
     Npltif = len(bifs)
-    
+
     # PLver
     PLverbef = indata.table_highver("PL")
     for iant in range(Nant):
@@ -842,7 +897,7 @@ def ehtpossmcc(
             task.dotv=-1
             task()
     PLveraft = indata.table_highver("PL")
-    
+
     task = tget("lwpla")
     task.getn(indata)
     task.plver=int(PLverbef+1)
@@ -853,9 +908,9 @@ def ehtpossmcc(
     task.set_plcolors_aipstv()
     task.check(overwrite=overwrite)
     task()
-    
+
     newtabs = indata.tables
-    diftables = difftables(oldtabs, newtabs) 
+    diftables = difftables(oldtabs, newtabs)
     print("ehtpltacspr: new tables created")
     print(diftables)
     if zappltabs:
@@ -884,8 +939,8 @@ def ehtvplotac(
     '''
     Plot CH-averaged autocorrelation power.
     This function runs vplot for multple times to plot autocorrelation power
-    on specified IF(s). 
-    
+    on specified IF(s).
+
     Args:
       indata (AIPSUVData object):
         input data
@@ -905,15 +960,15 @@ def ehtvplotac(
     Nif = indata.header["naxis"][3]
     Nant = len(indata.antennas)
     oldtabs = indata.tables
-    
+
     if tmode.lower() == "eachscan":
         scantimes = indata.scantimes()
     else:
         scantimes = [timerang]
-    
+
     if np.isscalar(pltifs):
         pltifs = np.array([pltifs])
-    
+
     # PLver
     PLverbef = indata.table_highver("PL")
     for iant in range(Nant):
@@ -945,7 +1000,7 @@ def ehtvplotac(
                 task.dotv=-1
                 task()
     PLveraft = indata.table_highver("PL")
-    
+
     task = tget("lwpla")
     task.getn(indata)
     task.plver=int(PLverbef+1)
@@ -956,9 +1011,9 @@ def ehtvplotac(
     task.set_plcolors_aipstv()
     task.check(overwrite=overwrite)
     task()
-    
+
     newtabs = indata.tables
-    diftables = difftables(oldtabs, newtabs) 
+    diftables = difftables(oldtabs, newtabs)
     print("ehtpltacp: new tables created")
     print(diftables)
     if zappltabs:
