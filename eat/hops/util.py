@@ -835,13 +835,19 @@ class PDF(object):
         return self.pdfdata
 
 # grab the ps from type221, convert to pdf if possible
-def fplot(b=None, pol=None):
+# can chain multiple plots together with wildcard
+def fplot(b=None, pol=None, filelist=True):
     import subprocess
-    b = getfringefile(b, pol=pol)
-    ps = b.t221.contents.pplot
+    bs = getfringefile(b, pol=pol, filelist=filelist)
+    if not hasattr(bs, '__len__'):
+        bs = [bs,]
+    pslist = []
+    for b in bs:
+        b = getfringefile(b, pol=pol, filelist=False)
+        pslist.append(b.t221.contents.pplot)
     proc = subprocess.Popen("ps2pdf - -".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     # proc = subprocess.Popen("cat".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-    out = PDF(proc.communicate(input=ps)[0])
+    out = PDF(proc.communicate(input=''.join(pslist))[0])
     return out
 
 # helper class for HOPS control file parsing
