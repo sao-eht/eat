@@ -7,6 +7,7 @@ This is a submodule of eat for running AIPS in python.
 '''
 def setenv(
         aipsdir="/usr/local/aips",
+        aipsver="31DEC16",
         ptdir="/usr/share/parseltongue/python",
         obitdir="/usr/lib/obit/python"):
     '''
@@ -29,23 +30,50 @@ def setenv(
     import sys
     import os
     
+    # LOAD LOGIN.SH
     print("Check if $AIPS_ROOT/LOGIN.SH is already loaded:")
     if os.environ.has_key("AIPS_VERSION") and os.environ.has_key("AIPS_ROOT"):
         print("  Yes.")
+        loginsh = os.path.join(os.environ["AIPS_ROOT"],"LOGIN.SH")
     else:
         print("  No: LOGIN.SH is not loaded.")
-        sourcefile = os.path.join(aipsdir,"LOGIN.SH")
-        _source(sourcefile)
+        loginsh = os.path.join(aipsdir,"LOGIN.SH")
+        _source(loginsh)
     
-    sourcefile = os.path.join(os.environ["AIPS_ROOT"], "PRDEVS.SH")
-    _source(sourcefile)
+    # AIPSDIR
+    aipsdir_org = os.environ["AIPS_ROOT"]
+    print("  AIPS directory: %s"%(aipsdir_org))
     
-    sourcefile = os.path.join(
-        os.path.split(sourcefile)[0],
-        os.path.split(os.readlink(sourcefile))[0],
-        "DADEVS.SH"
-    )
-    _source(sourcefile)
+    # CHECK DEFAULT AIPS VERISON
+    aipsver_org = os.path.split(os.environ["AIPS_VERSION"])[1]
+    print("  Default   AIPS version: %s"%(aipsver_org))
+    print("  Specified AIPS version: %s"%(aipsver.upper()))
+    
+    if aipsver_org == aipsver.upper():
+        print("  > No change in AIPS version.")
+        aipsver_new = aipsver_org
+        
+    else:
+        if os.path.isdir(os.path.join(aipsdir_org, aipsver.upper())):
+            aipsver_new = aipsver.upper()
+            print("  > AIPS version changed to %s."%(aipsver.upper()))
+        else:
+            errmsg = "AIPS Version %s is not installed in %s."%(aipsver.upper(), aipsdir_org)
+            raise ValueError(errmsg)
+    
+    # CHECK OTHER SCRIPTS
+    prdevssh = os.path.join(os.environ["AIPS_ROOT"], "PRDEVS.SH")
+    prdevssh = os.path.join(aipsdir_org, os.readlink(prdevssh))
+    prdevssh = prdevssh.replace(aipsver_org, aipsver_new)
+    print("  PRDEVS.SH Location: %s"%(prdevssh))
+    
+    dadevssh = prdevssh.replace("PRDEVS.SH", "DADEVS.SH")
+    print("  DADEVS.SH Location: %s"%(dadevssh))
+    
+    # Source Bash files
+    _source(loginsh, replace=[aipsver_org, aipsver_new])
+    _source(prdevssh)
+    _source(dadevssh)
     
     if os.path.isdir(ptdir):
         print("ParselTongue Python DIR: %s"%(ptdir))
@@ -87,7 +115,7 @@ def check(printver=True):
         raise
 
 
-def _source(script, update=True):
+def _source(script, replace=None, update=True):
     """
     Source variables from a shell script
     import them in the environment (if update==True)
@@ -100,12 +128,17 @@ def _source(script, update=True):
         errmsg = "'%s' is not available"%(script)
         raise ValueError(errmsg)
     else:
-        print("Reading Envrioment Variables from %s"%(script))
+        print("  Reading Envrioment Variables from %s"%(script))
     
     pipe = Popen(". %s > /dev/null 2>&1; env" % script, stdout=PIPE, shell=True)
     data = pipe.communicate()[0]
     env = dict((line.split("=", 1) for line in data.splitlines()))
-
+    if replace is not None:
+        for key in env.keys():
+            value = env[key]
+            if replace[0] in value:
+                env[key] = env[key].replace(replace[0], replace[1])
+    
     if update:
         environ.update(env)
     else:

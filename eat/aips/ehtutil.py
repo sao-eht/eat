@@ -241,7 +241,31 @@ def ehtsumm(indata, docrt=-1, prtanout="prtan.txt", listrout="listr.txt",
 # ------------------------------------------------------------------------------
 # Data Loading and Sorting
 # ------------------------------------------------------------------------------
-def ehtload(outdata, datain="", ncount=1000, clint=1/60.):
+def ehtload(
+    outdata, 
+    datain="", 
+    ncount=1000,
+    clint=1/60.,
+    antname=[None,"AA", "AP", "AZ", "JC", "LM", "PV", "SM", "SR"]):
+    '''
+    Load FITS-IDI files into AIPS using FITLD.
+
+    Args:
+      outdata (AIPSUVData object):
+        output AIPSUVData
+
+      datain (str):
+        FITS Filename
+    
+      ncount (int; default=1000):
+        The number of input FITS files. (see FITLD HELP for details)
+    
+      clint (int; default=1/60.):
+        Interval for CL tables.
+    
+      antname (list, default=[None,"AA", "AP", "AZ", "JC", "LM", "PV", "SM", "SR"])
+        list of antenna names
+    '''
     zap(outdata)
     task = tget("fitld")
     task.geton(outdata)
@@ -249,11 +273,28 @@ def ehtload(outdata, datain="", ncount=1000, clint=1/60.):
     task.ncount=ncount
     task.doconcat=1
     task.clint=clint
+    task.antname=antname
     task.check()
     task()
 
 
 def ehtsort(indata, outdata, clint=1/60.):
+    '''
+    Sort and Indexing UVDATA using MSORT and INDXR
+
+    Args:
+      indata (AIPSUVData object):
+        input AIPSUVData
+    
+      outdata (AIPSUVData object):
+        output AIPSUVData
+
+      datain (str):
+        FITS Filename
+    
+      clint (int; default=1/60.):
+        Interval for CL tables.
+    '''
     zap(outdata)
     task = tget("msort")
     task.getn(indata)
@@ -276,9 +317,11 @@ def ehtancor(indata, inver=0, datain=""):
     Args:
       indata (AIPSUVData object):
         input data
+    
       inver (int):
         Version of the AN table to be corrected. This function overwrites this
         input AN table.
+    
       datain (str):
         Filename for a csv correction table.
     '''
@@ -501,13 +544,6 @@ def ehtantab(indata, antabfileNA, antabfileAA1, antabfileAA2):
     oldtabs = indata.tables
 
     # run antab
-    task = tget("antab")
-    task.getn(indata)
-    task.tyver=indata.table_highver("TY")+1
-    task.gcver=indata.table_highver("GC")+1
-    task.calin=antabfileNA
-    task.check()
-    task()
     task.tyver=indata.table_highver("TY")
     task.gcver=indata.table_highver("GC")
     task.calin=antabfileAA1
@@ -516,6 +552,13 @@ def ehtantab(indata, antabfileNA, antabfileAA1, antabfileAA2):
     task.tyver=indata.table_highver("TY")
     task.gcver=indata.table_highver("GC")
     task.calin=antabfileAA2
+    task.check()
+    task()
+    task = tget("antab")
+    task.getn(indata)
+    task.tyver=indata.table_highver("TY")+1
+    task.gcver=indata.table_highver("GC")+1
+    task.calin=antabfileNA
     task.check()
     task()
 

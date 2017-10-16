@@ -415,9 +415,11 @@ def _read_tsys(header,data):
             raise ValueError(errmsg)
 
     # CHECK INDEX
-    Nidx = len(outdic["INDEX"])
     if outdic["INDEX"] is None:
         outdic["INDEX"] = ["NOINDEX"]
+        Nidx = 1
+    else:
+        Nidx = len(outdic["INDEX"])
 
     # Read data
     data = data.split(" ")
@@ -434,6 +436,7 @@ def _read_tsys(header,data):
     # Convert data to 2d data
     data = np.asarray(data)
     data = data.reshape([Nrow, Ncol])
+    #print(data)
 
     # read data
     table = {}

@@ -42,7 +42,7 @@ class AIPSUVData(AIPSUVData, object):
     def scantimes(self):
         '''
         Get a list of timerange parameters for the entire observations.
-        
+
         Returns:
             scantimes (list):
                 a list of timerang parameters. Each element is in a format
@@ -61,22 +61,22 @@ class AIPSUVData(AIPSUVData, object):
         for iscan in range(Nscan):
             t= NXtab[iscan]["time"]  # Central time of each scan (day)
             dt = NXtab[iscan]["time_interval"]  # Scan length (day)
-            
+
             t1 = t - dt/2.
             t2 = t + dt/2.
-            
+
             scantime = [None]
             scantime += fday2timerang(t1).tolist()
             scantime += fday2timerang(t2).tolist()
-            
+
             # Append timerang of each scan
             scantimes.append(scantime)
         return scantimes
-    
+
     def extdest(self, tables):
         '''
         Remove single or multiple tables in a specified self
-        
+
         Args:
             tables (list):
                 table or a list for tables to be removed.
@@ -96,7 +96,7 @@ class AIPSUVData(AIPSUVData, object):
         elif type(tables[0]) == type(1):
             print("Zap %s #%d"%(tables[1], tables[0]))
             self.zap_table(tables[1], tables[0])
-    
+
     def uvdataname(self):
         '''
         shortcut to return the aips catalogue name of an AIPSUVData object
@@ -106,7 +106,7 @@ class AIPSUVData(AIPSUVData, object):
         outstr+= '.' + str(self.seq)
         outstr+= '.' + str(self.disk)
         return outstr
-    
+
     def antennaids(self, antnames):
         '''
         Args:
@@ -118,7 +118,7 @@ class AIPSUVData(AIPSUVData, object):
                 '[ID1, ID2, ID3, ....,]'
         '''
         antennas = self.antennas
-        
+
         if np.isscalar(antnames):
             return antennas.index(antnames)+1
         else:
@@ -132,51 +132,71 @@ class AIPSTask(AIPSTask, object):
     userno = -1
     def getn(self,uvdata):
         dirs = dir(self)
+        if np.isscalar(uvdata):
+            indata = getuvdata(int(uvdata))
+        else:
+            indata = uvdata
         if 'inname' in dirs:
-            self.inname = uvdata.name
-            self.inclass = uvdata.klass
-            self.inseq = uvdata.seq
-            self.indisk = uvdata.disk
+            self.inname = indata.name
+            self.inclass = indata.klass
+            self.inseq = indata.seq
+            self.indisk = indata.disk
         else:
             print('[WARNING] This AIPS task does not have adverbs of getn')
 
     def get2n(self,uvdata):
         dirs = dir(self)
+        if np.isscalar(uvdata):
+            indata = getuvdata(int(uvdata))
+        else:
+            indata = uvdata
         if 'in2name' in dirs:
-            self.in2name = uvdata.name
-            self.in2class = uvdata.klass
-            self.in2seq = uvdata.seq
-            self.in2disk = uvdata.disk
+            self.in2name = indata.name
+            self.in2class = indata.klass
+            self.in2seq = indata.seq
+            self.in2disk = indata.disk
         else:
             print('[WARNING] This AIPS task does not have adverbs of get2n')
 
     def get3n(self,uvdata):
         dirs = dir(self)
+        if np.isscalar(uvdata):
+            indata = getuvdata(int(uvdata))
+        else:
+            indata = uvdata
         if 'in3name' in dirs:
-            self.in3name = uvdata.name
-            self.in3class = uvdata.klass
-            self.in3seq = uvdata.seq
-            self.in3disk = uvdata.disk
+            self.in3name = indata.name
+            self.in3class = indata.klass
+            self.in3seq = indata.seq
+            self.in3disk = indata.disk
         else:
             print('[WARNING] This AIPS task does not have adverbs of get3n')
 
     def get4n(self,uvdata):
         dirs = dir(self)
+        if np.isscalar(uvdata):
+            indata = getuvdata(int(uvdata))
+        else:
+            indata = uvdata
         if 'in4name' in dirs:
-            self.in4name = uvdata.name
-            self.in4class = uvdata.klass
-            self.in4seq = uvdata.seq
-            self.in4disk = uvdata.disk
+            self.in4name = indata.name
+            self.in4class = indata.klass
+            self.in4seq = indata.seq
+            self.in4disk = indata.disk
         else:
             print('[WARNING] This AIPS task does not have adverbs of get4n')
 
     def geton(self,uvdata):
         dirs = dir(self)
+        if np.isscalar(uvdata):
+            indata = getuvdata(int(uvdata))
+        else:
+            indata = uvdata
         if 'outname' in dirs:
-            self.outname = uvdata.name
-            self.outclass = uvdata.klass
-            self.outseq = uvdata.seq
-            self.outdisk = uvdata.disk
+            self.outname = indata.name
+            self.outclass = indata.klass
+            self.outseq = indata.seq
+            self.outdisk = indata.disk
         else:
             print('[WARNING] This AIPS task does not have adverbs of geton')
 
@@ -193,10 +213,10 @@ class AIPSTask(AIPSTask, object):
     def check(self, overwrite=True):
         '''
         Check Values of Adverbs
-        
+
         Args:
             ignore (bool, default=True):
-                
+
         '''
         dirs = dir(self)
         # Datain
@@ -206,7 +226,7 @@ class AIPSTask(AIPSTask, object):
             if (isfile0 is False) and (isfile1 is False):
                 errmsg = "datain='%s' cannot be found."%(self.datain)
                 raise ValueError(errmsg)
-        
+
         # Input Files
         attrs = ["intext", "calin"]
         for attr in attrs:
@@ -218,7 +238,7 @@ class AIPSTask(AIPSTask, object):
                     if not os.path.isfile(filename):
                         errmsg = "%s='%s' cannot be found."%(attr,filename)
                         raise ValueError(errmsg)
-        
+
         # Output Files
         attrs = ["outprint", "outfile", "outtext", "dataout"]
         for attr in attrs:
@@ -232,13 +252,13 @@ class AIPSTask(AIPSTask, object):
                         print("CHECK: %s"%(command))
                         os.system(command)
                         print("CHECK: %s was deleted."%(filename))
-        
+
         # TV
         if 'dotv' in dirs:
             if self.dotv>0:
                 tv = AIPSTV()
                 tv.restart()
-    
+
     def set_plcolors_aipstv(self):
         '''
         set plcolors for lwpla
@@ -265,7 +285,7 @@ class AIPSTask(AIPSTask, object):
 def tget(taskname):
     '''
     get AIPSTask() object
-    
+
     Args:
         taskname (str): the name of AIPS Task to be called
     Returns:
@@ -278,7 +298,7 @@ def tget(taskname):
 def setuser(userno):
     '''
     set AIPS USER NO
-    
+
     Args:
         userno (int): AIPS USER NO
     '''
@@ -288,7 +308,7 @@ def setuser(userno):
 def pcat(output=False, doprint=True, disk=1):
     '''
     set AIPS USER NO
-    
+
     Args:
         output (bool, default=False):
             if True, return a list of AIPS data in the specified disk
@@ -302,15 +322,15 @@ def pcat(output=False, doprint=True, disk=1):
     '''
     if AIPS.userno==0:
         raise ValueError("Please set AIPS USER NO with setuser(XX) or AIPS.userno=XX")
-    
+
     try:
         catlist = AIPSCat()[disk]
     except KeyError:
         raise ValueError("disk=%d does not exist."%(disk))
-    
+
 
         return catlist
-    
+
     if doprint:
         if len(catlist) == 0:
             if doprint: print("pcat: disk=%d is empty."%(disk))
@@ -325,7 +345,7 @@ def pcat(output=False, doprint=True, disk=1):
                         catdata["type"],
                         catdata["time"],
                         catdata["date"]))
-    
+
     if output:
         return catlist
 
@@ -333,7 +353,7 @@ def pcat(output=False, doprint=True, disk=1):
 def getuvdata(cno,disk=1):
     '''
     get AIPSUVData object at a specified AIPS Catalogue number and AIPS Disk.
-    
+
     Args:
         cno (int):
             AIPS Catalogue Number
@@ -356,7 +376,7 @@ def getuvdata(cno,disk=1):
 def zap(uvdata):
     '''
     zap uvdata
-    
+
     Args:
         uvdata (AIPSUVData):
             input uvdata to be zapped
@@ -400,7 +420,7 @@ def difftables(oldtables, newtables):
     '''
     Take a difference between two tables and output a list of added tables
     in new data sets.
-    
+
     Args:
         oldtables (list):
             Ouput of uvdata.tables for an old data.
@@ -420,7 +440,7 @@ def difftables(oldtables, newtables):
 def fday2timerang(t):
     '''
     Convert a fractional day to a timerang parameter.
-    
+
     Args:
         t (float):
             fractional day
@@ -434,7 +454,7 @@ def fday2timerang(t):
     t1 = 60.0 * (t1 - h1)
     m1 = int(np.floor(t1))
     s1 = int(np.ceil(60 * (t1 - m1)))
-    
+
     if s1 >= 60:
         s1 -= 60
         m1 += 1
@@ -444,5 +464,5 @@ def fday2timerang(t):
     if h1 >= 24:
         h1 -= 24
         d1 += 1
-    
+
     return np.asarray([d1,h1,m1,s1], dtype=np.int64)
