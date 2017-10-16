@@ -17,7 +17,8 @@ import datetime
 import pwd
 
 # logging
-statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(), ' '.join(sys.argv))
+statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(), ' '.join(sys.argv))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist txt file')
@@ -33,10 +34,10 @@ args = parser.parse_args()
 
 # read alist file (autodetect version 5 or 6)
 a = util.noauto(hops.read_alist(args.filename))
-a = a[a.snr > 9] # loss function not super robust..
+# a = a[a.snr > 9] # loss function not super robust..
 # a = a[~a.baseline.str.contains('R')] # SR baseline messes things up, ignore SMA Reference
 # a = a[(a.baseline == 'SR') | (~a.baseline.str.contains('R'))] # SR baseline messes things up
-a = a[~(a.baseline == 'SR')] # SR baseline messes things up
+# a = a[~(a.baseline == 'SR')] # SR baseline messes things up
 
 dishes = sorted(set(chain(*a.baseline)))
 
@@ -46,15 +47,14 @@ idish = {f:i for i, f in enumerate(dishes)}
 # unwrap mbd to be aligned to sbd
 util.unwrap_mbd(a)
 
-# there is one AS outlier to remove
-a = a[np.abs(a.mbd_unwrap) <= 40e-3]
-
 # add delay and rate errors, with systematic limits on resolution
 util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_error,
                      crosspol_systematic=args.crosspol_delay_error)
 
-# extra error for JS baseline
-a['mbd_err'] = np.sqrt(a['mbd_err']**2 + 50e-6**2*(a.baseline.str.contains('J') & a.baseline.str.contains('S')))
+# extra error for JS baseline, possible noise fringes, SR baseline
+a['mbd_err'] = np.sqrt(a['mbd_err']**2 + 50e-6**2*(a.baseline.str.contains('J') & a.baseline.str.contains('S'))
+                       + 1.*(a.baseline == 'SR') + 1.*(a.snr < 9.))
+a['rate_err'] = np.sqrt(a['rate_err']**2 + 1.*(a.baseline == 'SR') + 1.*(a.snr < 9.))
 
 # least squares objective function: (predict - model) / std
 # par is a list of the mdoel parameters fit against alldata and allerr

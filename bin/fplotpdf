@@ -1,0 +1,25 @@
+#!/usr/bin/env python
+
+"""fplotpdf: produce fringe plots in pdf
+"""
+
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('fringefiles', help='fringefile[s] to plot', nargs='+')
+parser.add_argument('-p', '--polarization', type=str, default=None, help='select only polarization e.g. LL')
+parser.add_argument('-o', '--output', type=str, default='out.pdf', help='output filename.pdf')
+args = parser.parse_args()
+
+from eat.hops import util as hu
+
+pdf = hu.fplot(args.fringefiles, pol=args.polarization)
+
+if args.output == '-':
+    import sys
+    out = sys.stdout
+else:
+    out = open(args.output, 'w')
+
+out.write(pdf.pdfdata)
+
