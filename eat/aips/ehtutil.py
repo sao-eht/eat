@@ -242,11 +242,10 @@ def ehtsumm(indata, docrt=-1, prtanout="prtan.txt", listrout="listr.txt",
 # Data Loading and Sorting
 # ------------------------------------------------------------------------------
 def ehtload(
-    outdata, 
-    datain="", 
+    outdata,
+    datain="",
     ncount=1000,
-    clint=1/60.,
-    antname=[None,"AA", "AP", "AZ", "JC", "LM", "PV", "SM", "SR"]):
+    clint=1/60.):
     '''
     Load FITS-IDI files into AIPS using FITLD.
 
@@ -256,15 +255,12 @@ def ehtload(
 
       datain (str):
         FITS Filename
-    
+
       ncount (int; default=1000):
         The number of input FITS files. (see FITLD HELP for details)
-    
+
       clint (int; default=1/60.):
         Interval for CL tables.
-    
-      antname (list, default=[None,"AA", "AP", "AZ", "JC", "LM", "PV", "SM", "SR"])
-        list of antenna names
     '''
     zap(outdata)
     task = tget("fitld")
@@ -273,7 +269,6 @@ def ehtload(
     task.ncount=ncount
     task.doconcat=1
     task.clint=clint
-    task.antname=antname
     task.check()
     task()
 
@@ -285,13 +280,13 @@ def ehtsort(indata, outdata, clint=1/60.):
     Args:
       indata (AIPSUVData object):
         input AIPSUVData
-    
+
       outdata (AIPSUVData object):
         output AIPSUVData
 
       datain (str):
         FITS Filename
-    
+
       clint (int; default=1/60.):
         Interval for CL tables.
     '''
@@ -317,11 +312,11 @@ def ehtancor(indata, inver=0, datain=""):
     Args:
       indata (AIPSUVData object):
         input data
-    
+
       inver (int):
         Version of the AN table to be corrected. This function overwrites this
         input AN table.
-    
+
       datain (str):
         Filename for a csv correction table.
     '''
