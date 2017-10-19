@@ -1,13 +1,13 @@
 #hops2uvfits.py
 
 #take data from all fringe files in a directory and put them in a uvfits file
-
  
 import numpy as np
 import mk4 # part of recent HOPS install, need HOPS ENV variables
 import datetime
 import ctypes
 import astropy.io.fits as fits
+import astropy.time as at
 from argparse import Namespace
 import glob
 import os, sys
@@ -31,9 +31,9 @@ RDATE_JD = Time(RDATE, format='isot', scale='utc').jd
 RDATE_GSTIA0 = Time(RDATE, format='isot', scale='utc').sidereal_time('apparent','greenwich').degree
 RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000
 
+
 # decimal precision for the scan start & stop times (fractional day)
 ROUND_SCAN_INT = 6
-
 
 #conversion factors and data types
 MHZ2HZ = 1e6
@@ -48,13 +48,135 @@ DTPOL = [('time','f8'),('freq','f8'),('tint','f8'),
             ('rrweight','f8'),('llweight','f8'),('rlweight','f8'),('lrweight','f8')]
 EP = 1.e-5
 CORRCOEFF = 10000.0
+DEGREE = np.pi/180.0
+HOUR = 15.0*DEGREE
+C = 299792458.0
 
 station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR'}
 
 #######################################################################
+##########################  Recompute uv points #######################
+####################################################################### 
+# ANDREW these are copied from ehtim -- maybe integrate them? 
+def gmst_to_utc(gmst,mjd):
+    """Convert gmst times in hours to utc hours using astropy
+    """
+
+    mjd=int(mjd)
+    time_obj_ref = at.Time(mjd, format='mjd', scale='utc')
+    time_sidereal_ref = time_obj.sidereal_time('mean', 'greenwich').hour
+    time_utc = (gmst - time_sidereal_ref) * 0.9972695601848 
+    return time_utc
+
+def utc_to_gmst(utc, mjd):
+    """Convert utc times in hours to gmst using astropy
+    """
+    mjd=int(mjd) #MJD should always be an integer, but was float in older versions of the code
+    time_obj = at.Time(utc/24.0 + np.floor(mjd), format='mjd', scale='utc')
+    time_sidereal = time_obj.sidereal_time('mean','greenwich').hour
+    return time_sidereal
+
+def earthrot(vecs, thetas):
+    """Rotate a vector / array of vectors about the z-direction by theta / array of thetas (radian)
+    """
+
+    if len(vecs.shape)==1:
+        vecs = np.array([vecs])
+    if np.isscalar(thetas):
+        thetas = np.array([thetas for i in range(len(vecs))])
+
+    # equal numbers of sites and angles
+    if len(thetas) == len(vecs):
+        rotvec = np.array([np.dot(np.array(((np.cos(thetas[i]),-np.sin(thetas[i]),0),(np.sin(thetas[i]),np.cos(thetas[i]),0),(0,0,1))), vecs[i])
+                       for i in range(len(vecs))])
+
+    # only one rotation angle, many sites
+    elif len(thetas) == 1:
+        rotvec = np.array([np.dot(np.array(((np.cos(thetas[0]),-np.sin(thetas[0]),0),(np.sin(thetas[0]),np.cos(thetas[0]),0),(0,0,1))), vecs[i])
+                       for i in range(len(vecs))])
+    # only one site, many angles
+    elif len(vecs) == 1:
+        rotvec = np.array([np.dot(np.array(((np.cos(thetas[i]),-np.sin(thetas[i]),0),(np.sin(thetas[i]),np.cos(thetas[i]),0),(0,0,1))), vecs[0])
+                       for i in range(len(thetas))])
+    else:
+        raise Exception("Unequal numbers of vectors and angles in earthrot(vecs, thetas)!")
+
+    return rotvec
+
+def recompute_uv_points(site1vec, site2vec, time, ra, dec, mjd, rf, timetype='UTC'):
+
+    """recompute uv points for a given observation
+
+       Args:
+        site1vec (np.ndarray) :  a single earth frame xyz vector of the site1 position or an array of vectors of len(times)
+        site2vec (np.ndarray) :  a single earth frame xyz vector of the site2 position or an array of vectors of len(times)
+        time (np.ndarray) :  an array of UTC hours for which  to recompute uv points
+        ra (float) :  source right ascension
+        dec (float) : source declination 
+        mjd (int) : the  mjd  of the observation  start
+        rf  (float) : the observing frequency in  Hz
+        timetype (str) : 'UTC' or 'GMST'
+        elevmin (float) : minimum elevation cutoff in degrees
+        elevmax (float) : maximum elevation cutoff in degrees
+       Returns:
+        (u, v) : numpy arrays of scan times and corresponding uv points
+    """
+
+    if not isinstance(time, np.ndarray): time = np.array([time]).flatten()
+    if not isinstance(site1vec, np.ndarray): site1vec = np.array([site1vec])
+    if not isinstance(site2vec, np.ndarray): site2vec = np.array([site2vec])
+
+    try: 
+        if not site1vec.shape[1] == 3: raise Exception("site1vec does not have 3 coords!")
+    except IndexError:
+        site1vec = site1vec.reshape(1,3)
+    try: 
+        if not site2vec.shape[1] == 3: raise Exception("site2vec does not have 3 coords!")
+    except IndexError:
+        site2vec = site2vec.reshape(1,3)
+
+    if len(site1vec) == len(site2vec) == 1:
+        site1vec = np.array([site1vec[0] for i in range(len(time))])
+        site2vec = np.array([site2vec[0] for i in range(len(time))])
+    elif not (len(site1vec) == len(site2vec) == len(time)):
+        raise Exception("site1vec, site2vec, and time not the same dimension in compute_uv_coordinates!") 
+
+    # Source vector
+    sourcevec = np.array([np.cos(dec*DEGREE), 0, np.sin(dec*DEGREE)])
+    projU = np.cross(np.array([0,0,1]), sourcevec)
+    projU = projU/np.linalg.norm(projU)
+    projV = -np.cross(projU, sourcevec)
+
+    # Wavelength
+    l = C/rf
+
+    if timetype=='GMST':
+        time_sidereal = time
+        time_utc = gmst_to_utc(time, mjd)
+    elif timetype=='UTC':
+        time_sidereal = utc_to_gmst(time, mjd)
+        time_utc = time
+    else: raise Exception("timetype must be UTC or GMST!")
+
+    fracmjd = np.floor(mjd) + time/24.
+    dto = (at.Time(fracmjd, format='mjd')).datetime
+    theta = np.mod((time_sidereal - ra)*HOUR, 2*np.pi)
+
+    # rotate the station coordinates with the earth
+    coord1 = earthrot(site1vec, theta)
+    coord2 = earthrot(site2vec, theta)
+
+    # u,v coordinates
+    u = np.dot((coord1 - coord2)/l, projU) # u (lambda)
+    v = np.dot((coord1 - coord2)/l, projV) # v (lambda)
+
+    # return times and uv points where we have  data
+    return (u, v)
+
+#######################################################################
 ##########################  Load/Save FUNCTIONS #######################
 ####################################################################### 
-def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False):
+def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False, recompute_uv=False):
 
     baselineNames = []
     for filename in glob.glob(datadir + '*'):
@@ -65,7 +187,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
     baselineNames = set(baselineNames)
         
-    ##########################  LOAD DATA ##########################
+    ###################################  LOAD DATA ###################################
     for baselineName in baselineNames:
         nap = 0
         nchan = 0
@@ -92,7 +214,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
         if baselineName[0] == baselineName[1]:
             continue
 
-        #print "Making uvfits for baseline: ", baselineName        
+        print "Making uvfits for baseline: ", baselineName        
         for filename in glob.glob(datadir + baselineName + '*'):
             
             # remove type 1 and 2 files and uvfits files with the same basename
@@ -105,8 +227,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
             if first_pass_flag: #some info we get only once per baseline
 
-
-                ##########################  SOURCE INFO ##########################
+                ###################################  SOURCE INFO ###################################
                 # name of the source
                 srcname = b.t201[0].source
 
@@ -123,23 +244,17 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 ra =  ra_hrs+ra_min/60.+ra_sec/3600.
                 dec = np.sign(dec_degs)*(np.abs(dec_degs)+(dec_mins/60.+dec_secs/3600.))
 
-                ########################## OBSERVATION INFO ########################
+                ################################### OBSERVATION INFO ###################################
                 ref_freq_hops = b.t205.contents.ref_freq * MHZ2HZ # refrence frequency for all channels
                 nchan = b.n212 # number of channels
                 nap = b.t212[0].contents.nap # number of data points
-
-                # observation time
-#                obs_year = b.t205.contents.start.year
-#                obs_day = b.t205.contents.start.day
-#                obs_minute = b.t205.contents.start.minute
-#                obs_second =  b.t205.contents.start.second
 
                 # get the fixed integration time
                 #TODO is this right?
                 totaltime  = (eat.hops.util.mk4time(b.t205.contents.stop) - eat.hops.util.mk4time(b.t205.contents.start)).total_seconds()
                 inttime_fixed = totaltime/nap
 
-                ##########################  ANTENNA INFO ##########################
+                ###################################  ANTENNA INFO ###################################
                 # names of antennas
                 ant1 = b.t202.contents.ref_name # antenna 1 name
                 ant2 = b.t202.contents.rem_name # anetnna 2 name
@@ -187,12 +302,10 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 antnames = np.array(antnames)
                 antnums = np.array(antnums)
                 
-                ##########################  MEASUREMENT INFO #########################
-                #TODO - need u & v coordinates 
+                ###################################  MEASUREMENT INFO ###################################
 
                 u_static = (1./RADPERARCSEC) * b.t202.contents.u  #Fringes/arcsec E-W 1GHz
                 v_static = (1./RADPERARCSEC) * b.t202.contents.v  #Fringes/arcsec N-S 1GHz
-                #print ant1,ant2, u_static/1.e9, v_static/1.e9, np.sqrt(u_static**2 + v_static**2)/1.e9
 
                 outdat = np.zeros((nap, 1, 1, nchan, nsubchan, nstokes, 3))
                 outdat[:,:,:,:,:,:,2] = -1.0 
@@ -211,12 +324,10 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 else:
                     bls = (256*antennas[ant2] + antennas[ant1]) * np.ones(outdat.shape[0])
 
-                ################### ONLY LOAD ONCE ###################################
+                ################################### ONLY LOAD ONCE ###################################
                 first_pass_flag = False
 
-
             # loop through channels and get the frequency, polarization, id, and bandwidth
-            # get the channel information
             clabel = [q.ffit_chan_id for q in b.t205.contents.ffit_chan[:nchan]]
             cidx = [q.channels[0] for q in b.t205.contents.ffit_chan[:nchan]]
             cinfo = [b.t203[0].channels[i] for i in cidx]
@@ -258,12 +369,8 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             if len(set(channel_bw_ant1)) != 1:
                 print channel_bw_ant1
                 raise Exception('the channels on this baseline have different bandwidths')
-            #if channel_freq_ant1[0] != ref_freq_hops:
-            #    pass
-            #    #print 'warning: channel 1 != ref_freq'
             
-            
-            if len(set(np.diff(channel_freq_ant1)))>1:
+            if len(set(np.diff(channel_freq_ant1))) > 1:
                 raise Exception('the spacing between the channels is different')
             else:
                 channel_spacing = channel_freq_ant1[1] - channel_freq_ant1[0]
@@ -273,11 +380,10 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             nsta = len(antennas)
             bw = channel_bw*numberofchannels
             
-            
             #print 'ERROR: REMOVE THIS!'
             #channel_bw = channel_spacing
             
-            # the proportion of data used to generate each measurement.
+            # the fraction of data used to generate each measurement.
             weights = np.zeros([nchan,nap])
             for i in range(0,nchan):
                 for j in range(0,nap):
@@ -286,8 +392,8 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             # the integration time for each measurement
             inttime = inttime_fixed*weights
             tints = np.mean(inttime,axis=0)
-            mjd_start = Time(eat.hops.util.mk4time(b.t205.contents.start)).mjd #fractional mjd of start time
-            mjd_stop = Time(eat.hops.util.mk4time(b.t205.contents.stop)).mjd #fractional mjd of start time
+            mjd_start = Time(eat.hops.util.mk4time(b.t205.contents.start)).mjd
+            mjd_stop = Time(eat.hops.util.mk4time(b.t205.contents.stop)).mjd 
             jd_start = 2400000.5 + mjd_start
             jd_stop = 2400000.5 + mjd_stop
 
@@ -296,9 +402,6 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             fractimes = (mjd_start - np.floor(mjd_start)) + ( obsseconds / 86400.)
             jds = jds + fractimes
             
-            #print filename
-            #print len(outdat)*inttime_fixed, (np.max(fractimes) - np.min(fractimes)) * 3600 * 24, (np.max(jds) - np.min(jds)) * 3600 * 24
-
             # get the complex visibilities
             visibilities = eat.hops.util.pop212(a)
             if antennas[ant2] < antennas[ant1]:
@@ -306,8 +409,9 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
             amplitude = b.t208[0].amplitude * 10000.
             #amplitude = np.abs(np.mean(visibilities))
+            #TODO ANDREW is below comment still true? 
             #print 'WARNING: the coherent average is currently off by 4 orders of magnitude - check it!'
-        
+            
             snr = b.t208[0].snr
             if snr==0.0:
                 sigma_ind = -1 * np.ones(weights.shape)
@@ -316,20 +420,17 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 sigma_ind = sigma_full * np.sqrt( np.sum(weights) / weights )
                 recover_snr = np.abs(np.mean(visibilities)) / np.sqrt(np.mean(sigma_ind**2)/np.prod(sigma_ind.shape))
 
-            ##########################  to uvfits style visibility table #################
-            #TODO what is visweight ??
+            ##########################  to uvfits style visibility table ##########################
             delay = b.t208[0].resid_mbd * 1e-6 # delay in sec
             rate = b.t208[0].resid_rate * 1e-6 # rate in sec/sec^2
             centertime = (eat.hops.util.mk4time(b.t205[0].utc_central) - eat.hops.util.mk4time(b.t205.contents.start)).total_seconds()
             
-
             shift = np.zeros((nchan, nap))
             
             if rot_rate:
                 rate_mtx = ref_freq_hops*(np.matlib.repmat( ( inttime_fixed * np.arange(nap) ).reshape(1,nap), nchan, 1 ) - centertime)
                 shift = shift + (2 * np.pi *  rate * rate_mtx )
             
-                
             if rot_delay:
                 fedge = np.array([ ch.ref_freq_hops for ch in cinfo])
                 flip = np.array([-1 if ch.refsb == 'L' else 1 for ch in cinfo])
@@ -337,11 +438,12 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 delay_mtx = np.matlib.repmat( dfvec.reshape(dfvec.shape[0], 1), 1, nap )
                 shift = shift + (2 * np.pi *  delay * delay_mtx )
 
-
             for i in xrange(nchan):
                 
+                # visibility  weight corresponds to sigma
                 visweight = 1.0 / (sigma_ind[i,:]**2)
-                # set it to 0 if the snr is 0
+
+                # set weight to 0 if the snr is 0
                 visweight[sigma_ind[i,:] == -1 ] = 0.0 
                 
                 vis_i = visibilities[:,i]
@@ -350,8 +452,9 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 # account for the correlation coefficient
                 vis_i = vis_i / CORRCOEFF
                 visweight = visweight * (CORRCOEFF**2)
-                
                 #visweight = inttime[i,:] * channel_bw_ant1[i] #TODO: WHAT WERE WE DOING?
+
+                # put visibilities in the data table
                 if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='R':
                     outdat[:,0,0,i,0,0,0] = np.real(vis_i) 
                     outdat[:,0,0,i,0,0,1] = np.imag(vis_i)
@@ -369,20 +472,32 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                     outdat[:,0,0,i,0,3,1] = np.imag(vis_i)
                     outdat[:,0,0,i,0,3,2] = visweight
 
-            print "     ", baselineName, ant1, ant2, ":",channel_pol_ant1[-1], channel_pol_ant2[-1]
+            #print "     ", baselineName, ant1, ant2, ":",channel_pol_ant1[-1], channel_pol_ant2[-1]
 
         ##########################  save baseline uvfits file ############################
         
-
         # pack data
         obs_info = (srcname, ra, dec, ref_freq_hops, channel_bw, channel_spacing, channel1_freq, nchan)
         scan_info = np.array([[jd_start, jd_stop]]) # single scan info -- in JD!!
         antenna_info = (antnames, antnums, xyz)
+
+        # recompute uv points if necessary
+        if recompute_uv:
+            print "recomputing uv points!"
+            site1vec = xyz[0]
+            site2vec = xyz[1]
+
+            #ANDREW TODO is ref_freq_hops correct?
+            times = fractimes * 24 # in hours
+            (u,v) = recompute_uv_points(site1vec, site2vec, times, ra, dec, mjd_start, ref_freq_hops, timetype='UTC')
+
         rg_params = (u,v,bls,jds, tints)
         fname= datadir + baselineName + '_hops_bl.uvfits'
+        
         #print "Saving baseline uvfits file: ", fname 
         save_uvfits(obs_info, antenna_info, scan_info, rg_params, outdat, fname)
 
+        return 0
 
 def load_hops_uvfits(filename):
     """Load uvfits data from a uvfits file.
@@ -423,7 +538,8 @@ def load_hops_uvfits(filename):
     obs_info = (src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan)
 
     # Load the random group parameters and the visibility data
-    u = data['UU---SIN'] * rf     # Convert uv in lightsec to lambda by multiplying by rf
+    # Convert uv in lightsec to lambda by multiplying by rf
+    u = data['UU---SIN'] * rf     
     v = data['VV---SIN'] * rf  
     baselines = data['BASELINE']  
     jds = data['DATE'].astype('d') + data['_DATE'].astype('d')
@@ -439,7 +555,7 @@ def load_hops_uvfits(filename):
     scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
     scan_info = []
     for kk in range(len(scan_starts)):
-        #ANDREW TODO precision??
+        #ANDREW TODO precision ok??
         scan_start = scan_starts[kk]
         scan_dur = scan_durs[kk]
         scan_info.append([scan_start - 0.5*scan_dur + refdate, 
@@ -482,7 +598,6 @@ def load_and_convert_hops_uvfits(filename):
     t2 = baseline.astype(int) - t1*256
     t1 = t1 - 1
     t2 = t2 - 1
-    #scopes_num = np.sort(list(set(np.hstack((t1,t2)))))
     t1 = np.array([tarr[i]['site'] for i in t1])
     t2 = np.array([tarr[i]['site'] for i in t2])
 
@@ -504,10 +619,9 @@ def load_and_convert_hops_uvfits(filename):
     llweight = obsdata[:,0,0,:,0,1,2]
     rlweight = obsdata[:,0,0,:,0,2,2]
     lrweight = obsdata[:,0,0,:,0,3,2]
-    #mask = ((rrweight >= 0) + (llweight >= 0) + (rlweight >= 0) + (lrweight >= 0))     # Mask to screen bad data
 
     # Make a datatable
-    #TODO check jd not cut off by precision
+    #TODO check that the jd not cut off by precision
     datatable = []
     for i in xrange(len(jds)):
         for j in xrange(nchan):
@@ -524,7 +638,7 @@ def load_and_convert_hops_uvfits(filename):
     
     params = (src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan)
     
-    #!AC TODO get calibration flags from uvfits?
+    #!AC TODO should we get calibration flags from uvfits?
     return (params, scan_info, tarr, datatable)
 
 def merge_hops_uvfits(fitsFiles):
@@ -542,7 +656,7 @@ def merge_hops_uvfits(fitsFiles):
     lastfreq_list = []
     scan_list = []
 
-    # Collect all the 
+    # Collect all the fits files
     for fitsFile in fitsFiles:
         fname=  fitsFile
 
@@ -609,12 +723,10 @@ def merge_hops_uvfits(fitsFiles):
     if not (ch1_freq in [param[6] for param in param_list]):
         raise Exception('ch1_freq determined from merging ehtim style datatable not in any read uvfits header!')
 
-    #print nchan, [param[7] for param in param_list]
-    #if not (nchan in [param[7] for param in param_list]):
-    #    raise Exception('nchan determined from merging ehtim style datatable not in any read uvfits header!')
-
     obs_info = (src, ra, dec, ref_freq, ch_bw, ch_spacing, ch1_freq, nchan)
 
+    print 
+    print "Scan Summary:"
     print "# baseline files: ", len(fitsFiles)
     print "source: ", src
     print "ra: ", ra
@@ -622,7 +734,7 @@ def merge_hops_uvfits(fitsFiles):
     print "ch1 freq: ", ch1_freq/1.e9, "GHz"
     print "ref freq: ", ref_freq/1.e9, "GHz"
     print "# channels: ", nchan
-
+    
     #print "Merging data ... "
 
     # Merge scans
@@ -696,7 +808,7 @@ def merge_hops_uvfits(fitsFiles):
     u = datatable_merge['u'][unique_idx_anttime]
     v = datatable_merge['v'][unique_idx_anttime]
     jds = datatable_merge['time'][unique_idx_anttime]
-    #TODO plus one correct?
+
     t1num = [tkeys[scope] + 1 for scope in datatable_merge['t1'][unique_idx_anttime]]
     t2num = [tkeys[scope] + 1 for scope in datatable_merge['t2'][unique_idx_anttime]]
     bls = 256*np.array(t1num) + np.array(t2num)
@@ -754,8 +866,8 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
 
     #mandatory
     header['OBJECT'] = src
-    header['TELESCOP'] = 'ALMA' # !AC TODO Can we change this field?  
-    header['INSTRUME'] = 'ALMA'
+    header['TELESCOP'] = 'VLBA' # !AC TODO Can we change this field?  
+    header['INSTRUME'] = 'VLBA'
     header['BSCALE'] = 1.0
     header['BZERO'] = 0.0  
     header['BUNIT'] = 'JY'
@@ -886,7 +998,7 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
     head['DATUTC'] = 0.e0
     head['TIMESYS'] = 'UTC'
 
-    head['ARRNAM'] = 'ALMA'  # TODO must be recognized by aips/casa
+    head['ARRNAM'] = 'VLBA'  # TODO must be recognized by aips/casa
     head['XYZHAND'] = 'RIGHT'
     head['FRAME'] = '????'
     head['NUMORB'] = 0
@@ -899,11 +1011,11 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
 
     ##################### AIPS FQ TABLE #####################################################################################################
     # Convert types & columns
-    freqid = np.array([1])                                               #frequency setup
-    bandfreq = np.array([ch1_freq + ch_spacing*i - ref_freq for i in range(nchan)]).reshape([1,nchan])   #frequency offset
-    chwidth = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])  #ch bw
-    totbw = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])       #total bw
-    sideband = np.array([1 for i in range(nchan)]).reshape([1,nchan])     #sideband (>1 = upper)
+    freqid = np.array([1])                                             
+    bandfreq = np.array([ch1_freq + ch_spacing*i - ref_freq for i in range(nchan)]).reshape([1,nchan]) 
+    chwidth = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])
+    totbw = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan]) 
+    sideband = np.array([1 for i in range(nchan)]).reshape([1,nchan])
 
     freqid = fits.Column(name="FRQSEL", format="1J", array=freqid)
     bandfreq = fits.Column(name="IF FREQ", format="%dD"%(nchan), array=bandfreq)
@@ -928,9 +1040,9 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
     start_vis = []
     stop_vis = []
     
-    #TODO!! jds AND scan_info should be time sorted!! TODO make sure
+    #TODO!! jds AND scan_info MUST be time sorted!! TODO make sure
     jj = 0
-    print scan_info
+    #print scan_info
 
     comp_fac = 3600*24*100 # compare to 100th of a second
 
@@ -961,7 +1073,6 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
         print stop_vis
         raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
 
-     
     time_nx = fits.Column(name="TIME", format="1D", array=np.array(scan_times))
     timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", array=np.array(scan_time_ints))
     sourceid_nx = fits.Column(name="SOURCE ID",format="1J", array=np.ones(len(scan_times)))
@@ -984,17 +1095,22 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
 
 
 ##################################################################################################################################
-##########################  Main FUNCTION #############################
+##########################  Main FUNCTION ########################################################################################
 ################################################################################################################################## 
-def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl_fits=True, clean_bl_fits=False, rot_rate=False, rot_delay=False):
+def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl_fits=True,
+                    recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False):
     
-    print "****************HOPS2UVFITS*******************"
-    print "Creating merged single-source uvfits files for hops fringe files in directory: ", datadir
+
+    print "********************************************************"
+    print "*********************HOPS2UVFITS************************"
+    print "********************************************************"
+
+    print "Creating merged single-source uvfits files from hops fringe files"
+    print "directory: ", datadir
     print
 
     scandirs = [os.path.join(datadir,o) for o in os.listdir(datadir) if os.path.isdir(os.path.join(datadir,o))]
     
-
     scan_fitsFiles = []
     scan_sources = []
     
@@ -1017,15 +1133,20 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
         if recompute_bl_fits:
             # clean up the files in case there were extra ones already there that we no longer want
             if clean_bl_fits:
-                print 'REMOVING the old uvfits baseline files due to --clean flag'
+                #print 'REMOVING the old uvfits baseline files due to --clean flag'
                 for filename in glob.glob(scandir + '*_hops_bl.uvfits'):
                     os.remove(filename)
             # convert the finge files to baseline uv files  
+            print "---------------------------------------------------------"
+            print "---------------------------------------------------------"
             print "scan directory %i/%i: %s" % (i,N, scandir)
-            convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay)
+            print "---------------------------------------------------------"
+            print "---------------------------------------------------------"
+            convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv)
         
         #print "Merging baseline uvfits files in directory: ", scandir
-        print 'WARNING - U,V coordinate units unknown!' 
+        if not recompute_bl_fits:
+            print 'WARNING - not recomputing U,V coordinate!' 
         
         bl_fitsFiles = []
         for filename in glob.glob(scandir + '*_hops_bl.uvfits'):
@@ -1075,6 +1196,9 @@ if __name__=='__main__':
     clean_bl_fits = False
     if "--clean" in sys.argv: clean_bl_fits = True
     
+    recompute_uv = False
+    if "--uv" in  sys.argv: recompute_uv = True
+
     rot_rate = False
     if "--rot_rate" in sys.argv: rot_rate = True
         
@@ -1093,4 +1217,6 @@ if __name__=='__main__':
             if(sys.argv[a] == '--outdir'):
                 outdir = sys.argv[a+1] 
 
-    main(datadir=datadir, outdir=outdir, ident=ident, recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits, rot_rate=rot_rate, rot_delay=rot_delay)
+    main(datadir=datadir, outdir=outdir, ident=ident,
+         recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits,
+         rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv)
