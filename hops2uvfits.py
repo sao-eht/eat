@@ -497,8 +497,6 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
         #print "Saving baseline uvfits file: ", fname 
         save_uvfits(obs_info, antenna_info, scan_info, rg_params, outdat, fname)
 
-        return 0
-
 def load_hops_uvfits(filename):
     """Load uvfits data from a uvfits file.
     """
