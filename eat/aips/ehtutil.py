@@ -204,48 +204,89 @@ def ehtfgreset(indata, fgver=0):
 # ------------------------------------------------------------------------------
 # Print Out Summary
 # ------------------------------------------------------------------------------
-def ehtsumm(indata, docrt=-1, prtanout="prtan.txt", listrout="listr.txt",
-            dtsumout="dtsum.txt", overwrite=False):
+def ehtsumm(indata, prtanout=None, listrout=None, dtsumout=None, overwrite=False):
     # PRTAN
-    task = tget("prtan")
-    task.getn(indata)
-    task.docrt=docrt
-    if task.docrt < 0:
+    if prtanout is not None:
+        task = tget("prtan")
+        task.getn(indata)
+        task.docrt=-1
         task.outprint=prtanout
         task.check(overwrite=overwrite)
-    task()
+        task()
 
 
     # LISTR (SCAN)
-    task = tget("listr")
-    task.getn(indata)
-    task.optype='SCAN'
-    task.docrt=docrt
-    if task.docrt < 0:
+    if listrout is not None:
+        task = tget("listr")
+        task.getn(indata)
+        task.optype='SCAN'
+        task.docrt=-1
         task.outprint=listrout
         task.check(overwrite=overwrite)
-    task()
+        task()
 
 
     # DTSUM
-    task = tget("dtsum")
-    task.getn(indata)
-    task.aparm[1]=2
-    task.docrt=docrt
-    if task.docrt < 0:
+    if dtsumout is not None:
+        task = tget("dtsum")
+        task.getn(indata)
+        task.aparm[1]=2
+        task.docrt=-1
         task.outprint=dtsumout
         task.check(overwrite=overwrite)
-    task()
-
+        task()
 
 # ------------------------------------------------------------------------------
 # Data Loading and Sorting
 # ------------------------------------------------------------------------------
+def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True):
+    import astropy.io.fits as pf
+    import astropy.time as at
+    from tqdm import tqdm
+        
+    # Check data in FITS files
+    datetimes = []
+    fitsnames = []
+    list1 = os.listdir(fitsdir)
+    for comp in tqdm(list1, bar_format="Reading FITS directory: "+r'{l_bar}{bar}{r_bar}'):
+        comppath=os.path.join(fitsdir,comp)
+        if "na-" in comp and skipna:
+            continue
+        if not os.path.isfile(comppath):
+            continue
+        try:
+            hdulist = pf.open(comppath)
+        except IOError:
+            continue
+        
+        # FITS Files
+        fitsnames.append(comppath)
+        
+        # Get Time Stamp
+        uvdata = hdulist["UV_DATA"]
+        times = at.Time(uvdata.data["DATE"], format="jd", scale="utc")
+        times+= at.TimeDelta(uvdata.data["TIME"], format="jd")
+        hdulist.close()
+        datetimes.append(times.min().datetime)
+    fitsfiles = {'datetime':datetimes,'fitsfile':fitsnames}
+    fitsfiles = pd.DataFrame(fitsfiles, columns=["datetime", "fitsfile"])
+    fitsfiles = fitsfiles.sort_values(by="datetime").reset_index(drop=True)
+    Nfile = len(fitsfiles.fitsfile)
+    print("  - %d FITS files are found"%(Nfile))
+    print(fitsfiles)
+    
+    os.system("mkdir -p %s"%(outdir))
+    os.system("rm -rf %s*"%(os.path.join(outdir,filename)))
+    for i in tqdm(xrange(Nfile), bar_format="Creating symbolic links: "+r'{l_bar}{bar}{r_bar}'):
+        orgfile = os.path.relpath(fitsfiles.loc[i, "fitsfile"], start=outdir)
+        lnfile = "%s%d"%(filename,i+1)
+        os.system("cd %s; ln -s %s %s"%(outdir, orgfile, lnfile))
+
 def ehtload(
-    outdata,
-    datain="",
-    ncount=1000,
-    clint=1/60.):
+        outdata,
+        datain="",
+        ncount=1000,
+        clint=1/60.):
     '''
     Load FITS-IDI files into AIPS using FITLD.
 

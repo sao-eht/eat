@@ -135,7 +135,7 @@ def _source(script, replace=None, update=True):
         errmsg = "'%s' is not available"%(script)
         raise ValueError(errmsg)
     else:
-        print("  Reading Envrioment Variables from %s"%(script))
+        print("  Reading Environmental Variables from %s"%(script))
 
     pipe = Popen(". %s > /dev/null 2>&1; env" % script, stdout=PIPE, shell=True)
     data = pipe.communicate()[0]
