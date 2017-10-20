@@ -109,12 +109,13 @@ ea.setenv(aipsdir=aipsdir, aipsver="31DEC16", ptdir=ptdir, obitdir=obitdir)
 # Make fits loader
 loaderdir=os.path.split(fitsdir)[0]
 loaderdir=os.path.join(loaderdir, "aips-loader-%s-%d-%s"%(obscode,rev,band))
-mkfitsloader(fitsdir, loaderdir, filename="loader.fits", skipna=True)
+refdate=mkfitsloader(fitsdir, loaderdir, filename="loader.fits", skipna=True)
 
 # A quick short cut to run fitld
 ehtload(
     outdata=uvdata,
     datain=os.path.join(loaderdir,"loader.fits"),
+    refdate=refdate,
     clint=1/60.)
 
 # Use AIPS VER 31DEC17 tentatively
@@ -142,7 +143,7 @@ isSM = "SM" in msortdata.antennas
 AAid=msortdata.antennaids("AA")
 if isSR:
     SRid=msortdata.antennaids("SR")
-if isSM
+if isSM:
     SMid=msortdata.antennaids("SM")
 
 # Non ALMA station IDs

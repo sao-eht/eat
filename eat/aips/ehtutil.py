@@ -246,6 +246,7 @@ def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True):
         
     # Check data in FITS files
     datetimes = []
+    refdates = []
     fitsnames = []
     list1 = os.listdir(fitsdir)
     for comp in tqdm(list1, bar_format="Reading FITS directory: "+r'{l_bar}{bar}{r_bar}'):
@@ -268,6 +269,7 @@ def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True):
         times+= at.TimeDelta(uvdata.data["TIME"], format="jd")
         hdulist.close()
         datetimes.append(times.min().datetime)
+    
     fitsfiles = {'datetime':datetimes,'fitsfile':fitsnames}
     fitsfiles = pd.DataFrame(fitsfiles, columns=["datetime", "fitsfile"])
     fitsfiles = fitsfiles.sort_values(by="datetime").reset_index(drop=True)
@@ -281,11 +283,16 @@ def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True):
         orgfile = os.path.relpath(fitsfiles.loc[i, "fitsfile"], start=outdir)
         lnfile = "%s%d"%(filename,i+1)
         os.system("cd %s; ln -s %s %s"%(outdir, orgfile, lnfile))
+    
+    refdate = fitsfiles.loc[0, "datetime"]
+    refdate = "%04d%2d%02d"%(refdate.year, refdate.month, refdate.day)
+    return refdate
 
 def ehtload(
         outdata,
         datain="",
         ncount=1000,
+        refdate="",
         clint=1/60.):
     '''
     Load FITS-IDI files into AIPS using FITLD.
@@ -303,6 +310,8 @@ def ehtload(
       clint (int; default=1/60.):
         Interval for CL tables.
     '''
+    import astropy.io.fits as pf
+        
     zap(outdata)
     task = tget("fitld")
     task.geton(outdata)
@@ -310,6 +319,7 @@ def ehtload(
     task.ncount=ncount
     task.doconcat=1
     task.clint=clint
+    task.refdate=refdate
     task.check()
     task()
 
