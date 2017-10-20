@@ -18,7 +18,9 @@ from astropy.time import Time
 import numpy.matlib
 
 # For Andrew:
-DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
+#DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
+DATADIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/5.+close/data/3599' 
+OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/testuvfits'
 
 # For Katie
 #DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
@@ -33,7 +35,7 @@ RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000
 
 
 # decimal precision for the scan start & stop times (fractional day)
-ROUND_SCAN_INT = 6
+ROUND_SCAN_INT = 4
 
 #conversion factors and data types
 MHZ2HZ = 1e6
@@ -51,7 +53,6 @@ CORRCOEFF = 10000.0
 DEGREE = np.pi/180.0
 HOUR = 15.0*DEGREE
 C = 299792458.0
-
 station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR'}
 
 #######################################################################
@@ -737,7 +738,8 @@ def merge_hops_uvfits(fitsFiles):
 
     # Merge scans
     scan_info = np.vstack(scan_list)
-    scan_info = np.vstack({tuple(np.round(row,decimals=ROUND_SCAN_INT)) for row in scan_info}) 
+    scan_info = np.vstack({tuple(row) for row in scan_info}) 
+    #scan_info = np.vstack({tuple(np.round(row, decimals=ROUND_SCAN_INT)) for row in scan_info}) 
     scan_info = np.sort(scan_info, axis=0)
 
     start_time_last = 0.
@@ -1028,6 +1030,7 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
     # header information
     tbhdu.header.append(("NO_IF", nchan, "Number IFs"))
     tbhdu.header.append(("EXTNAME","AIPS FQ"))
+    tbhdu.header.append(("EXTVER",1))
 
     hdulist.append(tbhdu) #TODO no AIPS FQ in template currently
 
@@ -1052,33 +1055,35 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
         if jj>=len(jds):
             #print start_vis, stop_vis
             break
-        
+
         # print "%.12f %.12f %.12f" %( jds[jj], scan_start, scan_stop)   
-        jd = round(jds[jj], ROUND_SCAN_INT)*comp_fac # ANDREW TODO precision??     
+        jd = round(jds[jj], ROUND_SCAN_INT)*comp_fac # ANDREW TODO precision??   
+
+
         if (np.floor(jd) >= np.floor(scan_start*comp_fac)) and (np.ceil(jd) <= np.ceil(comp_fac*scan_stop)):
             start_vis.append(jj)
             scan_times.append(scan_start + 0.5*scan_dur - RDATE_JD)
             scan_time_ints.append(scan_dur)
-            while (jj < len(jds) and np.floor(jds[jj]*comp_fac) <= np.ceil(comp_fac*scan_stop)):
+            while (jj < len(jds) and np.floor(round(jds[jj],ROUND_SCAN_INT)*comp_fac) <= np.ceil(comp_fac*scan_stop)):
                 jj += 1
             stop_vis.append(jj-1)
         else: 
             continue
 
-    if jj < len(jds): 
-        
-        print jj, len(jds)
-        print stop_vis
+    if jj < len(jds):
+        print scan_info[-1]
+        print round(scan_info[-1][0],ROUND_SCAN_INT),round(scan_info[-1][1],ROUND_SCAN_INT)
+        print jj, len(jds), round(jds[jj],ROUND_SCAN_INT)
         raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
 
-    time_nx = fits.Column(name="TIME", format="1E", array=np.array(scan_times), unit='DAYS')
-    timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", array=np.array(scan_time_ints),unit='DAYS')
-    sourceid_nx = fits.Column(name="SOURCE ID",format="1J", array=np.ones(len(scan_times)), unit='')
-    subarr_nx = fits.Column(name="SUBARRAY",format="1J", array=np.ones(len(scan_times)),unit='')
-    freqid_nx = fits.Column(name="FREQ ID",format="1J", array=np.ones(len(scan_times)),unit='')
-    startvis_nx = fits.Column(name="START VIS",format="1J", array=np.array(start_vis)+1,unit='')
-    endvis_nx = fits.Column(name="END VIS",format="1J", array=np.array(stop_vis)+1,unit='')
-    cols = fits.ColDefs([time_nx, timeint_nx, sourceid_nx, subarr_nx, freqid_nx, startvis_nx, endvis_nx],unit='')
+    time_nx = fits.Column(name="TIME", format="1E", unit='DAYS', array=np.array(scan_times))
+    timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", unit='DAYS', array=np.array(scan_time_ints))
+    sourceid_nx = fits.Column(name="SOURCE ID",format="1J", unit='', array=np.ones(len(scan_times)))
+    subarr_nx = fits.Column(name="SUBARRAY",format="1J", unit='', array=np.ones(len(scan_times)))
+    freqid_nx = fits.Column(name="FREQ ID",format="1J", unit='', array=np.ones(len(scan_times)))
+    startvis_nx = fits.Column(name="START VIS",format="1J", unit='', array=np.array(start_vis)+1)
+    endvis_nx = fits.Column(name="END VIS",format="1J", unit='', array=np.array(stop_vis)+1)
+    cols = fits.ColDefs([time_nx, timeint_nx, sourceid_nx, subarr_nx, freqid_nx, startvis_nx, endvis_nx])
 
     tbhdu = fits.BinTableHDU.from_columns(cols)
  
@@ -1215,6 +1220,8 @@ if __name__=='__main__':
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--outdir'):
                 outdir = sys.argv[a+1] 
+    else:
+        outdir = OUTDIR_DEFAULT
 
     main(datadir=datadir, outdir=outdir, ident=ident,
          recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits,
