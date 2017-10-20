@@ -35,7 +35,7 @@ RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000
 
 
 # decimal precision for the scan start & stop times (fractional day)
-ROUND_SCAN_INT = 4
+ROUND_SCAN_INT = 6
 
 #conversion factors and data types
 MHZ2HZ = 1e6
