@@ -55,7 +55,7 @@ fileheader="%s-%d%s"%(obscode,rev,band[0])
 #   in eat/exampls/aips/scripts.
 #
 #   FITS Dirctories for High and Low bands
-fitsdir='/xxxxxxxx/rev1-fitsidi/%s-%d-%s'%(obscode,rev,band)
+fitsdir='xxxxx/%s-%d-%s'%(obscode,rev,band)
 
 # AIPS AN table correction file
 ancortab=os.path.join("ancortab_2017apr.csv")
@@ -134,10 +134,16 @@ Nant=len(msortdata.antennas)
 Nch=msortdata.header["naxis"][2]
 Nif=msortdata.header["naxis"][3]
 
+# Check if SR and SM exists
+isSR = "SR" in msortdata.antennas
+isSM = "SM" in msortdata.antennas
+
 # Station Code
 AAid=msortdata.antennaids("AA")
-SRid=msortdata.antennaids("SR")
-SMid=msortdata.antennaids("SM")
+if isSR:
+    SRid=msortdata.antennaids("SR")
+if isSM
+    SMid=msortdata.antennaids("SM")
 
 # Non ALMA station IDs
 NoAAs=msortdata.antennas
@@ -575,29 +581,30 @@ fileid += 1
 #     So, SM and SR should have a lot of correlating noises, and should be
 #     flagged in global-fringe searching process.
 #-------------------------------------------------------------------------------
-task=tget("uvflg")
-task.getn(fixwt1data)
-task.antennas[1]=int(np.min([SRid,SMid]))
-task.baseline[1]=int(np.max([SRid,SMid]))
-task.outfgver=fixwt1data.table_highver("FG")+1
-task.opcode="FLAG"
-task.reason="FLAG SMAP/SMAR BL"
-task.dohist=1
-task()
+if isSR and isSM:
+    task=tget("uvflg")
+    task.getn(fixwt1data)
+    task.antennas[1]=int(np.min([SRid,SMid]))
+    task.baseline[1]=int(np.max([SRid,SMid]))
+    task.outfgver=fixwt1data.table_highver("FG")+1
+    task.opcode="FLAG"
+    task.reason="FLAG SMAP/SMAR BL"
+    task.dohist=1
+    task()
 
-task=tget("tbout")
-task.getn(fixwt1data)
-task.inext='FG'
-task.inver=fixwt1data.table_highver("FG")
-task.outtext=os.path.join(workdir,"%s.%02d.fg.sma.tbout"%(fileheader,fileid))
-task.docrt=-1
-task.check(overwrite=True)
-task()
-fileid += 1
+    task=tget("tbout")
+    task.getn(fixwt1data)
+    task.inext='FG'
+    task.inver=fixwt1data.table_highver("FG")
+    task.outtext=os.path.join(workdir,"%s.%02d.fg.sma.tbout"%(fileheader,fileid))
+    task.docrt=-1
+    task.check(overwrite=True)
+    task()
+    fileid += 1
 
-fgtab=ehtfgout(fixwt1data)
-fgtab.to_csv(os.path.join(workdir,"%s.%02d.fg.sma.csv"%(fileheader,fileid)))
-fileid += 1
+    fgtab=ehtfgout(fixwt1data)
+    fgtab.to_csv(os.path.join(workdir,"%s.%02d.fg.sma.csv"%(fileheader,fileid)))
+    fileid += 1
 
 
 #-------------------------------------------------------------------------------
