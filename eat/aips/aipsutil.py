@@ -20,6 +20,7 @@ import datetime
 from AIPS import AIPS, AIPSDisk
 from AIPSTask import AIPSTask, AIPSList
 from AIPSData import AIPSUVData, AIPSImage, AIPSCat
+from Wizardry.AIPSData import AIPSUVData as wAIPSUVData
 from AIPSTV import AIPSTV
 
 # ------------------------------------------------------------------------------
@@ -38,7 +39,7 @@ class AIPSTV(AIPSTV, object):
             self.__init__()
             self.start()
 
-class AIPSUVData(AIPSUVData, object):
+class AIPSUVData_common(object):
     def scantimes(self):
         '''
         Get a list of timerange parameters for the entire observations.
@@ -127,6 +128,11 @@ class AIPSUVData(AIPSUVData, object):
                 antnums.append(antennas.index(antname)+1)
             return antnums
 
+class AIPSUVData(AIPSUVData_common,AIPSUVData,object):
+    pass
+
+class wAIPSUVData(AIPSUVData_common,wAIPSUVData,object):
+    pass
 
 class AIPSTask(AIPSTask, object):
     userno = -1

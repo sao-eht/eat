@@ -55,7 +55,7 @@ fileheader="%s-%d%s"%(obscode,rev,band[0])
 #   in eat/exampls/aips/scripts.
 #
 #   FITS Dirctories for High and Low bands
-fitsdir='/data2/data/ehtdata/2017/rev1-fitsidi/%s-%d-%s'%(obscode,rev,band)
+fitsdir='/xxxxxxxx/rev1-fitsidi/%s-%d-%s'%(obscode,rev,band)
 
 # AIPS AN table correction file
 ancortab=os.path.join("ancortab_2017apr.csv")
@@ -93,9 +93,10 @@ uvdata=AIPSUVData(uvname, 'FITLD', disk, 1)
 msortdata=AIPSUVData(uvdata.name, 'MSORT', disk, 1)
 tasav1data=AIPSUVData(uvdata.name, 'TASAV1', disk, 1)
 splat1data=AIPSUVData(uvdata.name, 'SPLAT1', disk, 1)
-fixwtdata=AIPSUVData(uvdata.name, 'FIXWT1', disk, 1)
+fixwt1data=AIPSUVData(uvdata.name, 'FIXWT1', disk, 1)
 tasav2data=AIPSUVData(uvdata.name, 'TASAV2', disk, 1)
 splat2data=AIPSUVData(uvdata.name, 'SPLAT2', disk, 1)
+fixwt2data=AIPSUVData(uvdata.name, 'FIXWT2', disk, 1)
 
 
 #-------------------------------------------------------------------------------
@@ -520,15 +521,15 @@ Nif-=1
 #    This helps later KRING runs to get more reliable solutions, since KRING
 #    analytically estimates SNRs.
 #-------------------------------------------------------------------------------
-zap(fixwtdata)
+zap(fixwt1data)
 task=tget("fixwt")
 task.getn(splat1data)
-task.geton(fixwtdata)
+task.geton(fixwt1data)
 task.solint=3
 task()
 
 task=tget("indxr")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task()
 
 
@@ -536,14 +537,14 @@ task()
 # Parallactic Angle Correction
 #-------------------------------------------------------------------------------
 # Parallactic Angle Correction
-ehtpang(fixwtdata)
+ehtpang(fixwt1data)
 
 # Plot CL Table
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="CL",
-    invers=fixwtdata.table_highver("CL"),
+    invers=fixwt1data.table_highver("CL"),
     outfile=os.path.join(workdir,"%s.%02d.pang.cl.if10.ps"%(fileheader,fileid)),
     nplots=Nant,
     optypes="PHAS",
@@ -553,9 +554,9 @@ fileid += 1
 
 # Plot CC Spectra
 ehtpossmcc(
-    indata=fixwtdata,
+    indata=fixwt1data,
     docalib=1,
-    gainuse=fixwtdata.table_highver("CL"),
+    gainuse=fixwt1data.table_highver("CL"),
     doband=-1,
     bpver=-1,
     solint=-1,
@@ -575,26 +576,26 @@ fileid += 1
 #     flagged in global-fringe searching process.
 #-------------------------------------------------------------------------------
 task=tget("uvflg")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.antennas[1]=int(np.min([SRid,SMid]))
 task.baseline[1]=int(np.max([SRid,SMid]))
-task.outfgver=fixwtdata.table_highver("FG")+1
+task.outfgver=fixwt1data.table_highver("FG")+1
 task.opcode="FLAG"
 task.reason="FLAG SMAP/SMAR BL"
 task.dohist=1
 task()
 
 task=tget("tbout")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.inext='FG'
-task.inver=fixwtdata.table_highver("FG")
+task.inver=fixwt1data.table_highver("FG")
 task.outtext=os.path.join(workdir,"%s.%02d.fg.sma.tbout"%(fileheader,fileid))
 task.docrt=-1
 task.check(overwrite=True)
 task()
 fileid += 1
 
-fgtab=ehtfgout(fixwtdata)
+fgtab=ehtfgout(fixwt1data)
 fgtab.to_csv(os.path.join(workdir,"%s.%02d.fg.sma.csv"%(fileheader,fileid)))
 fileid += 1
 
@@ -605,11 +606,11 @@ fileid += 1
 #    I realized that solutions in KRING can be improved by running FIXWT
 #    before KRING. This helps, for instance, L-R delay differences more stable.
 #-------------------------------------------------------------------------------
-tables=fixwtdata.tables
+tables=fixwt1data.tables
 task=tget("kring")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.docalib=1
-task.gainuse=fixwtdata.table_highver("CL")
+task.gainuse=fixwt1data.table_highver("CL")
 task.refant=AAid
 task.search[1]=AAid
 task.solint=10.     # solint in minutes
@@ -629,10 +630,10 @@ task()
 
 # Plot SN Table (colored by IF/polarizations)
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     antennas=NoAAs,
     optypes=["PHAS","RATE","DELA","SNR"],
     nplots=Nant-1,
@@ -644,10 +645,10 @@ fileid += 1
 
 # Plot SN Table (colored by sources)
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     antennas=NoAAs,
     optypes=["PHAS","RATE","DELA","SNR"],
     nplots=Nant-1,
@@ -659,10 +660,10 @@ fileid += 1
 
 # Plot SN Table (RL diffrences, colored by IF/polarizations)
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     stokes="DIFF",
     antennas=NoAAs,
     optypes=["PHAS","RATE","DELA"],
@@ -675,21 +676,21 @@ fileid += 1
 
 # CLCAL
 task=tget("clcal")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.interpol="SELF"
 task.cutoff=10
-task.snver=fixwtdata.table_highver("SN")
-task.gainver=fixwtdata.table_highver("CL")
-task.gainuse=fixwtdata.table_highver("CL")+1
+task.snver=fixwt1data.table_highver("SN")
+task.gainver=fixwt1data.table_highver("CL")
+task.gainuse=fixwt1data.table_highver("CL")+1
 task.refant=AAid
 task()
 
 # PLOT CL TABLE
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="CL",
-    invers=fixwtdata.table_highver("CL"),
+    invers=fixwt1data.table_highver("CL"),
     outfile=os.path.join(workdir,"%s.%02d.kring1.cl.if10.ps"%(fileheader,fileid)),
     optypes=["PHAS", "DELA", "RATE"],
     nplots=Nant,
@@ -698,9 +699,9 @@ ehtsnplt(
 fileid += 1
 
 ehtpossmcc(
-    indata=fixwtdata,
+    indata=fixwt1data,
     docalib=1,
-    gainuse=fixwtdata.table_highver("CL"),
+    gainuse=fixwt1data.table_highver("CL"),
     doband=-1,
     bpver=-1,
     solint=-1,
@@ -723,11 +724,11 @@ fileid += 1
 #    figuring out the way to do this.
 #-------------------------------------------------------------------------------
 # KRING
-tables=fixwtdata.tables
+tables=fixwt1data.tables
 task=tget("kring")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.docalib=1
-task.gainuse=fixwtdata.table_highver("CL")
+task.gainuse=fixwt1data.table_highver("CL")
 task.refant=AAid
 task.search[1]=AAid
 task.solint=10.     # solint in minutes
@@ -747,10 +748,10 @@ task()
 
 # Plot SN Table
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     antennas=NoAAs,
     optypes=["PHAS","DELA","SNR"],
     nplots=Nant-1,
@@ -763,10 +764,10 @@ fileid += 1
 
 # Plot SN Table
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     antennas=NoAAs,
     optypes=["PHAS","DELA","SNR"],
     nplots=Nant-1,
@@ -778,10 +779,10 @@ fileid += 1
 
 
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     stokes="DIFF",
     antennas=NoAAs,
     optypes=["PHAS","DELA"],
@@ -795,22 +796,22 @@ fileid += 1
 
 # CLCAL
 task=tget("clcal")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.interpol="SELF"
 task.cutoff=10
-task.snver=fixwtdata.table_highver("SN")
-task.gainver=fixwtdata.table_highver("CL")
-task.gainuse=fixwtdata.table_highver("CL")+1
+task.snver=fixwt1data.table_highver("SN")
+task.gainver=fixwt1data.table_highver("CL")
+task.gainuse=fixwt1data.table_highver("CL")+1
 task.refant=AAid
 task()
 
 
 # PLOT CL TABLE
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="CL",
-    invers=fixwtdata.table_highver("CL"),
+    invers=fixwt1data.table_highver("CL"),
     outfile=os.path.join(workdir,"%s.%02d.kring2.cl.if10.ps"%(fileheader,fileid)),
     optypes=["PHAS", "DELA", "RATE"],
     nplots=Nant,
@@ -819,9 +820,9 @@ ehtsnplt(
 fileid += 1
 
 ehtpossmcc(
-    indata=fixwtdata,
+    indata=fixwt1data,
     docalib=1,
-    gainuse=fixwtdata.table_highver("CL"),
+    gainuse=fixwt1data.table_highver("CL"),
     doband=-1,
     bpver=-1,
     solint=-1,
@@ -838,11 +839,11 @@ fileid += 1
 #    Here, I solve phase rotations. IFs are binded again to maximize SNRs.
 #-------------------------------------------------------------------------------
 # KRING
-tables=fixwtdata.tables
+tables=fixwt1data.tables
 task=tget("kring")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.docalib=1
-task.gainuse=fixwtdata.table_highver("CL")
+task.gainuse=fixwt1data.table_highver("CL")
 task.refant=AAid
 task.search[1]=AAid
 task.solint=2./60.  # solint in minutes
@@ -862,10 +863,10 @@ task()
 
 # Plot SN Table
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     antennas=NoAAs,
     optypes=["PHAS","RATE","SNR"],
     nplots=Nant-1,
@@ -878,10 +879,10 @@ fileid += 1
 
 # Plot SN Table
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     antennas=NoAAs,
     optypes=["PHAS","RATE","SNR"],
     nplots=Nant-1,
@@ -893,10 +894,10 @@ fileid += 1
 
 
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     stokes="DIFF",
     antennas=NoAAs,
     optypes=["PHAS","RATE"],
@@ -909,10 +910,10 @@ fileid += 1
 
 
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     tmode="eachscan",
     antennas=NoAAs,
     optypes=["PHAS","RATE"],
@@ -925,10 +926,10 @@ fileid += 1
 
 
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     tmode="eachscan",
     stokes="DIFF",
     antennas=NoAAs,
@@ -942,21 +943,21 @@ fileid += 1
 
 # CLCAL
 task=tget("clcal")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.interpol="SELF"
 task.cutoff=10
-task.snver=fixwtdata.table_highver("SN")
-task.gainver=fixwtdata.table_highver("CL")
-task.gainuse=fixwtdata.table_highver("CL")+1
+task.snver=fixwt1data.table_highver("SN")
+task.gainver=fixwt1data.table_highver("CL")
+task.gainuse=fixwt1data.table_highver("CL")+1
 task.refant=AAid
 task()
 
 # PLOT CL TABLE
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="CL",
-    invers=fixwtdata.table_highver("CL"),
+    invers=fixwt1data.table_highver("CL"),
     outfile=os.path.join(workdir,"%s.%02d.kring3.cl.if10.ps"%(fileheader,fileid)),
     optypes=["PHAS", "DELA", "RATE"],
     nplots=Nant,
@@ -965,9 +966,9 @@ ehtsnplt(
 fileid += 1
 
 ehtpossmcc(
-    indata=fixwtdata,
+    indata=fixwt1data,
     docalib=1,
-    gainuse=fixwtdata.table_highver("CL"),
+    gainuse=fixwt1data.table_highver("CL"),
     doband=-1,
     bpver=-1,
     solint=-1,
@@ -984,11 +985,11 @@ fileid += 1
 #    Here, I solved residual instrumental phase/delay/rate offsets on scan basis.
 #-------------------------------------------------------------------------------
 # KRING
-tables=fixwtdata.tables
+tables=fixwt1data.tables
 task=tget("kring")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.docalib=1
-task.gainuse=fixwtdata.table_highver("CL")
+task.gainuse=fixwt1data.table_highver("CL")
 task.refant=AAid
 task.search[1]=AAid
 task.solint=10.     # solint in minutes
@@ -1008,10 +1009,10 @@ task()
 
 # Plot SN Table
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     antennas=NoAAs,
     optypes=["PHAS","DELA","SNR"],
     nplots=Nant-1,
@@ -1024,10 +1025,10 @@ fileid += 1
 
 # Plot SN Table
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     antennas=NoAAs,
     optypes=["PHAS","DELA","SNR"],
     nplots=Nant-1,
@@ -1039,10 +1040,10 @@ fileid += 1
 
 
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="SN",
-    invers=fixwtdata.table_highver("SN"),
+    invers=fixwt1data.table_highver("SN"),
     stokes="DIFF",
     antennas=NoAAs,
     optypes=["PHAS","DELA"],
@@ -1056,22 +1057,22 @@ fileid += 1
 
 # CLCAL
 task=tget("clcal")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.interpol="SELF"
 task.cutoff=10
-task.snver=fixwtdata.table_highver("SN")
-task.gainver=fixwtdata.table_highver("CL")
-task.gainuse=fixwtdata.table_highver("CL")+1
+task.snver=fixwt1data.table_highver("SN")
+task.gainver=fixwt1data.table_highver("CL")
+task.gainuse=fixwt1data.table_highver("CL")+1
 task.refant=AAid
 task()
 
 
 # PLOT CL TABLE
 ehtsnplt(
-    indata=fixwtdata,
+    indata=fixwt1data,
     pltifs=10,
     inext="CL",
-    invers=fixwtdata.table_highver("CL"),
+    invers=fixwt1data.table_highver("CL"),
     outfile=os.path.join(workdir,"%s.%02d.kring4.cl.if10.ps"%(fileheader,fileid)),
     optypes=["PHAS", "DELA", "RATE"],
     nplots=Nant,
@@ -1081,9 +1082,9 @@ fileid += 1
 
 
 ehtpossmcc(
-    indata=fixwtdata,
+    indata=fixwt1data,
     docalib=1,
-    gainuse=fixwtdata.table_highver("CL"),
+    gainuse=fixwt1data.table_highver("CL"),
     doband=-1,
     bpver=-1,
     solint=-1,
@@ -1099,19 +1100,19 @@ fileid += 1
 # Complex Bandpass:
 #-------------------------------------------------------------------------------
 ehtbpasscc(
-    indata=fixwtdata,
+    indata=fixwt1data,
     docal=1,
-    gainuse=fixwtdata.table_highver("CL"),
+    gainuse=fixwt1data.table_highver("CL"),
     doband=-1,
     bpver=-1,
     solint=3)
 
 ehtpossmcc(
-    indata=fixwtdata,
+    indata=fixwt1data,
     docalib=1,
-    gainuse=fixwtdata.table_highver("CL"),
+    gainuse=fixwt1data.table_highver("CL"),
     doband=5,
-    bpver=fixwtdata.table_highver("BP"),
+    bpver=fixwt1data.table_highver("BP"),
     solint=-1,
     bindif=True,
     plotbp=True,
@@ -1122,11 +1123,11 @@ ehtpossmcc(
 fileid += 1
 
 ehtpossmcc(
-    indata=fixwtdata,
+    indata=fixwt1data,
     docalib=1,
-    gainuse=fixwtdata.table_highver("CL"),
+    gainuse=fixwt1data.table_highver("CL"),
     doband=5,
-    bpver=fixwtdata.table_highver("BP"),
+    bpver=fixwt1data.table_highver("BP"),
     solint=-1,
     bindif=True,
     plotbp=False,
@@ -1143,7 +1144,7 @@ fileid += 1
 # TASAV
 zap(tasav2data)
 task=tget("tasav")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.geton(tasav2data)
 task()
 
@@ -1157,7 +1158,7 @@ fileid += 1
 # SPLAT: applying solutions so far, and also flagging edge IFs
 zap(splat2data)
 task=tget("splat")
-task.getn(fixwtdata)
+task.getn(fixwt1data)
 task.geton(splat2data)
 task.bif=1
 task.eif=Nif
@@ -1168,9 +1169,23 @@ task.doband=5
 task.bpver=1
 task()
 
-task=tget("fittp")
+#-------------------------------------------------------------------------------
+# Recalculate weights on each visibility:
+#-------------------------------------------------------------------------------
+zap(fixwt2data)
+task=tget("fixwt")
 task.getn(splat2data)
-task.dataout=os.path.join(workdir,"%s.%02d.splat2.fittp"%(fileheader,fileid))
+task.geton(fixwt2data)
+task.solint=3
+task()
+
+task=tget("indxr")
+task.getn(fixwt2data)
+task()
+
+task=tget("fittp")
+task.getn(fixwt2data)
+task.dataout=os.path.join(workdir,"%s.%02d.fixwt2.fittp"%(fileheader,fileid))
 task.check(overwrite=True)
 task()# TASAV
 fileid += 1
@@ -1178,14 +1193,14 @@ fileid += 1
 #-------------------------------------------------------------------------------
 # SPLIT DATA
 #-------------------------------------------------------------------------------
-sources = splat2data.sources
+sources = fixwt2data.sources
 
 for source in sources:
     splitdata = AIPSUVData(source, "SPLIT", uvdata.disk, 1)
     zap(splitdata)
 
 task = tget("split")
-task.getn(splat2data)
+task.getn(fixwt2data)
 task.outclass="SPLIT"
 task()
 
