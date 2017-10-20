@@ -1071,19 +1071,20 @@ def save_uvfits(obs_info, antenna_info, scan_info, rg_params,  outdat, fname):
         print stop_vis
         raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
 
-    time_nx = fits.Column(name="TIME", format="1D", array=np.array(scan_times))
-    timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", array=np.array(scan_time_ints))
-    sourceid_nx = fits.Column(name="SOURCE ID",format="1J", array=np.ones(len(scan_times)))
-    subarr_nx = fits.Column(name="SUBARRAY",format="1J", array=np.ones(len(scan_times)))
-    freqid_nx = fits.Column(name="FREQ ID",format="1J", array=np.ones(len(scan_times)))
-    startvis_nx = fits.Column(name="START VIS",format="1J", array=np.array(start_vis)+1)
-    endvis_nx = fits.Column(name="END VIS",format="1J", array=np.array(stop_vis)+1)
-    cols = fits.ColDefs([time_nx, timeint_nx, sourceid_nx, subarr_nx, freqid_nx, startvis_nx, endvis_nx])
+    time_nx = fits.Column(name="TIME", format="1E", array=np.array(scan_times), unit='DAYS')
+    timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", array=np.array(scan_time_ints),unit='DAYS')
+    sourceid_nx = fits.Column(name="SOURCE ID",format="1J", array=np.ones(len(scan_times)), unit='')
+    subarr_nx = fits.Column(name="SUBARRAY",format="1J", array=np.ones(len(scan_times)),unit='')
+    freqid_nx = fits.Column(name="FREQ ID",format="1J", array=np.ones(len(scan_times)),unit='')
+    startvis_nx = fits.Column(name="START VIS",format="1J", array=np.array(start_vis)+1,unit='')
+    endvis_nx = fits.Column(name="END VIS",format="1J", array=np.array(stop_vis)+1,unit='')
+    cols = fits.ColDefs([time_nx, timeint_nx, sourceid_nx, subarr_nx, freqid_nx, startvis_nx, endvis_nx],unit='')
 
     tbhdu = fits.BinTableHDU.from_columns(cols)
  
     # header information
     tbhdu.header.append(("EXTNAME","AIPS NX"))
+    tbhdu.header.append(("EXTVER",1))
 
     hdulist.append(tbhdu) #TODO no AIPS FQ in template currently
 
