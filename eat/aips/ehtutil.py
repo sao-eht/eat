@@ -260,8 +260,6 @@ def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True, skip31if=
         except IOError:
             continue
         
-        # FITS Files
-        fitsnames.append(comppath)
         
         # Get UV Data
         uvdata = hdulist["UV_DATA"]
@@ -269,6 +267,9 @@ def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True, skip31if=
         # Check number of IFs
         if uvdata.header["MAXIS4"]!=32:
             continue
+        
+        # FITS Files
+        fitsnames.append(comppath)
         
         # Get Time Stamp
         times = at.Time(uvdata.data["DATE"], format="jd", scale="utc")
