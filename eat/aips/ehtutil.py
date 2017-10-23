@@ -239,7 +239,7 @@ def ehtsumm(indata, prtanout=None, listrout=None, dtsumout=None, overwrite=False
 # ------------------------------------------------------------------------------
 # Data Loading and Sorting
 # ------------------------------------------------------------------------------
-def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True):
+def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True, skip31if=True):
     import astropy.io.fits as pf
     import astropy.time as at
     from tqdm import tqdm
@@ -263,8 +263,14 @@ def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True):
         # FITS Files
         fitsnames.append(comppath)
         
-        # Get Time Stamp
+        # Get UV Data
         uvdata = hdulist["UV_DATA"]
+        
+        # Check number of IFs
+        if uvdata.header["MAXIS4"]!=32:
+            continue
+        
+        # Get Time Stamp
         times = at.Time(uvdata.data["DATE"], format="jd", scale="utc")
         times+= at.TimeDelta(uvdata.data["TIME"], format="jd")
         hdulist.close()
