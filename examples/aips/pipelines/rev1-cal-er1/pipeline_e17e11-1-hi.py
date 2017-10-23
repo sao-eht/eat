@@ -25,7 +25,7 @@ import pandas as pd
 #   (if you already loaded LOGIN.SH, you don't have to set this)
 aipsdir="/usr/local/aips"
 #   AIPS USER NO
-userno=15
+userno=20
 #   AIPS DISK
 disk=1
 
@@ -38,12 +38,12 @@ obitdir="/usr/lib/obit/python"
 # Observational Parameters
 obscode="e17e11"
 rev=1
-band="lo"
+band="hi"
 ver=1
 
 # IF range for fringe-fitting
 # if bif=1 at low band, we will miss JCMT in KRING-fitting.
-bif = 2
+bif = 1
 eif = 32
 
 # Workdir where output files will be saved.

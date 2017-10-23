@@ -25,7 +25,7 @@ import pandas as pd
 #   (if you already loaded LOGIN.SH, you don't have to set this)
 aipsdir="/usr/local/aips"
 #   AIPS USER NO
-userno=15
+userno=12
 #   AIPS DISK
 disk=1
 
@@ -36,7 +36,7 @@ ptdir="/usr/share/parseltongue/python"
 obitdir="/usr/lib/obit/python"
 
 # Observational Parameters
-obscode="e17e11"
+obscode="e17b06"
 rev=1
 band="lo"
 ver=1
