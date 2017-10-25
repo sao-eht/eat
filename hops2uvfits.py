@@ -29,9 +29,10 @@ OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/te
 
 #reference date 
 RDATE = '2017-04-04' #'2000-01-01T00:00:00.0'
+#RDATE = '2017-04-04T00:00:00.0'
 RDATE_JD = Time(RDATE, format='isot', scale='utc').jd
 RDATE_GSTIA0 = Time(RDATE, format='isot', scale='utc').sidereal_time('apparent','greenwich').degree
-RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000
+RDATE_DEGPERDY = 360.9856 # TODO for jan 1 2000, change for RDATE? 
 
 
 # decimal precision for the scan start & stop times (fractional day)
