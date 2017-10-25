@@ -263,20 +263,38 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     tnames = tarr['site']
     tnums = np.arange(1, len(tarr) + 1)
     xyz = np.array([[tarr[i]['x'],tarr[i]['y'],tarr[i]['z']] for i in np.arange(len(tarr))])
-            
-    # random group params    
-    u = datatable['u']
-    v = datatable['v']
-    t1num = [tkeys[scope] + 1 for scope in datatable['t1']]
-    t2num = [tkeys[scope] + 1 for scope in datatable['t2']]
-    bls = 256*np.array(t1num) + np.array(t2num)
-    jds = datatable['time']
-    tints = datatable['tint']
 
     # uvfits format output data table
+    bl_list = []
+    for i in xrange(len(datatable)):
+        entry = datatable[i]
+        t1num = entry['t1']
+        t2num = entry['t2']
+        if tkeys[entry['t1']] > tkeys[entry['t2']]: # reorder telescopes if necessary
+            #print entry['t1'], tkeys[entry['t1']], entry['t2'], tkeys[entry['t2']]
+            entry['t1'] = t2num
+            entry['t2'] = t1num
+            entry['u'] = -entry['u']
+            entry['v'] = -entry['v']
+            entry['rr'] = np.conj(entry['rr'])
+            entry['ll'] = np.conj(entry['ll'])
+            entry['rl'] = np.conj(entry['rl'])
+            entry['lr'] = np.conj(entry['lr'])
+            datatable[i] = entry
+        bl_list.append(np.array((entry['time'],entry['t1'],entry['t2']),dtype=BLTYPE))
     _, unique_idx_anttime, idx_anttime = np.unique(bl_list, return_index=True, return_inverse=True) 
     _, unique_idx_freq, idx_freq = np.unique(datatable['freq'], return_index=True, return_inverse=True) 
 
+    # random group params    
+    u = datatable['u'][unique_idx_anttime]
+    v = datatable['v'][unique_idx_anttime]
+    t1num = [tkeys[scope] + 1 for scope in datatable['t1'][unique_idx_anttime]]
+    t2num = [tkeys[scope] + 1 for scope in datatable['t2'][unique_idx_anttime]]
+    bls = 256*np.array(t1num) + np.array(t2num)
+    jds = datatable['time'][unique_idx_anttime]
+    tints = datatable['tint'][unique_idx_anttime]
+
+    # data table
     nap = len(unique_idx_anttime)
     nsubchan = 1
     nstokes = 4
@@ -336,7 +354,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
 
         outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.apriori.uvfits'
         apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate)
-        print "Saved full merged data to ", outname
+        print "Saved calibrated data to ", outname
     print "---------------------------------------------------------"
     print "---------------------------------------------------------"
     print "---------------------------------------------------------"
