@@ -18,8 +18,8 @@ import numpy.matlib
 
 # For Andrew:
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
-DATADIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/5.+close/data/3599' 
-OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/testuvfits'
+DATADIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-lo/5.+close/data/3601' 
+OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-lo/testuvfits'
 
 # For Katie
 #DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
@@ -36,13 +36,12 @@ RDATE_OFFSET = rdate_tt.ut1.datetime.second - rdate_tt.utc.datetime.second
 RDATE_OFFSET += 1.e-6*(rdate_tt.ut1.datetime.microsecond - rdate_tt.utc.datetime.microsecond)
 
 # decimal precision for the scan start & stop times (fractional day)
-ROUND_SCAN_INT = 6
+ROUND_SCAN_INT = 5
 
 #conversion factors and data types
 station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR'}
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
 DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
-
 DTPOL = [('time','f8'),('freq','f8'),('tint','f8'),
             ('t1','a32'),('t2','a32'),
             ('u','f8'),('v','f8'),
@@ -609,6 +608,9 @@ def load_hops_uvfits(filename):
     for kk in range(len(scan_starts)):
         scan_start = scan_starts[kk]
         scan_dur = scan_durs[kk]
+        # TODO AIPS MEMO 117 says scan_times should be midpoint!, but AIPS data looks likes it's at the start? 
+        #scan_arr.append([scan_start + refdate, 
+        #                  scan_start + scan_dur + refdate])
         scan_arr.append([scan_start - 0.5*scan_dur + refdate, 
                           scan_start + 0.5*scan_dur + refdate])
 
@@ -673,8 +675,8 @@ def load_and_convert_hops_uvfits(filename):
     t2 = np.array([tarr[i]['site'] for i in t2])
 
     # Obs Times
-    mjd = int(np.min(jds) - MJD_0)
-    times = (jds - MJD_0 - mjd) * 24.0
+    #mjd = int(np.min(jds) - MJD_0)
+    #times = (jds - MJD_0 - mjd) * 24.0
       
     # Get vis data
     rr = obsdata[:,0,0,:,0,0,0] + 1j*obsdata[:,0,0,:,0,0,1]
@@ -836,8 +838,8 @@ def merge_hops_uvfits(fitsFiles):
 
     if len(tarr_merge) != len(set(tarr_merge['site'])):
         raise Exception('same name telescopes have different coords!')
-    tkeys = {tarr_merge[i]['site']: i for i in range(len(tarr_merge))}
-    
+
+    tkeys = {tarr_merge[i]['site']: i for i in range(len(tarr_merge))}    
     tnames = tarr_merge['site']
     tnums = np.arange(1, len(tarr_merge) + 1)
     xyz = np.array([[tarr_merge[i]['x'],tarr_merge[i]['y'],tarr_merge[i]['z']] for i in np.arange(len(tarr_merge))])
@@ -865,7 +867,7 @@ def merge_hops_uvfits(fitsFiles):
         bl_list.append(np.array((entry['time'],entry['t1'],entry['t2']),dtype=BLTYPE))
     
     # get unique time and baseline data
-    unique_bl_list, unique_idx_anttime, idx_anttime = np.unique(bl_list, return_index=True, return_inverse=True) 
+    _, unique_idx_anttime, idx_anttime = np.unique(bl_list, return_index=True, return_inverse=True) 
     _, unique_idx_freq, idx_freq = np.unique(datatable_merge['freq'], return_index=True, return_inverse=True) 
     nap = len(unique_idx_anttime)
 
@@ -1167,6 +1169,8 @@ def save_uvfits(datastruct, fname):
 
         if (np.floor(jd) >= np.floor(scan_start*comp_fac)) and (np.ceil(jd) <= np.ceil(comp_fac*scan_stop)):
             start_vis.append(jj)
+            # TODO AIPS MEMO 117 says scan_times should be midpoint!, but AIPS data looks likes it's at the start? 
+            #scan_times.append(scan_start  - rdate_jd_out)
             scan_times.append(scan_start + 0.5*scan_dur - rdate_jd_out)
             scan_time_ints.append(scan_dur)
             while (jj < len(jds) and np.floor(round(jds[jj],ROUND_SCAN_INT)*comp_fac) <= np.ceil(comp_fac*scan_stop)):
@@ -1178,7 +1182,7 @@ def save_uvfits(datastruct, fname):
     if jj < len(jds):
         print scan_arr[-1]
         print round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT)
-        print jj, len(jds), round(jds[jj],ROUND_SCAN_INT)
+        print jj, len(jds), round(jds[jj], ROUND_SCAN_INT)
         raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
 
     time_nx = fits.Column(name="TIME", format="1E", unit='DAYS', array=np.array(scan_times))
@@ -1241,7 +1245,7 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
         
         if recompute_bl_fits:
             # convert the finge files to baseline uv files  
-            print "---------------------------------------------------------
+            print "---------------------------------------------------------"
             print "---------------------------------------------------------"
             print "scan directory %i/%i: %s" % (i,N, scandir)
             # clean up the files in case there were extra ones already there that we no longer want
@@ -1286,6 +1290,7 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
     scan_fitsFiles = np.array(scan_fitsFiles)
     scan_sources = np.array(scan_sources)
     for source in unique_sources:
+        print
         print "Merging all scan uvfits files in directory: ", datadir, "for source: ", source
         #print 'WARNING - U,V coordinate units unknown!'
         source_scan_fitsFiles = scan_fitsFiles[scan_sources==source]
