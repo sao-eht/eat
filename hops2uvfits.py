@@ -793,15 +793,13 @@ def merge_hops_uvfits(fitsFiles):
     if not (ch1_freq in [obsinfo.ch_1 for obsinfo in obsinfo_list]):
         raise Exception('ch1_freq determined from merging ehtim style datatable not in any read uvfits header!')
 
-
-    print 
-    print "# baseline files: ", len(fitsFiles)
+    print "baseline files: ", len(fitsFiles)
     print "source: ", src
     print "ra: ", ra
     print "dec: ", dec
     print "ch1 freq: ", ch1_freq/1.e9, "GHz"
     print "ref freq: ", ref_freq/1.e9, "GHz"
-    print "# channels: ", nchan
+    print "channels: ", nchan
     
     #print "Merging data ... "
 
@@ -1243,20 +1241,21 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
         
         if recompute_bl_fits:
             # convert the finge files to baseline uv files  
-            print "---------------------------------------------------------"
+            print "---------------------------------------------------------
             print "---------------------------------------------------------"
             print "scan directory %i/%i: %s" % (i,N, scandir)
             # clean up the files in case there were extra ones already there that we no longer want
             if clean_bl_fits:
-                print 'REMOVING old uvfits baseline files due to --clean flag'
+                print '    REMOVING old uvfits baseline files due to --clean flag'
                 for filename in glob.glob(scandir + '*_hops_bl.uvfits'):
                     os.remove(filename)
             if not recompute_bl_fits:
-                print 'WARNING - not recomputing U,V coordinates!' 
+                print '    WARNING - not recomputing U,V coordinates!' 
             print "---------------------------------------------------------"
             print "---------------------------------------------------------"
             convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv)
-            
+        
+        print    
         print "Merging baseline uvfits files in directory: ", scandir
 
         bl_fitsFiles = []
