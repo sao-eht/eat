@@ -204,44 +204,121 @@ def ehtfgreset(indata, fgver=0):
 # ------------------------------------------------------------------------------
 # Print Out Summary
 # ------------------------------------------------------------------------------
-def ehtsumm(indata, docrt=-1, prtanout="prtan.txt", listrout="listr.txt",
-            dtsumout="dtsum.txt", overwrite=False):
+def ehtsumm(indata, prtanout=None, listrout=None, dtsumout=None, overwrite=False):
     # PRTAN
-    task = tget("prtan")
-    task.getn(indata)
-    task.docrt=docrt
-    if task.docrt < 0:
+    if prtanout is not None:
+        task = tget("prtan")
+        task.getn(indata)
+        task.docrt=-1
         task.outprint=prtanout
         task.check(overwrite=overwrite)
-    task()
+        task()
 
 
     # LISTR (SCAN)
-    task = tget("listr")
-    task.getn(indata)
-    task.optype='SCAN'
-    task.docrt=docrt
-    if task.docrt < 0:
+    if listrout is not None:
+        task = tget("listr")
+        task.getn(indata)
+        task.optype='SCAN'
+        task.docrt=-1
         task.outprint=listrout
         task.check(overwrite=overwrite)
-    task()
+        task()
 
 
     # DTSUM
-    task = tget("dtsum")
-    task.getn(indata)
-    task.aparm[1]=2
-    task.docrt=docrt
-    if task.docrt < 0:
+    if dtsumout is not None:
+        task = tget("dtsum")
+        task.getn(indata)
+        task.aparm[1]=2
+        task.docrt=-1
         task.outprint=dtsumout
         task.check(overwrite=overwrite)
-    task()
-
+        task()
 
 # ------------------------------------------------------------------------------
 # Data Loading and Sorting
 # ------------------------------------------------------------------------------
-def ehtload(outdata, datain="", ncount=1000, clint=1/60.):
+def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True, skip31if=True):
+    import astropy.io.fits as pf
+    import astropy.time as at
+    from tqdm import tqdm
+        
+    # Check data in FITS files
+    datetimes = []
+    refdates = []
+    fitsnames = []
+    list1 = os.listdir(fitsdir)
+    for comp in tqdm(list1, bar_format="Reading FITS directory: "+r'{l_bar}{bar}{r_bar}'):
+        comppath=os.path.join(fitsdir,comp)
+        if "na-" in comp and skipna:
+            continue
+        if not os.path.isfile(comppath):
+            continue
+        try:
+            hdulist = pf.open(comppath)
+        except IOError:
+            continue
+        
+        
+        # Get UV Data
+        uvdata = hdulist["UV_DATA"]
+        
+        # Check number of IFs
+        if uvdata.header["MAXIS4"]!=32:
+            continue
+        
+        # FITS Files
+        fitsnames.append(comppath)
+        
+        # Get Time Stamp
+        times = at.Time(uvdata.data["DATE"], format="jd", scale="utc")
+        times+= at.TimeDelta(uvdata.data["TIME"], format="jd")
+        hdulist.close()
+        datetimes.append(times.min().datetime)
+    
+    fitsfiles = {'datetime':datetimes,'fitsfile':fitsnames}
+    fitsfiles = pd.DataFrame(fitsfiles, columns=["datetime", "fitsfile"])
+    fitsfiles = fitsfiles.sort_values(by="datetime").reset_index(drop=True)
+    Nfile = len(fitsfiles.fitsfile)
+    print("  - %d FITS files are found"%(Nfile))
+    print(fitsfiles)
+    
+    os.system("mkdir -p %s"%(outdir))
+    os.system("rm -rf %s*"%(os.path.join(outdir,filename)))
+    for i in tqdm(xrange(Nfile), bar_format="Creating symbolic links: "+r'{l_bar}{bar}{r_bar}'):
+        orgfile = os.path.relpath(fitsfiles.loc[i, "fitsfile"], start=outdir)
+        lnfile = "%s%d"%(filename,i+1)
+        os.system("cd %s; ln -s %s %s"%(outdir, orgfile, lnfile))
+    
+    refdate = fitsfiles.loc[0, "datetime"]
+    refdate = "%04d%2d%02d"%(refdate.year, refdate.month, refdate.day)
+    return refdate
+
+def ehtload(
+        outdata,
+        datain="",
+        ncount=1000,
+        refdate="",
+        clint=1/60.):
+    '''
+    Load FITS-IDI files into AIPS using FITLD.
+
+    Args:
+      outdata (AIPSUVData object):
+        output AIPSUVData
+
+      datain (str):
+        FITS Filename
+
+      ncount (int; default=1000):
+        The number of input FITS files. (see FITLD HELP for details)
+
+      clint (int; default=1/60.):
+        Interval for CL tables.
+    '''
+    import astropy.io.fits as pf
+        
     zap(outdata)
     task = tget("fitld")
     task.geton(outdata)
@@ -249,11 +326,28 @@ def ehtload(outdata, datain="", ncount=1000, clint=1/60.):
     task.ncount=ncount
     task.doconcat=1
     task.clint=clint
+    task.refdate=refdate
     task.check()
     task()
 
 
 def ehtsort(indata, outdata, clint=1/60.):
+    '''
+    Sort and Indexing UVDATA using MSORT and INDXR
+
+    Args:
+      indata (AIPSUVData object):
+        input AIPSUVData
+
+      outdata (AIPSUVData object):
+        output AIPSUVData
+
+      datain (str):
+        FITS Filename
+
+      clint (int; default=1/60.):
+        Interval for CL tables.
+    '''
     zap(outdata)
     task = tget("msort")
     task.getn(indata)
@@ -276,9 +370,11 @@ def ehtancor(indata, inver=0, datain=""):
     Args:
       indata (AIPSUVData object):
         input data
+
       inver (int):
         Version of the AN table to be corrected. This function overwrites this
         input AN table.
+
       datain (str):
         Filename for a csv correction table.
     '''
@@ -501,13 +597,6 @@ def ehtantab(indata, antabfileNA, antabfileAA1, antabfileAA2):
     oldtabs = indata.tables
 
     # run antab
-    task = tget("antab")
-    task.getn(indata)
-    task.tyver=indata.table_highver("TY")+1
-    task.gcver=indata.table_highver("GC")+1
-    task.calin=antabfileNA
-    task.check()
-    task()
     task.tyver=indata.table_highver("TY")
     task.gcver=indata.table_highver("GC")
     task.calin=antabfileAA1
@@ -516,6 +605,13 @@ def ehtantab(indata, antabfileNA, antabfileAA1, antabfileAA2):
     task.tyver=indata.table_highver("TY")
     task.gcver=indata.table_highver("GC")
     task.calin=antabfileAA2
+    task.check()
+    task()
+    task = tget("antab")
+    task.getn(indata)
+    task.tyver=indata.table_highver("TY")+1
+    task.gcver=indata.table_highver("GC")+1
+    task.calin=antabfileNA
     task.check()
     task()
 
