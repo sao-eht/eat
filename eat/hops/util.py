@@ -1083,3 +1083,48 @@ if station %s and scan %s to %s
     pc_delay_r %.4f
 """ % (row.site, start_tt, stop_tt, codes, delay_offs, delay)
     return cf
+
+def vecphase(ff, adhoc=True, dt=30, df=4, pol=None):
+    b = hu.getfringefile(ff, quiet=True, pol=pol)
+    p = hu.params(b)
+    v = hu.pop212(b)
+    if adhoc:
+        ah = hu.adhoc(ff)
+        ahrot = np.exp(-1j*ah.phase.mean(axis=1)*np.pi/180)
+        v = v * ahrot[:,None]
+    v = v * np.exp(-1j*np.angle(np.mean(v)))
+    (nap, nchan, nspec) = (p.nap, p.nchan, 1)
+    clip = 0
+    clip = np.fmod(nap, dt) # fit ni non-overlapping time segments after decimation
+    if clip > 0: # remove small amount of end data for equal segments
+        nap = nap-clip
+        v = v[:nap]
+
+    v = v.reshape((nap//dt, dt, nchan*nspec//df, df))
+    v = v.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
+    x = np.arange(v.shape[0])
+    y = np.arange(v.shape[1])
+    xm = np.arange(v.shape[0])+0.5
+    ym = np.arange(v.shape[0])+0.5
+    (xx, yy) = np.meshgrid(xm, ym)
+    vn = v / np.abs(v)
+    qx = vn.real
+    qy = vn.imag
+    plt.quiver(xx, yy, qx.T, qy.T, pivot='mid')
+    plt.xlim(0, v.shape[0])
+    plt.ylim(0, v.shape[1])
+    plt.grid()
+    ax = plt.gca()
+    plt.xticks(x)
+    plt.yticks(y)
+    plt.grid(ls='-', color='black', lw=2)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    for axi in (plt.gca().xaxis, plt.gca().yaxis):
+        for tic in axi.get_major_ticks():
+            tic.tick1On = tic.tick2On = False
+            tic.label1On = tic.label2On = False
+    plt.xlabel('time')
+    plt.ylabel('frequency')
+    plt.title('phase %s %s %s +%ds' % (p.baseline, p.source, p.timetag, p.T))
+    plt.setp(plt.gcf(), figwidth=8*p.T/420, figheight=5)
