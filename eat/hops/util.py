@@ -229,6 +229,7 @@ def params(b=None, pol=None):
             nspec: number of spectral points per channel in type_230 (usually double the original number)
             nlags: number of lags from type_202 (also probably double the original FX data)
             code: ffit_chan_id's for the channels in order (from type_205) a, b, c, ...
+            expt_no: HOPS 4-digit experiment number
             pol: baseline polarization product label e.g. LL
             sbd: single band residual delay average [us]
             mbd: multi band residual delay fitted value [us]
@@ -252,6 +253,7 @@ def params(b=None, pol=None):
             utc_centeral: from fringe file, probaby marks reference time for delay rate compensation
             scan_name: name of scan (various conventions)
             scantime: scantime, generally start time of scan
+            timetag: scantime in timetag format
     """
             
     if type(b) is str:
@@ -304,7 +306,8 @@ def params(b=None, pol=None):
         code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
-        scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
+        scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime),
+        timetag=util.dt2tt(mk4time(b.t200.contents.scantime)), expt_no=b.t200.contents.expt_no)
 
 # some unstructured channel info for quick printing
 def chaninfo(b=None):
@@ -606,24 +609,28 @@ def timeseries(bs, dt=1, pol=None):
         b = getfringefile(b, pol=pol)
         p = params(b)
         plt.subplot(nrow, 1, 1+i)
-        v = pop212(b).sum(axis=1) # stack over channels
+        v = pop212(b).mean(axis=1) # stack over channels
         nt = len(v)
         dt = min(dt, nt)
         nt = nt - np.fmod(nt, dt) # fit time segments after decimation
-        v = v[:nt].reshape((nt//dt, -1)).sum(axis=1) # clip to multiple of dt and stack
+        v = v[:nt].reshape((nt//dt, -1)).mean(axis=1) # clip to multiple of dt and stack
         t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1) + p.T/2.
         amp = np.abs(v)
         phase = np.angle(v)
         plt.plot(t, amp, 'b.-')
         plt.ylim(0, plt.ylim()[1])
-        plt.gca().set_yticklabels([])
+        # plt.gca().set_yticklabels([])
+        plt.ylabel('amp [1e-4]', color='blue')
         plt.twinx()
         plt.plot(t, phase, 'r.-')
         plt.ylim(-np.pi, np.pi)
-        plt.gca().set_yticklabels([])
+        # plt.gca().set_yticklabels([])
+        plt.ylabel('phase [rad]', color='red')
         putil.rmgaps(1e6, 2.0)
         plt.xlim(0, p.T)
-        plt.gca().add_artist(AnchoredText(p.baseline, loc=1, frameon=False, borderpad=0))
+        plt.xlabel('time [s]')
+        plt.gca().add_artist(AnchoredText(p.baseline + ' (' + p.pol + ')', loc=1, frameon=False, borderpad=0))
+        plt.gca().add_artist(AnchoredText(p.timetag + ' (' + p.source + ')', loc=2, frameon=False, borderpad=0))
     plt.setp(plt.gcf(), figwidth=8, figheight=2+nrow)
     plt.tight_layout()
     plt.subplots_adjust(hspace=0)
