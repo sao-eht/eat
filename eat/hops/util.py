@@ -1084,13 +1084,28 @@ if station %s and scan %s to %s
 """ % (row.site, start_tt, stop_tt, codes, delay_offs, delay)
     return cf
 
-def vecphase(ff, adhoc=True, dt=30, df=4, pol=None):
+# ff: fringe filename
+# adhoc: if true, apply on-the-fly adhoc corrections without freq slicing
+# dt: averaging time in AP
+# df: averaging num channels
+# pol: pol filter for ff wildcard
+# almaref: if ALMA not in ff, use ALMA to reference adhoc phases withou freq slicing
+def vecphase(ff, adhoc=True, dt=30, df=4, pol=None, almaref=True):
     b = hu.getfringefile(ff, quiet=True, pol=pol)
     p = hu.params(b)
     v = hu.pop212(b)
     if adhoc:
-        ah = hu.adhoc(ff)
-        ahrot = np.exp(-1j*ah.phase.mean(axis=1)*np.pi/180)
+        baseline = ff.split('/')[-1][:2]
+        if almaref and 'A' not in baseline:
+            p1 = hu.params('A' + baseline[0] + '*', pol=pol)
+            p2 = hu.params('A' + baseline[1] + '*', pol=pol)
+            ah1 = hu.adhoc('A' + baseline[0] + '*', pol=pol)
+            ah2 = hu.adhoc('A' + baseline[1] + '*', pol=pol)
+            ahrot = np.exp(-1j*(ah2.phase.mean(axis=1)-ah1.phase.mean(axis=1))*np.pi/180)
+            ahrot *= p.trot.conj() * p1.trot.conj() * p2.trot
+        else:
+            ah = hu.adhoc(ff)
+            ahrot = np.exp(-1j*ah.phase.mean(axis=1)*np.pi/180)
         v = v * ahrot[:,None]
     v = v * np.exp(-1j*np.angle(np.mean(v)))
     (nap, nchan, nspec) = (p.nap, p.nchan, 1)
@@ -1099,7 +1114,6 @@ def vecphase(ff, adhoc=True, dt=30, df=4, pol=None):
     if clip > 0: # remove small amount of end data for equal segments
         nap = nap-clip
         v = v[:nap]
-
     v = v.reshape((nap//dt, dt, nchan*nspec//df, df))
     v = v.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
     x = np.arange(v.shape[0])
