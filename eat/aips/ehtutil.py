@@ -75,7 +75,7 @@ def ehtfgout(indata, fgver=0):
     return outdata
 
 
-def ehtfgin(indata, fgtab, fgver=0, outfgver=-1, unflag=False):
+def ehtfgin(indata, fgtab, outfgver=-1, unflag=False):
     # Correct information from indata
     ants = indata.antennas
     srcs = indata.sources
@@ -107,11 +107,6 @@ def ehtfgin(indata, fgtab, fgver=0, outfgver=-1, unflag=False):
         task.echan = int(tab["echan"])
         task.bif = int(tab["bif"])
         task.eif = int(tab["eif"])
-        # fgver
-        if itab == 0:
-            task.fgver = fgver
-        else:
-            task.fgver = outfgver
         task.outfgver = outfgver
 
         # antennas
