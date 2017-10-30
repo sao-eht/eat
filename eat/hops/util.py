@@ -229,6 +229,7 @@ def params(b=None, pol=None):
             nspec: number of spectral points per channel in type_230 (usually double the original number)
             nlags: number of lags from type_202 (also probably double the original FX data)
             code: ffit_chan_id's for the channels in order (from type_205) a, b, c, ...
+            expt_no: HOPS 4-digit experiment number
             pol: baseline polarization product label e.g. LL
             sbd: single band residual delay average [us]
             mbd: multi band residual delay fitted value [us]
@@ -252,6 +253,7 @@ def params(b=None, pol=None):
             utc_centeral: from fringe file, probaby marks reference time for delay rate compensation
             scan_name: name of scan (various conventions)
             scantime: scantime, generally start time of scan
+            timetag: scantime in timetag format
     """
             
     if type(b) is str:
@@ -304,7 +306,8 @@ def params(b=None, pol=None):
         code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
-        scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
+        scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime),
+        timetag=util.dt2tt(mk4time(b.t200.contents.scantime)), expt_no=b.t200.contents.expt_no)
 
 # some unstructured channel info for quick printing
 def chaninfo(b=None):
@@ -606,24 +609,28 @@ def timeseries(bs, dt=1, pol=None):
         b = getfringefile(b, pol=pol)
         p = params(b)
         plt.subplot(nrow, 1, 1+i)
-        v = pop212(b).sum(axis=1) # stack over channels
+        v = pop212(b).mean(axis=1) # stack over channels
         nt = len(v)
         dt = min(dt, nt)
         nt = nt - np.fmod(nt, dt) # fit time segments after decimation
-        v = v[:nt].reshape((nt//dt, -1)).sum(axis=1) # clip to multiple of dt and stack
+        v = v[:nt].reshape((nt//dt, -1)).mean(axis=1) # clip to multiple of dt and stack
         t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1) + p.T/2.
         amp = np.abs(v)
         phase = np.angle(v)
         plt.plot(t, amp, 'b.-')
         plt.ylim(0, plt.ylim()[1])
-        plt.gca().set_yticklabels([])
+        # plt.gca().set_yticklabels([])
+        plt.ylabel('amp [1e-4]', color='blue')
         plt.twinx()
         plt.plot(t, phase, 'r.-')
         plt.ylim(-np.pi, np.pi)
-        plt.gca().set_yticklabels([])
+        # plt.gca().set_yticklabels([])
+        plt.ylabel('phase [rad]', color='red')
         putil.rmgaps(1e6, 2.0)
         plt.xlim(0, p.T)
-        plt.gca().add_artist(AnchoredText(p.baseline, loc=1, frameon=False, borderpad=0))
+        plt.xlabel('time [s]')
+        plt.gca().add_artist(AnchoredText(p.baseline + ' (' + p.pol + ')', loc=1, frameon=False, borderpad=0))
+        plt.gca().add_artist(AnchoredText(p.timetag + ' (' + p.source + ')', loc=2, frameon=False, borderpad=0))
     plt.setp(plt.gcf(), figwidth=8, figheight=2+nrow)
     plt.tight_layout()
     plt.subplots_adjust(hspace=0)
@@ -1076,3 +1083,62 @@ if station %s and scan %s to %s
     pc_delay_r %.4f
 """ % (row.site, start_tt, stop_tt, codes, delay_offs, delay)
     return cf
+
+# ff: fringe filename
+# adhoc: if true, apply on-the-fly adhoc corrections without freq slicing
+# dt: averaging time in AP
+# df: averaging num channels
+# pol: pol filter for ff wildcard
+# almaref: if ALMA not in ff, use ALMA to reference adhoc phases withou freq slicing
+def vecphase(ff, adhoc=True, dt=30, df=4, pol=None, almaref=True):
+    b = hu.getfringefile(ff, quiet=True, pol=pol)
+    p = hu.params(b)
+    v = hu.pop212(b)
+    if adhoc:
+        baseline = ff.split('/')[-1][:2]
+        if almaref and 'A' not in baseline:
+            p1 = hu.params('A' + baseline[0] + '*', pol=pol)
+            p2 = hu.params('A' + baseline[1] + '*', pol=pol)
+            ah1 = hu.adhoc('A' + baseline[0] + '*', pol=pol)
+            ah2 = hu.adhoc('A' + baseline[1] + '*', pol=pol)
+            ahrot = np.exp(-1j*(ah2.phase.mean(axis=1)-ah1.phase.mean(axis=1))*np.pi/180)
+            ahrot *= p.trot.conj() * p1.trot.conj() * p2.trot
+        else:
+            ah = hu.adhoc(ff)
+            ahrot = np.exp(-1j*ah.phase.mean(axis=1)*np.pi/180)
+        v = v * ahrot[:,None]
+    v = v * np.exp(-1j*np.angle(np.mean(v)))
+    (nap, nchan, nspec) = (p.nap, p.nchan, 1)
+    clip = 0
+    clip = np.fmod(nap, dt) # fit ni non-overlapping time segments after decimation
+    if clip > 0: # remove small amount of end data for equal segments
+        nap = nap-clip
+        v = v[:nap]
+    v = v.reshape((nap//dt, dt, nchan*nspec//df, df))
+    v = v.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
+    x = np.arange(v.shape[0])
+    y = np.arange(v.shape[1])
+    xm = np.arange(v.shape[0])+0.5
+    ym = np.arange(v.shape[0])+0.5
+    (xx, yy) = np.meshgrid(xm, ym)
+    vn = v / np.abs(v)
+    qx = vn.real
+    qy = vn.imag
+    plt.quiver(xx, yy, qx.T, qy.T, pivot='mid')
+    plt.xlim(0, v.shape[0])
+    plt.ylim(0, v.shape[1])
+    plt.grid()
+    ax = plt.gca()
+    plt.xticks(x)
+    plt.yticks(y)
+    plt.grid(ls='-', color='black', lw=2)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    for axi in (plt.gca().xaxis, plt.gca().yaxis):
+        for tic in axi.get_major_ticks():
+            tic.tick1On = tic.tick2On = False
+            tic.label1On = tic.label2On = False
+    plt.xlabel('time')
+    plt.ylabel('frequency')
+    plt.title('phase %s %s %s +%ds' % (p.baseline, p.source, p.timetag, p.T))
+    plt.setp(plt.gcf(), figwidth=8*p.T/420, figheight=5)
