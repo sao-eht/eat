@@ -113,13 +113,15 @@ def ehtfgin(indata, fgtab, outfgver=-1, unflag=False):
         ant1 = tab["ant1"].upper()
         ant2 = tab["ant2"].upper()
         if ant1 not in ants:
-            raise ValueError("Antenna %s is not in uvdata"%(ant1))
+            print("Antenna %s is not in uvdata"%(ant1))
+            continue
         else:
             for iant1 in np.arange(Nant):
                 if ant1 == ants[iant1]:
                     break
         if ant2 not in ants:
-            raise ValueError("Antenna %s is not in uvdata"%(ant2))
+            print("Antenna %s is not in uvdata"%(ant2))
+            continue
         else:
             for iant2 in np.arange(Nant):
                 if ant2 == ants[iant2]:
