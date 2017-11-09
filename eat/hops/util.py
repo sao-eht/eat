@@ -77,22 +77,26 @@ def getpolarization(f):
 def getfringefile(b=None, filelist=False, pol=None, quiet=False):
     if b is None and hasattr(getfringefile, 'last'): # try to run with the last
         return getfringefile('/'.join(getfringefile.last), filelist=filelist, pol=pol, quiet=quiet)
-    if type(b) is str:
-        files = glob.glob(b)
-        if len(files) == 0: # try harder to find file
-            tok = b.split('/')
-            last = getattr(getfringefile, 'last', [])
-            if len(tok) < len(last):
-                files = glob.glob('/'.join(last[:-len(tok)] + tok))
-        if len(files) == 0:
+    if hasattr(b, '__getitem__'):
+        if type(b) is str:
+            files = glob.glob(b)
+            if len(files) == 0: # try harder to find file
+                tok = b.split('/')
+                last = getattr(getfringefile, 'last', [])
+                if len(tok) < len(last):
+                    files = glob.glob('/'.join(last[:-len(tok)] + tok))
+        else:
+            import itertools
+            files = list(itertools.chain(*(getfringefile(bi, filelist=True, quiet=quiet) for bi in b)))
+        if(len(files) == 0 and not quiet):
             raise(Exception("cannot find file: %s or %s" % (b, '/'.join(last[:-len(tok)] + tok))))
         files = [f for f in files if '..' not in f] # filter out correlator files
         if pol is not None: # filter by polarization
-            files = [f for f in files if getpolarization(f) == pol]
-        if len(files) == 0:
+            files = [f for f in files if getpolarization(f) in set([pol] if type(pol) is str else pol)]
+        if(len(files) == 0 and not quiet):
             raise(Exception("cannot find file with polarization " + pol))
         if filelist:
-            return sorted(files)
+            return sorted(files) if len(files) > 0 else []
         files.sort(key=os.path.getmtime)
         getfringefile.last = files[-1].split('/')
         if not quiet:
@@ -843,14 +847,16 @@ class PDF(object):
 
 # grab the ps from type221, convert to pdf if possible
 # can chain multiple plots together with wildcard
-def fplot(b=None, pol=None, filelist=True):
+def fplot(b=None, pol=None, filelist=True, noauto=False):
     import subprocess
-    bs = getfringefile(b, pol=pol, filelist=filelist)
+    bs = getfringefile(b, pol=pol, filelist=filelist, quiet=True)
     if not hasattr(bs, '__len__'):
         bs = [bs,]
     pslist = []
     for b in bs:
-        b = getfringefile(b, pol=pol, filelist=False)
+        b = getfringefile(b, filelist=False, quiet=True)
+        if(noauto and b.t202.contents.baseline[0] == b.t202.contents.baseline[1]):
+            continue
         pslist.append(b.t221.contents.pplot)
     proc = subprocess.Popen("ps2pdf - -".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     # proc = subprocess.Popen("cat".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
@@ -1085,26 +1091,26 @@ if station %s and scan %s to %s
     return cf
 
 # ff: fringe filename
-# adhoc: if true, apply on-the-fly adhoc corrections without freq slicing
+# doadhoc: if true, apply on-the-fly adhoc corrections without freq slicing
 # dt: averaging time in AP
 # df: averaging num channels
 # pol: pol filter for ff wildcard
 # almaref: if ALMA not in ff, use ALMA to reference adhoc phases withou freq slicing
-def vecphase(ff, adhoc=True, dt=30, df=4, pol=None, almaref=True):
-    b = hu.getfringefile(ff, quiet=True, pol=pol)
-    p = hu.params(b)
-    v = hu.pop212(b)
-    if adhoc:
+def vecphase(ff, doadhoc=True, dt=30, df=4, pol=None, almaref=True):
+    b = getfringefile(ff, quiet=True, pol=pol)
+    p = params(b)
+    v = pop212(b)
+    if doadhoc:
         baseline = ff.split('/')[-1][:2]
         if almaref and 'A' not in baseline:
-            p1 = hu.params('A' + baseline[0] + '*', pol=pol)
-            p2 = hu.params('A' + baseline[1] + '*', pol=pol)
-            ah1 = hu.adhoc('A' + baseline[0] + '*', pol=pol)
-            ah2 = hu.adhoc('A' + baseline[1] + '*', pol=pol)
+            p1 = params('A' + baseline[0] + '*', pol=pol)
+            p2 = params('A' + baseline[1] + '*', pol=pol)
+            ah1 = adhoc('A' + baseline[0] + '*', pol=pol)
+            ah2 = adhoc('A' + baseline[1] + '*', pol=pol)
             ahrot = np.exp(-1j*(ah2.phase.mean(axis=1)-ah1.phase.mean(axis=1))*np.pi/180)
             ahrot *= p.trot.conj() * p1.trot.conj() * p2.trot
         else:
-            ah = hu.adhoc(ff)
+            ah = adhoc(ff)
             ahrot = np.exp(-1j*ah.phase.mean(axis=1)*np.pi/180)
         v = v * ahrot[:,None]
     v = v * np.exp(-1j*np.angle(np.mean(v)))
@@ -1114,6 +1120,11 @@ def vecphase(ff, adhoc=True, dt=30, df=4, pol=None, almaref=True):
     if clip > 0: # remove small amount of end data for equal segments
         nap = nap-clip
         v = v[:nap]
+    clipf = 0
+    clipf = np.fmod(nchan, df)
+    if clipf > 0:
+        nchan = nchan-clipf
+        v = v[:,:nchan]
     v = v.reshape((nap//dt, dt, nchan*nspec//df, df))
     v = v.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
     x = np.arange(v.shape[0])
