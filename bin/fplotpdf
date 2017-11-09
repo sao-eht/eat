@@ -9,11 +9,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument('fringefiles', help='fringefile[s] to plot', nargs='+')
 parser.add_argument('-p', '--polarization', type=str, default=None, help='select only polarization e.g. LL')
 parser.add_argument('-o', '--output', type=str, default='out.pdf', help='output filename.pdf')
+parser.add_argument('-na', '--no-auto', help='do not print autocorrelations', action="store_true")
 args = parser.parse_args()
 
 from eat.hops import util as hu
 
-pdf = hu.fplot(args.fringefiles, pol=args.polarization)
+pdf = hu.fplot(args.fringefiles, pol=args.polarization, noauto=args.no_auto)
 
 if args.output == '-':
     import sys
