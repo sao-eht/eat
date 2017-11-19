@@ -254,6 +254,9 @@ def params(b=None, pol=None):
             source: source name
             start: start datetime of processed segment
             stop: stop datetime of processed segment (marks end of last segment) 
+            startidx: start idx into type120 of processed APs
+            stopidx: stop idx into type120 of processed APs (not inclusive)
+            apfilter: boolean indexer for type120 of processed time
             utc_centeral: from fringe file, probaby marks reference time for delay rate compensation
             scan_name: name of scan (various conventions)
             scantime: scantime, generally start time of scan
@@ -290,6 +293,13 @@ def params(b=None, pol=None):
     ap = T / nap
     days0 = (start - datetime.datetime(start.year, 1, 1)).total_seconds() / 86400. # days since jan1
     days = days0 + (ap * np.arange(nap) + ap/2.)/86400. # days since jan1 of all AP center times
+    scanlength = b.t200.contents.stop_offset - b.t200.contents.start_offset
+    apfilter = np.zeros(int(1e-6 + scanlength/ap), dtype=bool)
+    startidx = int(1e-6 + ((start - mk4time(b.t200.contents.scantime)).total_seconds()
+                        - b.t200.contents.start_offset) / ap)
+    stopidx = int(1e-6 + ((stop - mk4time(b.t200.contents.scantime)).total_seconds()
+                       - b.t200.contents.start_offset) / ap)
+    apfilter[startidx:stopidx] = True
     dtvec = ap * np.arange(nap) - (T-ap)/2.
     trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate to first order
     # frequency matrix (channel, spectrum) and rotator
@@ -311,7 +321,8 @@ def params(b=None, pol=None):
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
         scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime),
-        timetag=util.dt2tt(mk4time(b.t200.contents.scantime)), expt_no=b.t200.contents.expt_no)
+        timetag=util.dt2tt(mk4time(b.t200.contents.scantime)), expt_no=b.t200.contents.expt_no, startidx=startidx, stopidx=stopidx,
+        apfilter=apfilter)
 
 # some unstructured channel info for quick printing
 def chaninfo(b=None):
