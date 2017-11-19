@@ -195,7 +195,7 @@ def pop120(b=None, pol=None, fill=0):
             # HOPS corel struct allocates empty pointers, then fills them according to correlator AP
             # the first correlator AP may be > 0, this non-zero AP corresponds to HOPS AP "0"
             specptr = c.index[idx].t120[j]
-            if specptr:
+            if(j < c.index[idx].ap_space and specptr):
                 q = (mk4.spectral*nspec).from_address(
                     ctypes.addressof(c.index[idx].t120[j].contents.ld))
                 # type230 frequeny order appears to be [---LSB--> LO ---USB-->]
