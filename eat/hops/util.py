@@ -18,11 +18,13 @@ from ..io import util
 import numpy as np
 from numpy.fft import fft2, fftfreq, fftshift # for fringe fitting
 try:
-	import mk4 # part of recent HOPS install, need HOPS ENV variables
+    import mk4 # part of recent HOPS install, need HOPS ENV variables
+    dfio = mk4.mk4io_load()
 except:
-	import warnings
-	warnings.warn("cannot import mk4 (did you run hops.bash?), mk4 file access will not work")
-	mk4 = None
+    import warnings
+    warnings.warn("cannot import mk4 (did you run hops.bash?), mk4 file access will not work")
+    mk4 = None
+    dfio = None
 import datetime
 import ctypes
 from argparse import Namespace
@@ -202,6 +204,8 @@ def pop120(b=None, pol=None, fill=0):
                 data120[i,j,:] = np.frombuffer(q, dtype=np.complex64, count=-1)
             else:
                 data120[i,j,:] = fill
+    # clear memory (until supported in mk4.py library)
+    dfio.clear_mk4corel(ctypes.byref(c))
     return data120
 
     return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags,
