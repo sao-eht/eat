@@ -63,7 +63,8 @@ def rewrap_mbd(df, mbd_ambiguity=None):
         mbd_ambiguity = df.ambiguity # if alist file does not contain sufficient precision
     df['mbdelay'] = np.remainder(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
 
-def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000010, rate_systematic=0.001, crosspol_systematic=0.):
+def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000010, sbd_systematic=0.000010,
+                 rate_systematic=0.001, crosspol_systematic=0.):
     """Add in place error to delay and rate fit from fourfit.
 
     This is re-derived and close in spirit to the code in fourfit/fill_208.c
@@ -80,15 +81,18 @@ def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000010, rate_syste
     Returns:
         additional columns *mbd_err* and *rate_err* added directly to original DataFrame
     """
+    nchan = pd.to_numeric(df.freq_code.str[1:])
+    sbw   = 1./pd.to_numeric(df.ambiguity) # bw of single channel
+    if df.version.iloc[0] < 6:
+        sbw = np.round(sbw) # account for lack of precision in alist v5 (round to MHz)
     if bw is None:
-        nchan = pd.to_numeric(df.freq_code.str[1:])
-        sbw   = 1./pd.to_numeric(df.ambiguity) # bw of single channel
-        if df.version.iloc[0] < 6:
-            sbw = np.round(sbw) # account for lack of precision in alist v5 (round to MHz)
         bw = nchan * sbw # assume contiguous channels, not always correct
     df['mbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * bw) # us
+    df['sbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * sbw) # us, for nchan measurements
     df['rate_err'] = 1e6 * np.sqrt(12) / (2*np.pi * df.ref_freq * df.snr * df.duration) # us/s -> ps/s
     df['mbd_err'] = np.sqrt(df['mbd_err']**2 + mbd_systematic**2 +
+                            crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
+    df['sbd_err'] = np.sqrt(df['sbd_err']**2 + sbd_systematic**2 +
                             crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
     df['rate_err'] = np.sqrt(df['rate_err']**2 + rate_systematic**2)
 
