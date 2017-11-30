@@ -40,6 +40,26 @@ showcol_v5 = "datetime timetag scan_id source baseline band polarization amp snr
 # parity columns which should be flipped if baseline is flipped
 flipcol_v5 = "phase_deg sbdelay mbdelay delay_rate u v ecphase delay_rate total_phas total_rate total_mbdelay total_sbresid".split()
 
+reversecol = "baseline polarization".split()
+flipcol = "resid_phas sbdelay mbdelay delay_rate u v total_phas total_rate total_mbdelay total_sbresid resid_delay mbd_unwrap".split()
+
+# flip in place rows of dataframe (baseline parity) depending on index labels or boolean index flipidx
+def flip(df, flipidx):
+    # handle string reversal
+    for col in reversecol:
+        if col in df.columns:
+            df.loc[flipidx,col] = df.loc[flipidx,col].str.reverse()
+    # handle sign flip (phases, delays, rates)
+    for col in flipcol:
+        if col in df.columns:
+            df.loc[flipidx,col] = -df.loc[flipidx,col]
+    # handle swap columns (ref with rem)
+    for col in df.columns:
+        if col[:3] == 'ref':
+            remcol = col.replace('ref', 'rem', 1)
+            if remcol in df.columns:
+                df.loc[flipidx,[col,remcol]] = df.loc[flipidx,[remcol,col]].values
+
 sites = """
 A ALMA
 X APEX
@@ -980,7 +1000,7 @@ class ControlFile(object):
     def __repr(self):
         return self.str()
 
-def wavg(x, sigma=1., col=None, w=None, robust=True):
+def wavg(x, sigma=1., col=None, w=None, robust=10.):
     """wavg: weighted average with error propagation
 
     Args:
@@ -989,7 +1009,7 @@ def wavg(x, sigma=1., col=None, w=None, robust=True):
         col: return Dict labels, for automatic naming of pandas columns under conversion
              col=(mean, [err], [chisq_r], [n_outliers])
         w: optional weights for averaging (otherwise 1/sigma**2)
-        robust: if True, remove 10-sigma outliers from median value before averaging
+        robust: if nonzero, remove [robust]-sigma outliers from median value before averaging
 
     Returns:
         OrderedDict of col=(mean, [err], [chisq_r], [n_outliers])
@@ -1003,7 +1023,7 @@ def wavg(x, sigma=1., col=None, w=None, robust=True):
         imin = np.argmin(merr)
         (merrmin, sigthr) = (merr[imin], sigsort[imin]) # at lowest median error
         median = np.median(x[sigma <= sigthr])
-        igood = np.abs((x-median)/np.sqrt(merrmin**2 + ssq)) < 10
+        igood = np.abs((x-median)/np.sqrt(merrmin**2 + ssq)) < robust
         (x, sigma, ssq) = (x[igood], sigma[igood], ssq[igood])
         noutliers = np.sum(~igood)
     if w is None:
