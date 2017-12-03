@@ -11,7 +11,10 @@ import pandas as pd
 try:
     assert(parse_version(pd.__version__) >= parse_version('0.15.1dev'))
 except:
-    print("pandas version too old")
+    if type(pd).__name__ == "_MockModule":
+        print("processed by autodoc; pandas version comparison failed")
+    else:
+        print("pandas version too old")
 import datetime
 import numpy as np
 import os
