@@ -249,42 +249,41 @@ def params(b=None, pol=None):
         pol: polarization to look for if filename pattern is given (see getfringe)
 
     Returns:
-        Namespace with parameters:
-            name: fringe file path from datadir
-            ref_freq: reference frequency in MHz
-            nchan: number of channels (processed)
-            nap: number of accumulation periods (processed)
-            nspec: number of spectral points per channel in type_230 (usually double the original number)
-            nlags: number of lags from type_202 (also probably double the original FX data)
-            code: ffit_chan_id's for the channels in order (from type_205) a, b, c, ...
-            expt_no: HOPS 4-digit experiment number
-            pol: baseline polarization product label e.g. LL
-            sbd: single band residual delay average [us]
-            mbd: multi band residual delay fitted value [us]
-            delay: unwrapped mbd [us]
-            rate: residual delay rate [us/s]
-            amplitude: correlation coefficient estimate [10^-4]
-            snr: signal-to-noise of scan-average visibility amplitude
-            T: processed time [s]
-            ap: accumulation period spacing [s]
-            days: days since Jan 1 00:00:00 UT of each processed AP center time
-            dtvec: a time vector dictionary by visib type with zero centered in middle of processed time
-            dfvec: a frequency vector by visib type with zero at ref_freq
-            trot: time rotators to rotate out fringe solution
-            fedge: frequency edge of each channel
-            bw: bandwidth of all channels as derived as best as possible from sample frequency info
-            foffset: offset of middle of channel from channel edge
-            baseline: baseline code
-            source: source name
-            start: start datetime of processed segment
-            stop: stop datetime of processed segment (marks end of last segment) 
-            startidx: start idx into type120 of processed APs
-            stopidx: stop idx into type120 of processed APs (not inclusive)
-            apfilter: boolean indexer for type120 of processed time
-            utc_centeral: from fringe file, probaby marks reference time for delay rate compensation
-            scan_name: name of scan (various conventions)
-            scantime: scantime, generally start time of scan
-            timetag: scantime in timetag format
+        name: fringe file path from datadir
+        ref_freq: reference frequency in MHz
+        nchan: number of channels (processed)
+        nap: number of accumulation periods (processed)
+        nspec: number of spectral points per channel in type_230 (usually double the original number)
+        nlags: number of lags from type_202 (also probably double the original FX data)
+        code: ffit_chan_id's for the channels in order (from type_205) a, b, c, ...
+        expt_no: HOPS 4-digit experiment number
+        pol: baseline polarization product label e.g. LL
+        sbd: single band residual delay average [us]
+        mbd: multi band residual delay fitted value [us]
+        delay: unwrapped mbd [us]
+        rate: residual delay rate [us/s]
+        amplitude: correlation coefficient estimate [10^-4]
+        snr: signal-to-noise of scan-average visibility amplitude
+        T: processed time [s]
+        ap: accumulation period spacing [s]
+        days: days since Jan 1 00:00:00 UT of each processed AP center time
+        dtvec: a time vector dictionary by visib type with zero centered in middle of processed time
+        dfvec: a frequency vector by visib type with zero at ref_freq
+        trot: time rotators to rotate out fringe solution
+        fedge: frequency edge of each channel
+        bw: bandwidth of all channels as derived as best as possible from sample frequency info
+        foffset: offset of middle of channel from channel edge
+        baseline: baseline code
+        source: source name
+        start: start datetime of processed segment
+        stop: stop datetime of processed segment (marks end of last segment) 
+        startidx: start idx into type120 of processed APs
+        stopidx: stop idx into type120 of processed APs (not inclusive)
+        apfilter: boolean indexer for type120 of processed time
+        utc_centeral: from fringe file, probaby marks reference time for delay rate compensation
+        scan_name: name of scan (various conventions)
+        scantime: scantime, generally start time of scan
+        timetag: scantime in timetag format
     """
             
     if type(b) is str:
