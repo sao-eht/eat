@@ -1186,7 +1186,8 @@ def save_uvfits(datastruct, fname):
         print scan_arr[-1]
         print round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT)
         print jj, len(jds), round(jds[jj], ROUND_SCAN_INT)
-        raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
+        print("WARNING!!!: in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
+        #raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
 
     time_nx = fits.Column(name="TIME", format="1E", unit='DAYS', array=np.array(scan_times))
     timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", unit='DAYS', array=np.array(scan_time_ints))
