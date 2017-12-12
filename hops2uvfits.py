@@ -1,5 +1,9 @@
+#!/usr/bin/env python
+
 #hops2uvfits.py
 #take data from all fringe files in a directory and put them in a uvfits file
+
+
 import numpy as np
 import mk4 # part of recent HOPS install, need HOPS ENV variables
 import datetime
@@ -1314,14 +1318,14 @@ if __name__=='__main__':
         print("usage: hops2uvfits.py datadir \n" + 
               "options: \n" +
               "   --outdir outdir : specifiy output directory for uvfits files \n" +
-              "   --ident : specify identifying tag for uvfits files \n"
+              "   --ident : specify identifying for uvfits files \n"
               "   --skip_bl : specify to skip step of recomputing individual basline files \n" + 
               "   --clean : specify to remove individual baseline files after they are merged \n" + 
               "   --rot_rate : specify to remove rate solution in fringe files \n" + 
               "   --rot_delay : specify to remove delay rate solution in fringe files \n" + 
               "   --uv : specify to recompute uv points \n"
              )
-        return
+        sys.exit()
 
 
     recompute_bl_fits = True

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 #hops2uvfits.py
 #take data from all fringe files in a directory and put them in a uvfits file
 import numpy as np
@@ -369,7 +371,7 @@ if __name__=='__main__':
               "   --ident : specify identifying tag for uvfits files \n"
               "   --interp : specify interpolation order \n" + 
               "   --no-extrapolate : specify to not calibrate outside interval in cal tables")
-        return
+        sys.exit()
 
     extrapolate = True
     if "--no-extrapolate" in sys.argv: extrapolate = None
