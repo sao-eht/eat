@@ -1115,13 +1115,35 @@ def doff2cf(row, nchan=32):
     start_tt = util.dt2tt(datetime.datetime.strptime(str(row.start), fmt) - onesec)
     stop_tt =  util.dt2tt(datetime.datetime.strptime(str(row.stop), fmt) + onesec)
     codes = lex[:nchan]
-    delay = -row.LR_delay * 1e3 # convert from us to ns
+    delay = -row.LR_delay * 1e3 # convert from us to ns, undo measured R-L
     delay_offs = ' '.join(["%.4f" % delay] * nchan)
     cf = """
 if station %s and scan %s to %s
     delay_offs_r %s %s
     pc_delay_r %.4f
 """ % (row.site, start_tt, stop_tt, codes, delay_offs, delay)
+    return cf
+
+# function to create control codes from ALMA SBD-MBD offset measurement where ALMA is ref station
+def sbdmbd2cf(row):
+    """sbdmbd2cf: convert MBD-SBD table row to control file codes for ALMA
+
+    Args:
+        row: delay offsets code
+
+    Returns:
+        control file codes (str)
+    """
+    import datetime
+    fmt = "%Y-%m-%d %H:%M:%S"
+    onesec = datetime.timedelta(seconds=1)
+    # some padding on start and stop times
+    start_tt = util.dt2tt(datetime.datetime.strptime(str(row.start), fmt) - onesec)
+    stop_tt =  util.dt2tt(datetime.datetime.strptime(str(row.stop), fmt) + onesec)
+    pol = row.polarization[0].lower()
+    delay = row.sbdmbd * 1e3 # convert from us to ns, measured on REF station (A)
+    cf = """if station %s and scan %s to %s pc_delay_%s %.4f
+""" % ('A', start_tt, stop_tt, pol, delay)
     return cf
 
 # ff: fringe filename

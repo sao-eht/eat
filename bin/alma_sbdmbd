@@ -149,10 +149,8 @@ else:
 
 if args.controlcodes:
     out.write('* ' + statline + '\n')
-    cflines = offs.apply(hu.doff2cf, axis=1)
-    out.write(''.join(cflines))
-    # we need the SBD offset, which is to be subtracted from the SBD
-    out.write('\nif station A\n    delay_offs ' + hu.lex[:args.nchan] + ''.join([" %.4f" % -args.alma_offset] * args.nchan) + '\n')
+    cflines = stats.apply(hu.sbdmbd2cf, axis=1)
+    out.write('\n' + ''.join(cflines))
 else:
     stats.reset_index()["start stop baseline polarization sbdmbd sbdmbd_err".split()].to_csv(out, float_format='%+9.7f', index=False)
 
