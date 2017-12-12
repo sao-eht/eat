@@ -22,9 +22,9 @@ from hops2uvfits import *
 
 # For Andrew:
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
-CALDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/SEFDs/SEFD_LO/3601' 
-DATADIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-lo/6.uvfits_new/3601' 
-OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-lo/7.apriorical'
+CALDIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/eat/SEFDs/SEFD_HI/3601'
+DATADIR_DEFAULT =  '/Users/klbouman/Research/vlbi_imaging/software/hops/tmpout2' #'/Users/klbouman/Research/vlbi_imaging/software/hops/er1-hops-hi/6.uvfits/3601'
+OUTDIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/tmpout'
 
 #conversion factors and data types
 station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR'}
@@ -152,8 +152,8 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
                 lscale = lscale**.5
             datatable.append(np.array((time, rscale, lscale), dtype=DTCAL))
             #ANDREW HACKY WAY TO MAKE IT WORK WITH ONLY ONE ENTRY
-            #if onerowonly:
-            #    datatable.append(np.array((1.1*time, rscale, lscale), dtype=DTCAL))
+            if onerowonly:
+                datatable.append(np.array((1.1*time, rscale, lscale), dtype=DTCAL))
 
         datatables[site] = np.array(datatable)
 
@@ -196,6 +196,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             continue
 
         time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
+        
         rinterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['rscale'],
                                                    kind=interp, fill_value=fill_value)
         linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'],

@@ -21,8 +21,8 @@ import numpy.matlib
 
 # For Andrew:
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
-DATADIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-lo/5.+close/data/3601' 
-OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-lo/testuvfits'
+DATADIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/er1-hops-hi/5.+close/data/3601' 
+OUTDIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/tmpout2'
 
 # For Katie
 #DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
