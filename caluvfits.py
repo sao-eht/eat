@@ -135,7 +135,7 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
 
             time = (float(row[0]) - mjd) * 24.0 # time is given in mjd
 
-             # Maciek's old convention had a square root
+ #            # Maciek's old convention had a square root
  #           rscale = np.sqrt(float(row[1])) # r
  #           lscale = np.sqrt(float(row[2])) # l
 
@@ -324,7 +324,8 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
 ################################################################################################################################## 
-def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT, interp='linear', extrapolate=True, ident=''):
+def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT, 
+         interp='linear', extrapolate=True, ident='',sqrt_gains=False):
     
     print "********************************************************"
     print "*********************CALUVFITS**************************"
@@ -342,7 +343,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
         datastruct_ehtim = load_and_convert_hops_uvfits(uvfitsfile)
         source = datastruct_ehtim.obs_info.src
         tarr = datastruct_ehtim.antenna_info
-        caltable = load_caltable_ds(datastruct_ehtim, caldir)
+        caltable = load_caltable_ds(datastruct_ehtim, caldir,sqrt_gains=sqrt_gains)
         if caltable==False:
             print "couldn't find caltable in " + caldir + " for " + source + "!!"
             continue
@@ -370,11 +371,15 @@ if __name__=='__main__':
               "   --outdir outdir : specifiy output directory for calibrated files \n" +
               "   --ident : specify identifying tag for uvfits files \n"
               "   --interp : specify interpolation order \n" + 
-              "   --no-extrapolate : specify to not calibrate outside interval in cal tables")
+              "   --no-extrapolate : specify to not calibrate outside interval in cal tables \n"
+              "   --sqrt_gains : specify to take sqrt of gains before applying")
         sys.exit()
 
     extrapolate = True
     if "--no-extrapolate" in sys.argv: extrapolate = None
+
+    sqrt_gains = False
+    if "--sqrt_gains" in sys.argv: sqrt_gains = True
 
     interp = "linear"
     if "--interp" in sys.argv: 
@@ -401,4 +406,4 @@ if __name__=='__main__':
     else:
         outdir = OUTDIR_DEFAULT
 
-    main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate)
+    main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate,sqrt_gains=sqrt_gains)
