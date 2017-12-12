@@ -27,6 +27,12 @@ CALDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/SEFDs/SEFD_HI/
 DATADIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/6.uvfits_new/'+DAY
 OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/7.apriorical'
 
+#For Katie
+#CALDIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/eat/SEFDs/SEFD_HI/3601'
+#DATADIR_DEFAULT =  '/Users/klbouman/Research/vlbi_imaging/software/hops/tmpout2' #'/Users/klbouman/Research/vlbi_imaging/software/hops/er1-hops-hi/6.uvfits/3601'
+#OUTDIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/tmpout'
+
+
 #conversion factors and data types
 station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR'}
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
@@ -151,7 +157,11 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
             if sqrt_gains:
                 rscale = rscale**.5
                 lscale = lscale**.5
-            datatable.append(np.array((time, rscale, lscale), dtype=DTCAL))
+            #ANDREW THERE ARE ZERO VALS IN THE CALTABLE
+            if rscale==0. and lscale==0.:
+                continue
+            else:
+                datatable.append(np.array((time, rscale, lscale), dtype=DTCAL))
             #ANDREW HACKY WAY TO MAKE IT WORK WITH ONLY ONE ENTRY
             if onerowonly:
                 datatable.append(np.array((1.1*time, rscale, lscale), dtype=DTCAL))
@@ -197,6 +207,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             continue
 
         time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
+        
         rinterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['rscale'],
                                                    kind=interp, fill_value=fill_value)
         linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'],
