@@ -366,6 +366,7 @@ if __name__=='__main__':
               "options: \n" +
               "   --caldir caldir : specify directory with cal tables \n" + 
               "   --outdir outdir : specifiy output directory for calibrated files \n" +
+              "   --ident : specify identifying tag for uvfits files \n"
               "   --interp : specify interpolation order \n" + 
               "   --no-extrapolate : specify to not calibrate outside interval in cal tables")
         return
