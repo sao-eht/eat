@@ -149,7 +149,7 @@ else:
 
 if args.controlcodes:
     out.write('* ' + statline + '\n')
-    cflines = stats.apply(hu.sbdmbd2cf, axis=1)
+    cflines = stats.reset_index().apply(hu.sbdmbd2cf, axis=1)
     out.write('\n' + ''.join(cflines))
 else:
     stats.reset_index()["start stop baseline polarization sbdmbd sbdmbd_err".split()].to_csv(out, float_format='%+9.7f', index=False)
