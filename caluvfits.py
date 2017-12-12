@@ -1,6 +1,5 @@
 #hops2uvfits.py
 #take data from all fringe files in a directory and put them in a uvfits file
- 
 import numpy as np
 import mk4 # part of recent HOPS install, need HOPS ENV variables
 import datetime
@@ -17,7 +16,6 @@ from astropy.time import Time
 import numpy.matlib
 import scipy.interpolate
 import itertools as it
-
 from hops2uvfits import *
 
 # For Andrew:
@@ -87,7 +85,7 @@ class Caltable(object):
         self.data = datatables
 
     def copy(self):
-        """Copy the observation object.
+        """Copy the caltable object.
 
            Args:
 
@@ -163,7 +161,6 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
         caltable=False
     return caltable
 
-
 def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=None):
     """apply a calibration table to a uvfits file
        Args:
@@ -231,7 +228,6 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
 #        if force_singlepol == 'R':
 #            lscale1 = rscale1
 #            lscale2 = rscale2
-
 #        if force_singlepol == 'L':
 #            rscale1 = lscale1
 #            rscale2 = lscale2
@@ -323,13 +319,11 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     save_uvfits(datastruct_out, filename_out)
     return 
 
-
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
 ################################################################################################################################## 
 def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT, interp='linear', extrapolate=True, ident=''):
     
-
     print "********************************************************"
     print "*********************CALUVFITS**************************"
     print "********************************************************"
@@ -361,12 +355,20 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
     print
     return 0
  
-
 if __name__=='__main__':
     if len(sys.argv) == 1: 
         datadir = DATADIR_DEFAULT
     else: datadir = sys.argv[-1]
     if datadir[0] == '-': datadir=DATADIR_DEFAULT
+
+    if ("-h" in sys.argv) or ("--h" in sys.argv):
+        print("usage: caluvfits.py datadir \n" + 
+              "options: \n" +
+              "   --caldir caldir : specify directory with cal tables \n" + 
+              "   --outdir outdir : specifiy output directory for calibrated files \n" +
+              "   --interp : specify interpolation order \n" + 
+              "   --no-extrapolate : specify to not calibrate outside interval in cal tables")
+        return
 
     extrapolate = True
     if "--no-extrapolate" in sys.argv: extrapolate = None
