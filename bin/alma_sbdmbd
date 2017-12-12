@@ -1,0 +1,158 @@
+#!/usr/bin/env python
+
+# measure and correct for the ALMA MBD-SBD offset using pc_delay
+# requires access to type_120 data, uses alist path to determine data location
+# 2017-11-29 Lindy Blackburn
+
+from eat.io import hops, util
+from eat.hops import util as hu
+import pandas as pd
+import numpy as np
+import sys
+import re
+import argparse
+import os
+import datetime
+import pwd
+import itertools
+import multiprocessing as mp
+def parmap(df, func):
+    df_split = np.array_split(df, mp.cpu_count())
+    pool = mp.Pool(mp.cpu_count())
+    df2 = pd.concat(pool.map(func, df_split))
+    pool.close()
+    pool.join()
+    return df2
+
+# logging
+statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(), ' '.join(sys.argv))
+
+parser = argparse.ArgumentParser()
+parser.add_argument('filename', help='alist txt file')
+parser.add_argument('-d', '--datadir', help='hops datadir, default to alist location', dest='datadir', nargs='?', default=None)
+parser.add_argument('-n', '--nchan', help='number of channels', nargs='?', type=int, default=None)
+parser.add_argument('-o', '--outfile', help='output csv filename', type=str, default=None)
+parser.add_argument('-c', '--controlcodes', help='construct control codes rather than csv table', action='store_true', default=False)
+args = parser.parse_args()
+
+# read alist file (autodetect version 5 or 6)
+a = util.noauto(hops.read_alist(args.filename))
+
+# assume alist is produced in data directory if not given
+hu.set_datadir(args.datadir or (os.path.dirname(args.filename) or '.'))
+
+# use only 31 channels for high band data (polconvert issue)
+nchan = args.nchan or (31 if a.iloc[0].ref_freq > 228000. else 32)
+
+# fit poly of degree to phase of v
+def fitpoly(f, v, deg=2, split=None):
+    from scipy.optimize import fmin
+    df = f - np.mean(f) # center at df=0
+    frot = .00725*2*np.pi*df
+    guess = np.zeros(deg+1)
+    guess[-2:] = (-.00725*2*np.pi, np.angle(np.sum(v*1j*frot))) # 1st order
+    def vmag(par, *s):
+        phase = np.polyval(par, df[s])
+        vrot = v[s] * np.exp(-1j * phase)
+        return -np.real(np.sum(vrot))
+    res = fmin(vmag, guess, disp=False, xtol=0.00001, ftol=0.00001, maxiter=1000)
+    return res
+
+# get delay offsets from dataframe e
+def doffcalc(e, lastchan=nchan):
+    tdph = [] # phase differences
+    toff = [] # effective mean delay offset [ns]
+    tstd = [] # std of phase differences
+    for row in e.itertuples():
+        try:
+            ff = hu.getfringefile(row.path, quiet=True)
+            v120 = hu.pop120(ff)[:lastchan]
+            v212 = hu.pop212(ff)[:,:lastchan]
+            p = hu.params(ff)
+            freq = p.foffset[120][:lastchan]
+            # phase in time, need to use prior to adhoc phases
+            ah = (v212.sum(axis=1) / np.abs(v212.sum(axis=1))).conj()
+            v120b = ah[None,:,None] * p.trot[None,:,None] * p.frot[120][:lastchan,None,:] * v120[:,p.apfilter,:]
+            # plt.plot(np.unwrap(np.angle(v120b.sum(axis=-1).sum(axis=0))))
+            ph = np.angle(v120b.sum(axis=1))
+            coeff = []
+            for i in range(len(freq)):
+                coeff.append(fitpoly(freq[i], v120b[i].sum(axis=0)))
+            deltaf = [np.polyval(coeff[i+1], -58.59375/2.) - np.polyval(coeff[i], 58.59375/2.)
+                        for i in range(len(freq)-1)]
+            deltaf = np.remainder(np.array(deltaf), 2*np.pi)
+            toff.append(np.mean(deltaf) / (2*np.pi * 58.59375))
+            ftot = np.cumsum(deltaf)[1:] # offset applied to each channel
+            # this ends up being a noiser estimate
+            fpre = np.mean(deltaf) * np.arange(len(ftot)) # predicted linear trend
+            # tstd.append(np.std(fpre - ftot - ftot[0])*180/np.pi) # std of deviations from linear trend
+            tstd.append(np.std(deltaf) * 180/np.pi)
+            tdph.append(deltaf)
+        except:
+            tdph.append(np.zeros(lastchan-1) * np.nan)
+            toff.append(np.nan)
+            tstd.append(np.nan)
+    e['tdph'] = tdph
+    e['toff'] = toff
+    e['tstd'] = tstd
+    return e
+
+# restarts[site] = [pd.Timestamp list of clock resets]
+# assume additional clock reset at 21:00 UT for all sites
+def sbdmbd_segmented(a, restarts={}, start='2017-04-04 21:00:00', stop='2017-04-12 21:00:00'):
+    """
+    Args:
+        a: dataframe from alist file with rates and delays, delay errors are added if missing
+        restarts: special times in which to segment certain stations
+        start: start time for establishing day boundaries (default '2017-04-04 21:00:00')
+        stop: stop time for establishing day boundaries (default '2017-04-12 21:00:00')
+    """
+    import itertools
+    import pandas as pd
+    b = a.copy()
+    util.add_delayerr(b, mbd_systematic=3e-6/32) # used to estimate error on sbd
+    g = b.groupby('baseline')
+    drange = list(pd.date_range(start, stop))
+    for (bl, rows) in g:
+        # segments for baseline, adding in any known restarts for either site
+        tsbounds = sorted(set(
+            itertools.chain(drange, restarts.get(bl[0], []), restarts.get(bl[1], []))))
+        # leaving this as CategoryIndex (no "get_values") results in slow pivot_table
+        # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
+        # probably pass aggfunc='first' to handle non-numeric types
+        b.loc[rows.index, 'segment'] = pd.cut(
+            rows.datetime, tsbounds, right=False, labels=None).get_values()
+    # convert segment to start, stop values since only 1D objects supported well in pandas
+    # for indexing, lose meta-info about right or left closed segment -- too bad
+    b['start'] = b.segment.apply(lambda x: x.left)
+    b['stop'] = b.segment.apply(lambda x: x.right)
+    b['toff_err'] = 32 * b.mbd_err # factor of 32 to get back to SBD error
+    p = b.pivot_table(aggfunc='first',
+        index=['expt_no', 'start', 'stop', 'timetag', 'scan_id', 'source', 'baseline', 'polarization'],
+        values=['toff', 'toff_err'])
+    toff_stats = p.groupby(['start', 'stop', 'baseline', 'polarization']).apply(lambda df:
+        pd.Series(hu.wavg(df.toff, df.toff_err,
+                       col=['sbdmbd', 'sbdmbd_err', 'sbdmbd_x2', 'sbdmbd_nout'])))
+    toff_stats['sbdmbd_nout'] = toff_stats.sbdmbd_nout.astype(int)
+    return((p.sort_index(), toff_stats))
+
+b = a[a.baseline.str.contains('AX') & (a.snr > 50) & ~a.polarization.isin({'RL', 'LR'})].copy()
+util.add_path(b)
+c = parmap(b, doffcalc)
+
+(p, stats) = sbdmbd_segmented(c)
+
+if args.outfile == None:
+    out = sys.stdout
+else:
+    out = open(args.outfile, 'w')
+
+if args.controlcodes:
+    out.write('* ' + statline + '\n')
+    cflines = offs.apply(hu.doff2cf, axis=1)
+    out.write(''.join(cflines))
+    # we need the SBD offset, which is to be subtracted from the SBD
+    out.write('\nif station A\n    delay_offs ' + hu.lex[:args.nchan] + ''.join([" %.4f" % -args.alma_offset] * args.nchan) + '\n')
+else:
+    stats.reset_index()["start stop baseline polarization sbdmbd sbdmbd_err".split()].to_csv(out, float_format='%+9.7f', index=False)
+
