@@ -801,11 +801,24 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         window_length: odd integer length of scipy.signal.savgol_filter applied to data for smoothing (default=7)
         polyorder: order of piecewise smoothing polynomial (default=3)
         snr: manually set SNR to auto determine window_length and polyorder, else take from fringe file
-        ref: 0 (first site), 1 (second site), or station letter (e.g. A)
+        ref: 0 (first site), 1 (second site), or station letter (e.g. A). if ref=0, adhoc phase estimates baseline phase
         prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
         timeoffset: add timeoffset [units of AP] to each timestamp in the adhoc string
         snrdof: target signal-to-noise per degree-of-freedom in adhoc solution (higher is smoother)
         roundrobin: True to use frequency-slicing round-robing training to avoid self-tuning
+
+    Returns:
+        v: visibility vector from which adhoc phase is estimated (not normalized)
+        vcorr: corrected visibility (adhoc phase removed)
+        phase: estimated baseline phase in degrees
+        code: params code (params and control file statements returned if sent mk4 object)
+        days: params days vector (note this does not account for fourfit adhoc indexing bug)
+        scan_name: params scan_name
+        scantime: params scantime
+        scantimetag: time-tag of start time
+        filename: filename of adhoc phase file
+        cfcode: fourfit control file lines
+        string: adhoc file contents as string
     """
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
@@ -863,16 +876,19 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
                 im = np.zeros_like(vtemp.imag)
             vchop[:,i] = re + parity*1j*im
             phase[:,i] = parity * np.unwrap(np.arctan2(im, re)) * 180./np.pi
-    else:
+    else: # no round-robin, may self-tune but avoid bandpass systematics
         vtemp = vfull
         try:
             re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
             im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
         except:
+            warnings.warn("failed to fit adhoc phases" + " to %s" % b.name if type(b) is mk4.mk4_fringe else '')
             re = np.ones_like(vtemp.real)
             im = np.zeros_like(vtemp.imag)
         vchop[:,:] = re[:,None] + parity*1j*im[:,None]
         phase[:,:] = parity * np.unwrap(np.arctan2(im[:,None], re[:,None])) * 180./np.pi
+
+    vcorr = v * (vchop.conj() if parity==1 else vchop) / np.abs(vchop)
 
     if type(b) is mk4.mk4_fringe:
         timetag = p.scantime.strftime("%j-%H%M%S")
@@ -886,10 +902,10 @@ if station %s and scan %s
 """ % (rem, timetag, adhoc_filename, ''.join(p.code))
         string = '\n'.join(("%.10f " % (timeoffset/86400. + day) + np.array_str(-ph, precision=3, max_line_width=1e6)[1:-1]
             for (day, ph) in zip(p.days, phase))) # note adhoc phase file needs sign flip, i.e. phase to be added to data
-        return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, scan_name=p.scan_name, scantime=p.scantime,
+        return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, vcorr=vcorr, scan_name=p.scan_name, scantime=p.scantime,
                          scantimetag=timetag, filename=adhoc_filename, cfcode=cf, string=string)
     else:
-        return Namespace(v=vchop, phase=phase)
+        return Namespace(v=vchop, phase=phase, vcorr=vcorr)
 
 # helper class for embedded PDF in ipython notebook
 class PDF(object):
