@@ -785,9 +785,10 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10.):
+def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10., roundrobin=True):
     """
     create ad-hoc phases from fringe file (type 212)
+    assume a-priori phase bandpass and fringe rotation (delay) has been applied
     use round-robin training/evaluation to avoid self-tuning bias
     some SNR-based selection of averaging timescale is done to tune Sav-Gol filter
     compensate for delay-rate rotator bias for frequencies away from reference frequency (not done)
@@ -804,6 +805,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
         timeoffset: add timeoffset [units of AP] to each timestamp in the adhoc string
         snrdof: target signal-to-noise per degree-of-freedom in adhoc solution (higher is smoother)
+        roundrobin: True to use frequency-slicing round-robing training to avoid self-tuning
     """
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
@@ -838,22 +840,39 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     nfit = max(1, int((snr / snrdof)**2)) # number of parameters we might be able to fit
     # qualitative behavior of fit depends primarily on window_length/polyorder which sets
     # timescale for free parameters. actual poly degree doesn't matter as much.
+    # savgol constraints: polyorder < window_length, window_length is positive odd integer
     if polyorder is None:
-        polyorder = min(nfit, 3)
+        polyorder = min(nfit, 2)
     if window_length is None:
-        window_length = 1+2*max(3, int(0.5 + float(nap * polyorder) / float(nfit) / 2.))
+        window_length = 1+2*max(1, int(0.5 + float(nap * polyorder) / float(nfit) / 2.))
+    if window_length > nap:
+        window_length = 1+2*((nap-1)//2)
+    if polyorder >= window_length:
+        polyorder = max(0, window_length-1)
 
-    for i in range(nchan): # i is the channel to exclude in fit
-        # remove evaluation channel
-        vtemp = vfull - v[:,i]
+    if roundrobin: # apply round-robin training to avoid self-tuning
+        for i in range(nchan): # i is the channel to exclude in fit
+            # remove evaluation channel
+            vtemp = vfull - v[:,i]
+            try:
+                re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
+                im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
+            except:
+                warnings.warn("failed to fit adhoc phases" + " to %s" % b.name if type(b) is mk4.mk4_fringe else '')
+                re = np.ones_like(vtemp.real)
+                im = np.zeros_like(vtemp.imag)
+            vchop[:,i] = re + parity*1j*im
+            phase[:,i] = parity * np.unwrap(np.arctan2(im, re)) * 180./np.pi
+    else:
+        vtemp = vfull
         try:
             re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
             im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
         except:
             re = np.ones_like(vtemp.real)
             im = np.zeros_like(vtemp.imag)
-        vchop[:,i] = re + parity*1j*im
-        phase[:,i] = parity * np.unwrap(np.arctan2(im, re)) * 180./np.pi
+        vchop[:,:] = re[:,None] + parity*1j*im[:,None]
+        phase[:,:] = parity * np.unwrap(np.arctan2(im[:,None], re[:,None])) * 180./np.pi
 
     if type(b) is mk4.mk4_fringe:
         timetag = p.scantime.strftime("%j-%H%M%S")
@@ -870,7 +889,7 @@ if station %s and scan %s
         return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, scan_name=p.scan_name, scantime=p.scantime,
                          scantimetag=timetag, filename=adhoc_filename, cfcode=cf, string=string)
     else:
-        return Namespace(v=vchop)
+        return Namespace(v=vchop, phase=phase)
 
 # helper class for embedded PDF in ipython notebook
 class PDF(object):
