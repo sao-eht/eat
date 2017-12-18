@@ -23,7 +23,7 @@ statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist txt file')
 parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=2e-6)
-parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
+parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-4)
 # start with large 2ns delay systematic for delayed leakage, more realistic (2017) on-fringe systematic error is ~20ps
 # the large error will effectively drive solution by parallel hands
 parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=2e-3)
