@@ -267,7 +267,7 @@ def params(b=None, pol=None):
         T: processed time [s]
         ap: accumulation period spacing [s]
         days: days since Jan 1 00:00:00 UT of each processed AP center time
-        dtvec: a time vector dictionary by visib type with zero centered in middle of processed time
+        dtvec: a time vector with zero at utc_central (time reference for scan)
         dfvec: a frequency vector by visib type with zero at ref_freq
         trot: time rotators to rotate out fringe solution
         fedge: frequency edge of each channel
@@ -323,7 +323,7 @@ def params(b=None, pol=None):
     stopidx = int(1e-6 + ((stop - mk4time(b.t200.contents.scantime)).total_seconds()
                        - b.t200.contents.start_offset) / ap)
     apfilter[startidx:stopidx] = True
-    dtvec = ap * np.arange(nap) - (T-ap)/2.
+    dtvec = ap*np.arange(nap) - (utc_central-start).total_seconds() + 0.5*ap
     trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate to first order
     # frequency matrix (channel, spectrum) and rotator
     fedge = np.array([1e-6 * ch.ref_freq for ch in cinfo])
@@ -785,7 +785,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10., roundrobin=True):
+def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10., roundrobin=True, bowlfix=True):
     """
     create ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
@@ -801,11 +801,12 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         window_length: odd integer length of scipy.signal.savgol_filter applied to data for smoothing (default=7)
         polyorder: order of piecewise smoothing polynomial (default=3)
         snr: manually set SNR to auto determine window_length and polyorder, else take from fringe file
-        ref: 0 (first site), 1 (second site), or station letter (e.g. A). if ref=0, adhoc phase estimates baseline phase
+        ref: 0 (first site), 1 (second site), or station letter (e.g. A), for control file string (phases to apply to REM)
         prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
         timeoffset: add timeoffset [units of AP] to each timestamp in the adhoc string
         snrdof: target signal-to-noise per degree-of-freedom in adhoc solution (higher is smoother)
         roundrobin: True to use frequency-slicing round-robing training to avoid self-tuning
+        bowlfix: fix bowl effect in 2017 data (must send fringe file for parameters)
 
     Returns:
         v: visibility vector from which adhoc phase is estimated (not normalized)
@@ -825,15 +826,23 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         v = b
     else:
         b = getfringefile(b, pol=pol, quiet=True)
+        p = params(b)
         v = pop212(b)
-    (nap, nchan) = v.shape
 
+    if bowlfix and type(b) is mk4.mk4_fringe:
+        rfdict = {'A':-0.2156, 'X':0.163} # ps/s
+        ratefix = rfdict.get(p.baseline[1], 0) - rfdict.get(p.baseline[0], 0)
+        ratefix_phase = 2*np.pi * p.dfvec[212][None,:] * p.dtvec[:,None] * ratefix*1e-6
+        v = v * np.exp(-1j * ratefix_phase) # take bowl effect out of visibs before adhoc phasing
+    else:
+        ratefix_phase = np.zeros_like(v, dtype=np.float)
+
+    (nap, nchan) = v.shape
     vfull = v.sum(axis=1) # full frequency average
     vchop = np.zeros_like(v)
     phase = np.zeros_like(v, dtype=np.float)
 
     if type(b) is mk4.mk4_fringe:
-        p = params(b)
         timeoffset = timeoffset * p.ap # use AP if we can
         if snr is None:
             snr = p.snr
@@ -874,8 +883,8 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
                 warnings.warn("failed to fit adhoc phases" + " to %s" % b.name if type(b) is mk4.mk4_fringe else '')
                 re = np.ones_like(vtemp.real)
                 im = np.zeros_like(vtemp.imag)
-            vchop[:,i] = re + parity*1j*im
-            phase[:,i] = parity * np.unwrap(np.arctan2(im, re)) * 180./np.pi
+            vchop[:,i] = re + 1j*im
+            phase[:,i] = np.unwrap(np.arctan2(im, re))
     else: # no round-robin, may self-tune but avoid bandpass systematics
         vtemp = vfull
         try:
@@ -885,10 +894,22 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
             warnings.warn("failed to fit adhoc phases" + " to %s" % b.name if type(b) is mk4.mk4_fringe else '')
             re = np.ones_like(vtemp.real)
             im = np.zeros_like(vtemp.imag)
-        vchop[:,:] = re[:,None] + parity*1j*im[:,None]
-        phase[:,:] = parity * np.unwrap(np.arctan2(im[:,None], re[:,None])) * 180./np.pi
+        vchop[:,:] = re[:,None] + 1j*im[:,None]
+        phase[:,:] = np.unwrap(np.arctan2(im[:,None], re[:,None]))
 
-    vcorr = v * (vchop.conj() if parity==1 else vchop) / np.abs(vchop)
+    # add estimated phase from small true change in delay over time
+    if type(b) is mk4.mk4_fringe:
+        phase += phase * p.dfvec[212] / p.ref_freq
+    else: # guess fractional bandwidth
+        df = (np.arange(nchan) * 58.59375)
+        df -= np.mean(df)
+        phase += phase * df / 228000.
+
+    # note that ratefix is already taken out of v
+    vcorr = v * np.exp(-1j * phase)
+
+    # add estimated phase from bowl effect (unphysical delay drift)
+    phase += ratefix_phase
 
     if type(b) is mk4.mk4_fringe:
         timetag = p.scantime.strftime("%j-%H%M%S")
@@ -901,9 +922,9 @@ if station %s and scan %s
     adhoc_file_chans %s
 """ % (rem, timetag, adhoc_filename, ''.join(p.code))
         string = '\n'.join(("%.10f " % (timeoffset/86400. + day) + np.array_str(-ph, precision=3, max_line_width=1e6)[1:-1]
-            for (day, ph) in zip(p.days, phase))) # note adhoc phase file needs sign flip, i.e. phase to be added to data
+            for (day, ph) in zip(p.days, parity*phase*180/np.pi))) # note adhoc phase file needs sign flip, i.e. phase to be added to data
         return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, vcorr=vcorr, scan_name=p.scan_name, scantime=p.scantime,
-                         scantimetag=timetag, filename=adhoc_filename, cfcode=cf, string=string)
+                         scantimetag=timetag, filename=adhoc_filename, cfcode=cf, string=string, ratefix_phase=ratefix_phase)
     else:
         return Namespace(v=vchop, phase=phase, vcorr=vcorr)
 
@@ -1187,17 +1208,16 @@ def sbdmbd2cf(row):
 # df: averaging num channels
 # pol: pol filter for ff wildcard
 # almaref: if ALMA not in ff, use ALMA to reference adhoc phases withou freq slicing
-def vecphase(ff, doadhoc=True, dt=30, df=4, pol=None, almaref=True):
+def vecphase(ff, doadhoc=True, dt=30, df=4, pol=None, almaref=True, replacedata=None):
     b = getfringefile(ff, quiet=True, pol=pol)
     p = params(b)
-    v = pop212(b)
+    v = pop212(b) if replacedata is None else replacedata
     if doadhoc:
-        baseline = ff.split('/')[-1][:2]
-        if almaref and 'A' not in baseline:
-            p1 = params('A' + baseline[0] + '*', pol=pol)
-            p2 = params('A' + baseline[1] + '*', pol=pol)
-            ah1 = adhoc('A' + baseline[0] + '*', pol=pol)
-            ah2 = adhoc('A' + baseline[1] + '*', pol=pol)
+        if almaref and 'A' not in p.baseline:
+            p1 = params('A' + p.baseline[0] + '*', pol=pol)
+            p2 = params('A' + p.baseline[1] + '*', pol=pol)
+            ah1 = adhoc('A' + p.baseline[0] + '*', pol=pol)
+            ah2 = adhoc('A' + p.baseline[1] + '*', pol=pol)
             ahrot = np.exp(-1j*(ah2.phase.mean(axis=1)-ah1.phase.mean(axis=1))*np.pi/180)
             ahrot *= p.trot.conj() * p1.trot.conj() * p2.trot
         else:
