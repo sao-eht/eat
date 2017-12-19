@@ -28,6 +28,8 @@ except:
 import datetime
 import ctypes
 from argparse import Namespace
+import itertools
+from collections import OrderedDict
 import matplotlib.pyplot as plt
 from ..plots import util as putil
 from matplotlib.offsetbox import AnchoredText
@@ -48,7 +50,7 @@ def flip(df, flipidx):
     # handle string reversal
     for col in reversecol:
         if col in df.columns:
-            df.loc[flipidx,col] = df.loc[flipidx,col].str.reverse()
+            df.loc[flipidx,col] = df.loc[flipidx,col].str[::-1]
     # handle sign flip (phases, delays, rates)
     for col in flipcol:
         if col in df.columns:
@@ -108,7 +110,6 @@ def getfringefile(b=None, filelist=False, pol=None, quiet=False):
                 if len(tok) < len(last):
                     files = glob.glob('/'.join(last[:-len(tok)] + tok))
         else:
-            import itertools
             files = list(itertools.chain(*(getfringefile(bi, filelist=True, quiet=quiet) for bi in b)))
         if(len(files) == 0 and not quiet):
             raise(Exception("cannot find file: %s or %s" % (b, '/'.join(last[:-len(tok)] + tok))))
@@ -785,7 +786,8 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10., roundrobin=True, bowlfix=True):
+def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10.,
+          roundrobin=True, bowlfix=True, secondorder=True):
     """
     create ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
@@ -807,6 +809,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         snrdof: target signal-to-noise per degree-of-freedom in adhoc solution (higher is smoother)
         roundrobin: True to use frequency-slicing round-robing training to avoid self-tuning
         bowlfix: fix bowl effect in 2017 data (must send fringe file for parameters)
+        secondorder: fix the second-order effect from delay change over time
 
     Returns:
         v: visibility vector from which adhoc phase is estimated (not normalized)
@@ -898,12 +901,13 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         phase[:,:] = np.unwrap(np.arctan2(im[:,None], re[:,None]))
 
     # add estimated phase from small true change in delay over time
-    if type(b) is mk4.mk4_fringe:
-        phase += phase * p.dfvec[212] / p.ref_freq
-    else: # guess fractional bandwidth
-        df = (np.arange(nchan) * 58.59375)
-        df -= np.mean(df)
-        phase += phase * df / 228000.
+    if secondorder:
+        if type(b) is mk4.mk4_fringe:
+            phase += phase * p.dfvec[212] / p.ref_freq
+        else: # guess fractional bandwidth
+            df = (np.arange(nchan) * 58.59375)
+            df -= np.mean(df)
+            phase += phase * df / 228000.
 
     # note that ratefix is already taken out of v
     vcorr = v * np.exp(-1j * phase)
@@ -1109,7 +1113,6 @@ def rrll_segmented(a, restarts={}, start='2017-04-04 21:00:00', stop='2017-04-12
         start: start time for establishing day boundaries (default '2017-04-04 21:00:00')
         stop: stop time for establishing day boundaries (default '2017-04-12 21:00:00')
     """
-    import itertools
     import pandas as pd
     b = a[a.polarization.isin({'RR', 'LL'})].copy()
     if 'mbd_unwrap' not in b.columns:
@@ -1264,3 +1267,58 @@ def vecphase(ff, doadhoc=True, dt=30, df=4, pol=None, almaref=True, replacedata=
     plt.ylabel('frequency')
     plt.title('phase %s %s %s +%ds' % (p.baseline, p.source, p.timetag, p.T))
     plt.setp(plt.gcf(), figwidth=8*p.T/420, figheight=5)
+
+# example delay offsets for ER1
+# ('R',3597):5.,('R',3598):20.,('R',3599):35.,('R',3600):5.,('R',3601):20.
+# to be added to clock_early [ns]
+loffs={
+            ('A',3601):-10.,
+            ('J',3597):5.,('J',3601):-5.,
+            ('L',3598):5.,('L',3599):10.,
+            ('P',3597):5.,('P',3598):5.,('P',3599):-10.,('P',3600):5.,
+            ('X',3598):-5.,('X',3599):-10.,
+            ('Z',3598):5.,('Z',3599):10.,('Z',3601):5.,
+        }
+hoffs={
+            ('A',3601):0.,
+            ('J',3597):15.,('J',3600):-40.,
+            ('L',3597):-60.,('L',3598):-10.,('L',3600):10.,('L',3601):10.,
+            ('R',3600):-48.,
+            ('P',3597):10,('P',3598):25,('P',3599):5,('P',3600):-10,('P',3601):-65,
+            ('X',3598):5,('X',3598):0,('X',3599):-10,('X',3600):-10,('X',3601):-10,
+            ('Z',3597):-30,('Z',3598):-5,('Z',3600):15,('Z',3601):15,
+        }
+
+# make one plot from data frame, group by baseline
+# delays converted to [ns]
+# offs: dict of offsets by site, if REM will be subtracted from baseline value
+# rem: use only baselines including station and set as REM station
+# col: column in data frame to plot
+def trendplot(df, rem='', offs={}, col='sbdelay'):
+    band = 'lo' if df.iloc[0].ref_freq < 228000 else 'hi'
+    from matplotlib.legend import Legend
+    mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_')))
+    b = df[df.baseline.str.contains(rem)].copy()
+    flip(b, b.baseline.str[0] == rem)
+    color = dict(zip(sorted(set(b.baseline)),
+           itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])))
+    lines = []
+    labels = []
+    for (name, rows) in b.groupby(['baseline', 'polarization']):
+        (bl, pol) = name
+        label = bl if pol == 'LL' else '_nolabel'
+        offset = np.array([offs.get((bl[1], expt), 0.) - offs.get((bl[0], expt), 0.)
+                           for expt in rows.expt_no])
+        val = (1e3 if 'mbd' in col or 'sbd' in col or 'delay' in col else 1.) * rows[col]
+        h = plt.plot(rows.scan_no, val - offset, marker=mk[pol], ls='none',
+                color=color[bl], label=label)
+    lines = [plt.Line2D([0], [0], color='k', marker=mk[pol], ls='none') for pol in mk.keys()]
+    leg = Legend(plt.gca(), lines, mk.keys(), loc='lower right', ncol=1)
+    plt.gca().add_artist(leg)
+    plt.xlabel('scan')
+    plt.ylabel('%s' % col)
+    # plt.xlim(0, plt.xlim()[1]*1.03)
+    plt.legend(loc='upper right')
+    putil.tag('%s %s' % (rem, band), loc='upper left')
+    plt.grid(alpha=0.25)
+
