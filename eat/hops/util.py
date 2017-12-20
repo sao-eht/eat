@@ -277,7 +277,7 @@ def params(b=None, pol=None):
         baseline: baseline code
         source: source name
         start: start datetime of processed segment
-        stop: stop datetime of processed segment (marks end of last segment) 
+        stop: stop datetime of processed segment (marks end of last segment)
         startidx: start idx into type120 of processed APs
         stopidx: stop idx into type120 of processed APs (not inclusive)
         apfilter: boolean indexer for type120 of processed time
@@ -286,7 +286,7 @@ def params(b=None, pol=None):
         scantime: scantime, generally start time of scan
         timetag: scantime in timetag format
     """
-            
+
     if type(b) is str:
         name = b
         b = getfringefile(b, pol=pol)
@@ -787,7 +787,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
     return outdata
 
 def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10.,
-          roundrobin=True, bowlfix=True, secondorder=True, params=None)
+          roundrobin=True, bowlfix=True, secondorder=True, params=None):
     """
     create ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
