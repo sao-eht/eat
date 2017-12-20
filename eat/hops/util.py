@@ -787,13 +787,13 @@ def compare_alist_v6(alist1,baseline1,polarization1,
     return outdata
 
 def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10.,
-          roundrobin=True, bowlfix=True, secondorder=True):
+          roundrobin=True, bowlfix=True, secondorder=True, params=None)
     """
     create ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
     use round-robin training/evaluation to avoid self-tuning bias
     some SNR-based selection of averaging timescale is done to tune Sav-Gol filter
-    compensate for delay-rate rotator bias for frequencies away from reference frequency (not done)
+    compensate for delay-rate rotator bias for frequencies away from reference frequency
     check for -1 bad flag data in type212 and interpolate over (not done)
 
     Args:
@@ -827,12 +827,16 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
         v = b
+        p = None
     else:
         b = getfringefile(b, pol=pol, quiet=True)
         p = params(b)
         v = pop212(b)
 
-    if bowlfix and type(b) is mk4.mk4_fringe:
+    if params is not None:
+        p = params
+
+    if bowlfix and p is not None:
         rfdict = {'A':-0.2156, 'X':0.163} # ps/s
         ratefix = rfdict.get(p.baseline[1], 0) - rfdict.get(p.baseline[0], 0)
         ratefix_phase = 2*np.pi * p.dfvec[212][None,:] * p.dtvec[:,None] * ratefix*1e-6
@@ -845,7 +849,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     vchop = np.zeros_like(v)
     phase = np.zeros_like(v, dtype=np.float)
 
-    if type(b) is mk4.mk4_fringe:
+    if p is not None:
         timeoffset = timeoffset * p.ap # use AP if we can
         if snr is None:
             snr = p.snr
@@ -902,7 +906,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
 
     # add estimated phase from small true change in delay over time
     if secondorder:
-        if type(b) is mk4.mk4_fringe:
+        if p is not None:
             phase += phase * p.dfvec[212] / p.ref_freq
         else: # guess fractional bandwidth
             df = (np.arange(nchan) * 58.59375)
@@ -915,7 +919,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     # add estimated phase from bowl effect (unphysical delay drift)
     phase += ratefix_phase
 
-    if type(b) is mk4.mk4_fringe:
+    if p is not None:
         timetag = p.scantime.strftime("%j-%H%M%S")
         (ref, rem) = [p.baseline[0], p.baseline[1]][::parity]
         adhoc_filename = prefix + "adhoc_%s_%s.dat" % (rem, timetag)
