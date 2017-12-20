@@ -111,9 +111,14 @@ def add_id(df, col=['timetag', 'baseline', 'polarization']):
     """add unique *id* tuple to data frame based on columns"""
     df['id'] = list(zip(*[df[c] for c in col]))
 
-def add_scanno(df):
-    """add *scan_no* based on 2017 scan_id e.g. No0012 -> 12"""
-    df['scan_no'] = df.scan_id.str[2:].astype(int)
+def add_scanno(df, unique=False):
+    """add *scan_no* based on 2017 scan_id e.g. No0012 -> 12, or a unique number"""
+    if unique:
+        tts = sorted(set(df.timetag))
+        tt2i = dict(zip(tts, range(len(tts))))
+        df['scan_no'] = df.timetag.map(tt2i)
+    else:
+        df['scan_no'] = df.scan_id.str[2:].astype(int)
 
 def add_path(df):
     """add a *path* to each alist line for easier file access"""
