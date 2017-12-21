@@ -1323,3 +1323,29 @@ def trendplot(df, rem='', offs={}, col='sbdelay'):
     putil.tag('%s %s' % (rem, band), loc='upper left')
     plt.grid(alpha=0.25)
 
+# tint: incoherent averaging time to phase alignment optimization
+def align(bs, snrs=None, tint=5.):
+    from scipy.optimize import fmin
+    bs = [hu.getfringefile(b, quiet=True) for b in bs] # data objects
+    ps = [hu.params(b) for b in bs] # meta data parameters
+    p0 = ps[0] # reference set of parameters
+    ap = p0.ap # reference AP
+    snrs = np.array(snrs or [p.snr for p in ps]) # in case use custom SNR for weights
+    vs = np.array([hu.pop212(b).mean(axis=-1) for b in bs]) # ff, ap
+    w = np.ones_like(vs, dtype=np.float) * snrs[:,None]**2 # derived weights
+    w[vs == -1.0] = 0. # HOPS data invalid flag (data loss, etc)
+    vw = w * vs # weighted visibs
+    rates = np.array([p.rate for p in ps])
+    r0 = np.sum(rates * snrs**2) / np.sum(snrs**2) # mean rate
+    dr = rates - r0 # differential rate from mean rate
+    trot = np.exp(-1j * 1e-6*dr[:,None] * p0.dtvec[None,:] * 2*np.pi*p0.ref_freq)
+    vs = vs * trot # correct for differential rate
+    # tint segmented average of phase offset
+    apint = max(1, int(0.5 + float(tint) / ap)) # tint in units of AP
+    win = np.ones(apint) # rectangular smoothing window
+    vsmooth = [np.convolve(v, win, mode='same') for v in vw]
+    phase = np.array([np.angle(np.sum(vi * vsmooth[0].conj())) for vi in vsmooth])
+    # align in phase and stack
+    vstack = (vw * np.exp(-1j* phase)[:,None]).sum(axis=0) / w.sum(axis=0)
+    return vstack
+
