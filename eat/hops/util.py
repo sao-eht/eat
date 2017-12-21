@@ -786,8 +786,8 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0., snrdof=10.,
-          roundrobin=True, bowlfix=True, secondorder=True, p=None):
+def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0.,
+          roundrobin=True, bowlfix=True, secondorder=True, p=None, r0=5., alpha=5./3.):
     """
     create ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
@@ -806,11 +806,12 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         ref: 0 (first site), 1 (second site), or station letter (e.g. A), for control file string (phases to apply to REM)
         prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
         timeoffset: add timeoffset [units of AP] to each timestamp in the adhoc string
-        snrdof: target signal-to-noise per degree-of-freedom in adhoc solution (higher is smoother)
         roundrobin: True to use frequency-slicing round-robing training to avoid self-tuning
         bowlfix: fix bowl effect in 2017 data (must send fringe file for parameters)
         secondorder: fix the second-order effect from delay change over time
         p: custom params
+        r0: coherence timescale in seconds, if no AP is available it is assumed to be 1.0s
+        alpha: structure function index
 
     Returns:
         v: visibility vector from which adhoc phase is estimated (not normalized)
@@ -854,6 +855,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
             parity = 1
         if ref == p.baseline[1]:
             parity = -1
+        r0 = r0 / p.ap # put r0 in units of known AP
     else:
         if snr is None:
             snr = 100.*np.sqrt(nap/300.) # some default
@@ -861,16 +863,27 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         parity = 1
     if ref == 1:
         parity = -1
-    # note that snr=10 per measurement is 36deg phase error
-    # this should really be balanced against how rapidly the phase may vary between estimates
-    nfit = max(1, int((snr / snrdof)**2)) # number of parameters we might be able to fit
-    # qualitative behavior of fit depends primarily on window_length/polyorder which sets
-    # timescale for free parameters. actual poly degree doesn't matter as much.
-    # savgol constraints: polyorder < window_length, window_length is positive odd integer
+
+    # # old method used SNRDOF to set window length
+    # # note that snr=10 per measurement is 36deg phase error
+    # # this should really be balanced against how rapidly the phase may vary between estimates
+    # nfit = max(1, int((snr / snrdof)**2)) # number of parameters we might be able to fit
+    # # qualitative behavior of fit depends primarily on window_length/polyorder which sets
+    # # timescale for free parameters. actual poly degree doesn't matter as much.
+    # # savgol constraints: polyorder < window_length, window_length is positive odd integer
+    # if polyorder is None:
+    #     polyorder = min(nfit, 2)
+    # if window_length is None:
+    #     window_length = 1+2*max(1, int(0.5 + float(nap * polyorder) / float(nfit) / 2.))
+
+    # new method balances window length against coherence timescale
+    R = (r0**alpha * 4*np.pi**2 * nap/snr**2)**(1./(1+alpha)) # optimal integration time [in APs]
     if polyorder is None:
-        polyorder = min(nfit, 2)
+        polyorder = 2
     if window_length is None:
-        window_length = 1+2*max(1, int(0.5 + float(nap * polyorder) / float(nfit) / 2.))
+        window_length = 1 + 2*int(R/2.)
+    
+    # basic constraints
     if window_length > nap:
         window_length = 1+2*((nap-1)//2)
     if polyorder >= window_length:
