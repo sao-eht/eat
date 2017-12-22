@@ -4,6 +4,7 @@
 # 2016-10-11 Lindy Blackburn
 # 2017-07-20 Lindy Blackburn & CK Chan - update for 2015+ data
 # 2017-09-13 Lindy Blackburn, update for 2017 Rev1-Cal
+# 2017-12-22 Lindy Blackburn, update for ER2
 
 from eat.io import hops, util
 import numpy as np
@@ -97,10 +98,12 @@ util.rewrap_mbd(a)
 print '* ' + statline
 g = a.groupby('timetag')
 for (scan, b) in g:
+    sites = set(chain(*b.baseline))
+    for site in sites:
+        snrmax = b[b.baseline.str.contains(site)].snr.max()
+        if snrmax < 9:
+            print("if scan %s and station %s skip true * maxsnr %.1f" % (scan, site, snrmax))
     for c in b.groupby('baseline').first().reset_index().itertuples():
-        # offsets for ALMA SBD offset
-        offset0 = -0.3e-3 if 'A' in c.baseline else 0.
-        offset1 = +0.4e-3 if 'A' in c.baseline else 0.
         print("if scan %s and baseline %s sb_win %10.7f %10.7f mb_win %10.7f %10.7f dr_win %15.12f %15.12f * expt_no %d" %
-            (c.timetag, c.baseline, c.mbd_unwrap + offset0, c.mbd_unwrap + offset1, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate, c.expt_no))
+            (c.timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate, c.expt_no))
 
