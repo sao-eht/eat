@@ -2,9 +2,11 @@
 
 # use ALMA to reference adhoc phases to other sites
 # 2017-09-15 Lindy Blackburn
+# 2017-12-20 LLB allow multiple pol stacking, non-ALMA reference
 
 from eat.io import hops, util
 from eat.hops import util as hu
+import numpy as np
 import os
 import sys
 import argparse
@@ -18,7 +20,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist file')
 parser.add_argument('-d', '--datadir', help='use fringe files from this data directory', default='.')
 parser.add_argument('-o', '--outdir', help='output directory for adhoc files (one per scan)', default=None)
-parser.add_argument('-s', '--snrdof', help='target phase signal-to-noise per degree-of-freedom', type=float, default=10.)
 parser.add_argument('-q', '--quiet', help='do not print cfcodes to stdout (they are saved in adhoc_codes)', action='store_true', default=False)
 args = parser.parse_args()
 
@@ -41,13 +42,14 @@ so an effort should be made to accurately timestamp the middle of the segment
 however currently fourfit has an off-by-one bug so the timestamp must be 1 AP prior
 
 add_days converts straight from timetag, which is halfway into scan for fingex
-but only a 1s precision
+but only a 1s precision. for alist it is generally start of segment, but might
+be different in case of a scan_offset ?
 """
 
 if args.outdir is not None and not os.path.exists(args.outdir):
     os.makedirs(args.outdir)
 
-def adhocref(df, ref='A', outdir=None, timeoffset=0.):
+def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=5.):
     """use reference site to make adhoc phases to other stations in data frame
 
     Args:
@@ -63,16 +65,23 @@ def adhocref(df, ref='A', outdir=None, timeoffset=0.):
 
     outdir = '.' if outdir is None else outdir
 
-    # for each baseline, take polarization product with the highest SNR
-    df = df.sort_values('snr').groupby(['timetag', 'baseline']).last().reset_index()
-    # filter only baselines to ref
-    df = df[df.baseline.str.contains(ref)]
+    # will put LL as ref in visib stacking if available
+    df = df[df.snr > 9].sort_values("timetag baseline polarization".split())
     util.add_path(df)
+
     # reverse sign of phases where ref is second site
-    for (name, g) in df.groupby('timetag'):
-        for (idx, row) in g.iterrows():
-            b = hu.getfringefile(row.path, quiet=True)
-            ah = hu.adhoc(b, ref=ref, snr=row.snr, snrdof=args.snrdof, timeoffset=timeoffset, prefix='' if outdir == '.' else outdir + '/')
+    for (timetag, ttrows) in df.groupby('timetag'):
+        ttref = ref or hu.pickref(ttrows) # reference station for this scan
+        if ttref is None: # unable to find reference station, do not adhoc phase this scan
+            continue
+        wref = ttrows[ttrows.baseline.str.contains(ttref)]
+        for (bl, rows) in wref.groupby('baseline'):
+            # print(rows["timetag baseline polarization snr".split()])
+            p = hu.params(rows.iloc[0].path, quiet=True) # representative params
+            print p.timetag + ' ' + p.baseline
+            v = hu.align(rows.path, snrs=rows.snr) # stack data from detected fringes on baseline
+            ah = hu.adhoc(v, ref=ttref, snr=np.sqrt((rows.snr**2).sum()), timeoffset=timeoffset, p=p, tau=tau,
+                          prefix='' if outdir == '.' else outdir + '/')
             out = open(ah.filename, 'w')
             out.write(ah.string)
             if not args.quiet:
@@ -86,5 +95,5 @@ def adhocref(df, ref='A', outdir=None, timeoffset=0.):
 
 hu.set_datadir(args.datadir)
 a = util.noauto(hops.read_alist(args.filename))
-codes = adhocref(a, outdir=args.outdir, timeoffset=-1.)
+adhocref(a, outdir=args.outdir, timeoffset=-1.)
 

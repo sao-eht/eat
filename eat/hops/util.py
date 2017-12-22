@@ -239,7 +239,7 @@ def pop120(b=None, pol=None, fill=0):
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
 # i.e. they subtract the delay, rate under multiplication
-def params(b=None, pol=None):
+def params(b=None, pol=None, quiet=None):
     """extract many basic parameters from fringe file for easy access
 
     The parameters attempt to follow metadata stored in fringe files.
@@ -289,7 +289,7 @@ def params(b=None, pol=None):
 
     if type(b) is str:
         name = b
-        b = getfringefile(b, pol=pol)
+        b = getfringefile(b, pol=pol, quiet=quiet)
     else:
         name = b.id.contents.name
     ref_freq = b.t205.contents.ref_freq
@@ -787,7 +787,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
     return outdata
 
 def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0.,
-          roundrobin=True, bowlfix=True, secondorder=True, p=None, r0=5., alpha=5./3.):
+          roundrobin=True, bowlfix=True, secondorder=True, p=None, tau=5., alpha=5./3., ap=None):
     """
     create ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
@@ -810,8 +810,9 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         bowlfix: fix bowl effect in 2017 data (must send fringe file for parameters)
         secondorder: fix the second-order effect from delay change over time
         p: custom params
-        r0: coherence timescale in seconds, if no AP is available it is assumed to be 1.0s
+        tau: coherence timescale in seconds, if no AP is available it is assumed to be 1.0s
         alpha: structure function index
+        ap: overwrite ap
 
     Returns:
         v: visibility vector from which adhoc phase is estimated (not normalized)
@@ -829,10 +830,12 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
         v = b
+        ap = ap or 1.
     else:
         b = getfringefile(b, pol=pol, quiet=True)
-        p = p or params(b)
+        p = p if p is not None else params(b)
         v = pop212(b)
+        ap = ap or p.ap
 
     if bowlfix and p is not None:
         rfdict = {'A':-0.2156, 'X':0.163} # ps/s
@@ -848,14 +851,13 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     phase = np.zeros_like(v, dtype=np.float)
 
     if p:
-        timeoffset = timeoffset * p.ap # use AP if we can
+        timeoffset = timeoffset * p.ap # use actual AP for HOPS adhoc bug
         if snr is None:
             snr = p.snr
         if ref == p.baseline[0]:
             parity = 1
         if ref == p.baseline[1]:
             parity = -1
-        r0 = r0 / p.ap # put r0 in units of known AP
     else:
         if snr is None:
             snr = 100.*np.sqrt(nap/300.) # some default
@@ -877,17 +879,20 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     #     window_length = 1+2*max(1, int(0.5 + float(nap * polyorder) / float(nfit) / 2.))
 
     # new method balances window length against coherence timescale
-    R = (r0**alpha * 4*np.pi**2 * nap/snr**2)**(1./(1+alpha)) # optimal integration time [in APs]
+    r0 = tau / ap # put r0 in units of AP
+    R = (r0**alpha * 4*np.pi**2 * nap/snr**2)**(1./(1+alpha)) # optimal integration time per DOF [in APs]
     if polyorder is None:
         polyorder = 2
     if window_length is None:
-        window_length = 1 + 2*int(R/2.)
+        window_length = max(1+polyorder, 1+2*int((1+polyorder)*R/2.))
     
     # basic constraints
     if window_length > nap:
         window_length = 1+2*((nap-1)//2)
     if polyorder >= window_length:
         polyorder = max(0, window_length-1)
+
+    Tdof = ap * window_length / (1.+polyorder) # effectve T per DOF
 
     if roundrobin: # apply round-robin training to avoid self-tuning
         for i in range(nchan): # i is the channel to exclude in fit
@@ -934,11 +939,11 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         (ref, rem) = [p.baseline[0], p.baseline[1]][::parity]
         adhoc_filename = prefix + "adhoc_%s_%s.dat" % (rem, timetag)
         cf = """
-if station %s and scan %s
+if station %s and scan %s * from %s per %.1f s
     adhoc_phase file
     adhoc_file %s
     adhoc_file_chans %s
-""" % (rem, timetag, adhoc_filename, ''.join(p.code))
+""" % (rem, timetag, ref, Tdof, adhoc_filename, ''.join(p.code))
         string = '\n'.join(("%.10f " % (timeoffset/86400. + day) + np.array_str(-ph, precision=3, max_line_width=1e6)[1:-1]
             for (day, ph) in zip(p.days, parity*phase*180/np.pi))) # note adhoc phase file needs sign flip, i.e. phase to be added to data
         return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, vcorr=vcorr, scan_name=p.scan_name, scantime=p.scantime,
@@ -1339,12 +1344,13 @@ def trendplot(df, rem='', offs={}, col='sbdelay'):
 # tint: incoherent averaging time to phase alignment optimization
 def align(bs, snrs=None, tint=5.):
     from scipy.optimize import fmin
-    bs = [hu.getfringefile(b, quiet=True) for b in bs] # data objects
-    ps = [hu.params(b) for b in bs] # meta data parameters
+    bs = [getfringefile(b, quiet=True) for b in bs] # data objects
+    ps = [params(b) for b in bs] # meta data parameters
     p0 = ps[0] # reference set of parameters
     ap = p0.ap # reference AP
-    snrs = np.array(snrs or [p.snr for p in ps]) # in case use custom SNR for weights
-    vs = np.array([hu.pop212(b).mean(axis=-1) for b in bs]) # ff, ap
+    snrs = np.array(snrs if snrs is not None else [p.snr for p in ps]) # in case use custom SNR for weights
+    v212 = np.array([pop212(b) for b in bs]) # ff, ap, chan
+    vs = v212.mean(axis=-1) # integrate over channels: ff, ap
     w = np.ones_like(vs, dtype=np.float) * snrs[:,None]**2 # derived weights
     w[vs == -1.0] = 0. # HOPS data invalid flag (data loss, etc)
     vw = w * vs # weighted visibs
@@ -1359,6 +1365,17 @@ def align(bs, snrs=None, tint=5.):
     vsmooth = [np.convolve(v, win, mode='same') for v in vw]
     phase = np.array([np.angle(np.sum(vi * vsmooth[0].conj())) for vi in vsmooth])
     # align in phase and stack
-    vstack = (vw * np.exp(-1j* phase)[:,None]).sum(axis=0) / w.sum(axis=0)
+    vstack = (v212 * w[:,:,None] * np.exp(-1j* phase)[:,None,None]).sum(axis=0) / w.sum(axis=0)[:,None]
     return vstack
 
+# pick a reference station based on maximum sum(log(snr)) of detections
+def pickref(df):
+    df = df[(df.snr > 9) & ~df.baseline.isin({'SR', 'RS'})].copy()
+    sites = set(''.join(df.baseline))
+    # don't let S or J be ref if they are both present (due to wrong sideband contamination)
+    if 'J' in sites and 'S' in sites:
+        sites.remove('J')
+        sites.remove('S')
+    score = {site: np.log(df[df.baseline.str.contains(site)].snr).sum() for site in sites}
+    ref = max(score, key=score.get) if len(score) > 0 else None
+    return ref
