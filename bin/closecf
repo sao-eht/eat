@@ -104,6 +104,11 @@ for (scan, b) in g:
         if snrmax < 9:
             print("if scan %s and station %s skip true * maxsnr %.1f" % (scan, site, snrmax))
     for c in b.groupby('baseline').first().reset_index().itertuples():
+        # hack fix for fourfit issue on one scan with X VEX start offset
+        if c.timetag == '097-051800' and 'X' in c.baseline:
+            timetag = '097-051850'
+        else:
+            timetag = c.timetag
         print("if scan %s and baseline %s sb_win %10.7f %10.7f mb_win %10.7f %10.7f dr_win %15.12f %15.12f * expt_no %d" %
-            (c.timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate, c.expt_no))
+            (timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate, c.expt_no))
 
