@@ -285,6 +285,7 @@ def params(b=None, pol=None, quiet=None):
         scan_name: name of scan (various conventions)
         scantime: scantime, generally start time of scan
         timetag: scantime in timetag format
+        scantag: scantime + VEX start offset in timetag format (does not include fourfit start offset)
     """
 
     if type(b) is str:
@@ -306,7 +307,7 @@ def params(b=None, pol=None, quiet=None):
     amb = b.t208.contents.ambiguity
     offset = (sbd - mbd + 1.5*amb) % amb
     delay = (sbd - offset + 0.5*amb) # unwrap to be close to SBD, us
-    rate = b.t208.contents.resid_rate # us/s
+    rate = b.t208.contents.resid_rate # us/scantimes
     snr = b.t208.contents.snr
     amplitude = b.t208.contents.amplitude
     # time vector and rotator
@@ -317,6 +318,7 @@ def params(b=None, pol=None, quiet=None):
     ap = T / nap
     days0 = (start - datetime.datetime(start.year, 1, 1)).total_seconds() / 86400. # days since jan1
     days = days0 + (ap * np.arange(nap) + ap/2.)/86400. # days since jan1 of all AP center times
+    scantime = mk4time(b.t200.contents.scantime)
     scanlength = b.t200.contents.stop_offset - b.t200.contents.start_offset
     apfilter = np.zeros(int(1e-6 + scanlength/ap), dtype=bool)
     startidx = int(1e-6 + ((start - mk4time(b.t200.contents.scantime)).total_seconds()
@@ -344,9 +346,9 @@ def params(b=None, pol=None, quiet=None):
         code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
-        scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime),
-        timetag=util.dt2tt(mk4time(b.t200.contents.scantime)), expt_no=b.t200.contents.expt_no, startidx=startidx, stopidx=stopidx,
-        apfilter=apfilter)
+        scan_name=b.t200.contents.scan_name, scantime=scantime, timetag=util.dt2tt(scantime),
+        scantag=util.dt2tt(scantime + datetime.timedelta(seconds=b.t200.contents.start_offset)),
+        expt_no=b.t200.contents.expt_no, startidx=startidx, stopidx=stopidx, apfilter=apfilter)
 
 # some unstructured channel info for quick printing
 def chaninfo(b=None):
@@ -821,8 +823,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         code: params code (params and control file statements returned if sent mk4 object)
         days: params days vector (note this does not account for fourfit adhoc indexing bug)
         scan_name: params scan_name
-        scantime: params scantime
-        scantimetag: time-tag of start time
+        timetag: params timetag
         filename: filename of adhoc phase file
         cfcode: fourfit control file lines
         string: adhoc file contents as string
@@ -935,19 +936,18 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     phase += ratefix_phase
 
     if p:
-        timetag = p.scantime.strftime("%j-%H%M%S")
         (ref, rem) = [p.baseline[0], p.baseline[1]][::parity]
-        adhoc_filename = prefix + "adhoc_%s_%s.dat" % (rem, timetag)
+        adhoc_filename = prefix + "adhoc_%s_%s.dat" % (rem, p.timetag)
         cf = """
 if station %s and scan %s * from %s per %.1f s
     adhoc_phase file
     adhoc_file %s
     adhoc_file_chans %s
-""" % (rem, timetag, ref, Tdof, adhoc_filename, ''.join(p.code))
+""" % (rem, p.scantag, ref, Tdof, adhoc_filename, ''.join(p.code)) # use scantag to include possible VEX start offset
         string = '\n'.join(("%.10f " % (timeoffset/86400. + day) + np.array_str(-ph, precision=3, max_line_width=1e6)[1:-1]
             for (day, ph) in zip(p.days, parity*phase*180/np.pi))) # note adhoc phase file needs sign flip, i.e. phase to be added to data
         return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, vcorr=vcorr, scan_name=p.scan_name, scantime=p.scantime,
-                         scantimetag=timetag, filename=adhoc_filename, cfcode=cf, string=string, ratefix_phase=ratefix_phase)
+                         timetag=p.timetag, filename=adhoc_filename, cfcode=cf, string=string, ratefix_phase=ratefix_phase)
     else:
         return Namespace(v=vchop, phase=phase, vcorr=vcorr)
 
