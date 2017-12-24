@@ -281,6 +281,7 @@ def params(b=None, pol=None, quiet=None):
         startidx: start idx into type120 of processed APs
         stopidx: stop idx into type120 of processed APs (not inclusive)
         apfilter: boolean indexer for type120 of processed time
+        frt: fourfit reference time
         utc_centeral: from fringe file, probaby marks reference time for delay rate compensation
         scan_name: name of scan (various conventions)
         scantime: scantime, generally start time of scan
@@ -312,6 +313,7 @@ def params(b=None, pol=None, quiet=None):
     amplitude = b.t208.contents.amplitude
     # time vector and rotator
     (start, stop) = (mk4time(b.t205.contents.start), mk4time(b.t205.contents.stop)) # t212 bounds
+    frt = mk4time(b.t200.contents.frt) # probably straight from OVEX
     utc_central = mk4time(b.t205.contents.utc_central) # depends only on scan boundary, not cuts
     T = (stop-start).total_seconds()
     # ref_time = mk4time(b.t205.contents.start) + T/2. # place reference time in middle
@@ -344,7 +346,7 @@ def params(b=None, pol=None, quiet=None):
     frot[212] = np.exp(-1j * delay * dfvec[212] * 2*np.pi) # note type_212 is already rotated in data
     return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags, days=days,
         code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
-        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
+        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot, frt=frt,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
         scan_name=b.t200.contents.scan_name, scantime=scantime, timetag=util.dt2tt(scantime),
         scantag=util.dt2tt(scantime + datetime.timedelta(seconds=b.t200.contents.start_offset)),
