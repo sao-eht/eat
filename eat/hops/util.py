@@ -229,12 +229,6 @@ def pop120(b=None, pol=None, fill=0):
     dfio.clear_mk4corel(ctypes.byref(c))
     return data120
 
-    return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags,
-        code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
-        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot,
-        baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
-        scan_name=b.t200.contents.scan_name, scantime=mk4time(b.t200.contents.scantime))
-
 # some HOPS channel parameter info
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
@@ -328,7 +322,7 @@ def params(b=None, pol=None, quiet=None):
     stopidx = int(1e-6 + ((stop - mk4time(b.t200.contents.scantime)).total_seconds()
                        - b.t200.contents.start_offset) / ap)
     apfilter[startidx:stopidx] = True
-    dtvec = ap*np.arange(nap) - (utc_central-start).total_seconds() + 0.5*ap
+    dtvec = ap*np.arange(nap) - (frt-start).total_seconds() + 0.5*ap
     trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate to first order
     # frequency matrix (channel, spectrum) and rotator
     fedge = np.array([1e-6 * ch.ref_freq for ch in cinfo])
