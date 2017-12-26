@@ -41,15 +41,22 @@ args = parser.parse_args()
 # Read args.file or stdin to a Pandas DataFrame
 df = pd.read_table(sys.stdin if args.file is None else args.file,
                    header=None, sep='\s+')
-dg = df.copy()
+#dg = df.copy
 
 # Quadratic extrapolation to the last channel
-for i, r in df.iterrows():
-    uw = unwrap(r.values[1:])
-    la = np.concatenate(([uw[1]-uw[0]], 0.5*(uw[2:]-uw[:-2]), [0]))
-    uw[-1], la[-2], la[-1] = qextra(uw[-4], uw[-3], uw[-2])
-    df.iloc[i,1:] = uw
-    dg.iloc[i,1:] = la
+#for i, r in df.iterrows():
+#    uw = unwrap(r.values[1:])
+#    la = np.concatenate(([uw[1]-uw[0]], 0.5*(uw[2:]-uw[:-2]), [0]))
+#    uw[-1], la[-2], la[-1] = qextra(uw[-4], uw[-3], uw[-2])
+#    df.iloc[i,1:] = uw
+#    dg.iloc[i,1:] = la
+
+baselines = df[0]
+phases    = df.iloc[:,1:].values
+slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
+                                0.5 * (phases[:, 2:] - phases[:,:-2]),
+                            np.reshape(phases[:,-1 ] - phases[:, -2], (-1,1))),
+                           axis=1)
 
 # Write phase-cal phases to args.pout or stdout
 df.to_csv(sys.stdout if args.pout is None else args.pout,
@@ -70,19 +77,16 @@ if args.gout is not None:
     import matplotlib.pyplot as plt
     import matplotlib.cm     as cm # not best practice, but avoid extra
                                    # library when no graph is specified
-
-
-    colors = cm.rainbow(np.linspace(0,1,len(df)))
-    for i, r in df.iterrows():
-        d = np.array([-0.5,0.5])
-        x = np.arange(32)
-        y = r.values[1:]
-        m = dg.iloc[i,1:].values
-
-        plt.scatter(x, y, color=colors[i])
+    cs = cm.rainbow(np.linspace(0,1,len(df)))
+    d  = np.array([-0.5,0.5])
+    x  = np.arange(32)
+    for i, b in baselines.iteritems():
+        y = phases[i,:]
+        m = slopes[i,:]
+        plt.scatter(x, y, color=cs[i], label=b)
         for j in np.arange(32):
-            plt.plot(x[j]+d, y[j]+d*m[j], color=colors[i])
-
+            plt.plot(x[j]+d, y[j]+d*m[j], color=cs[i])
+    plt.legend()
     if "." in args.gout:
         plt.savefig(args.gout)
     else:
