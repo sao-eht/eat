@@ -55,18 +55,6 @@ slopes[:,-2] = b + 4.0*c # == b   + 2 c x    with x == 2
 a, b, c = qfit(phases[:,0], phases[:,1], phases[:,2])
 slopes[:, 0] = b         # == b   + 2 c x    with x == 0
 
-# Write phase-cal phases to args.pout or stdout
-df.to_csv(sys.stdout if args.pout is None else args.pout,
-          index=False, header=False, sep=" ", float_format="%.9g")
-
-# TODO: write delay offsets to args.dout
-if args.dout is not None:
-    raise ValueError("The option \"-d\" is not implemented")
-
-# TODO: write HOPS control file to args.cout
-if args.cout is not None:
-    raise ValueError("The option \"-c\" is not implemented")
-
 # Plot the smoothing result to args.gout
 if args.gout is not None:
     import matplotlib.pyplot as plt
@@ -86,3 +74,28 @@ if args.gout is not None:
         plt.savefig(args.gout)
     else:
         plt.show()
+
+# Write phase-cal phases to stdout: format is backward compatible
+out = pd.DataFrame(data=phases)
+out.insert(0, 'baseline', baselines)
+if args.pout is None:
+    out.to_csv(sys.stdout,
+               index=False, header=False, sep=" ", float_format="%.9g")
+
+# Write phase-cal phases to args.pout
+phases = pd.DataFrame(data=phases)
+phases.insert(0, 'site', baselines.str[0])
+if args.pout is not None:
+    phases.to_csv(args.pout,
+                  index=False, header=False, sep=" ", float_format="%.9g")
+
+# FIXME: write delay offsets to args.dout
+slopes = pd.DataFrame(data=slopes)
+slopes.insert(0, 'site', baselines.str[0])
+if args.dout is not None:
+    slopes.to_csv(args.dout,
+                  index=False, header=False, sep=" ", float_format="%.9g")
+
+# TODO: write HOPS control file to args.cout
+if args.cout is not None:
+    raise ValueError("The option \"-c\" is not implemented")
