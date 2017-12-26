@@ -16,6 +16,12 @@ def unwrap(phi):
             phi[i+1:] += 360
     return phi
 
+def qextra(y1, y2, y3):
+    a  =       y1
+    b  = (-3.0*y1 + 4.0*y2 - y3) / 2.0
+    c  = (     y1 - 2.0*y2 + y3) / 2.0
+    return a + 3.0*b + 9.0*c
+
 # Argument parsing
 parser = argparse.ArgumentParser(description="Smooth phase-cal phases")
 parser.add_argument('-f', dest='file', default=None,
@@ -37,15 +43,7 @@ df = pd.read_table(sys.stdin if args.file is None else args.file,
 # Quadratic extrapolation to the last channel
 for i, r in df.iterrows():
     uw = unwrap(r.values[1:])
-    y1 = uw[-4]
-    y2 = uw[-3]
-    y3 = uw[-2]
-
-    a  =       y1
-    b  = (-3.0*y1 + 4.0*y2 - y3) / 2.0
-    c  = (     y1 - 2.0*y2 + y3) / 2.0
-    uw[-1] = a + 3.0*b + 9.0*c
-
+    uw[-1] = qextra(uw[-4], uw[-3], uw[-2])
     df.iloc[i,1:] = uw
 
 # Write phase-cal phases to args.pout or stdout
