@@ -60,6 +60,13 @@ if args.dout is not None:
 if args.cout is not None:
     raise ValueError("The option \"-c\" is not implemented")
 
-# TODO: plot the smoothing to args.gout
+# Plot the smoothing result to args.gout
 if args.gout is not None:
-    raise ValueError("The option \"-g\" is not implemented")
+    import matplotlib.pyplot as plt # not best practice, but avoid extra
+                                    # library when no graph is specified
+    for i, r in df.iterrows():
+        plt.plot(r.values[1:])
+    if "." in args.gout:
+        plt.savefig(args.gout)
+    else:
+        plt.show()
