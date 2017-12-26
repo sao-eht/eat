@@ -4,6 +4,8 @@ import sys, os, argparse
 import pandas as pd
 import numpy  as np
 
+#------------------------------------------------------------------------------
+# Helper functions
 def unwrap(phi):
     for i in np.arange(phi.shape[1]-1)+1:
         a, b = phi[:,i-1], phi[:,i]
@@ -42,7 +44,8 @@ def output(s, a, t):
     out.insert(0, 'label', s)
     out.to_csv(t, index=False, header=False, sep=" ", float_format="%.9g")
 
-# Argument parsing
+#------------------------------------------------------------------------------
+# Argument parsing and read input file
 parser = argparse.ArgumentParser(description="Smooth phase-cal phases")
 parser.add_argument('-f', dest='file', default=None,
                     help="input file")
@@ -58,10 +61,10 @@ parser.add_argument('-g', dest='gout', default=None,
                     help="graphic output to show the smoothing")
 args = parser.parse_args()
 
-# Read args.file or stdin to a Pandas DataFrame
 df = pd.read_table(sys.stdin if args.file is None else args.file,
                    header=None, sep='\s+')
 
+#------------------------------------------------------------------------------
 # Pull out baselines, unwrap phases, use one-side and mid-point
 # methods to esimate slopes
 baselines = df[0]
@@ -71,36 +74,31 @@ slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
                             np.reshape(phases[:,-1 ] - phases[:, -2], (-1,1))),
                            axis=1)
 
-# Extra polation
+# Extrapolation for last channel
 a, b, c = qfit(phases[:,-4], phases[:,-3], phases[:,-2])
 phases[:,-1] = a + 3.0*b + 9.0*c # == a + b x +   c x**2 with x == 3
 slopes[:,-1] =         b + 6.0*c # ==     b   + 2 c x    with x == 3
 
-# Fitted slope (instead of one-side derivative)
+# Apply fitted slope (instead of one-side derivative) to edge channels
 slopes[:,-2] = b + 4.0*c # == b   + 2 c x    with x == 2
 a, b, c = qfit(phases[:,0], phases[:,1], phases[:,2])
 slopes[:, 0] = b         # == b   + 2 c x    with x == 0
 
-# Plot the smoothing result to args.gout
+#------------------------------------------------------------------------------
+# Outputs
 if args.gout is not None:
     mkplot(baselines, phases, slopes, args.gout)
 
-# Write phase-cal phases to stdout: format is backward compatible
-if args.pout is None:
-    output(baselines, phases, sys.stdout)
-
-# Write phase-cal phases to args.pout
 if args.pout is not None:
     output(baselines.str[0], phases, args.pout)
+else:
+    output(baselines, phases, sys.stdout)
 
-# Write slopes to args.sout
 if args.sout is not None:
     output(baselines.str[0], slopes, args.sout)
 
-# FIXME: write delay offsets to args.dout
 if args.dout is not None:
     raise ValueError("The option \"-d\" is not implemented")
 
-# TODO: write HOPS control file to args.cout
 if args.cout is not None:
     raise ValueError("The option \"-c\" is not implemented")
