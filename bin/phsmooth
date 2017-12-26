@@ -17,13 +17,17 @@ def unwrap(phi):
     return phi
 
 # Argument parsing
-parser = argparse.ArgumentParser(description="Compute phase-cal phases")
+parser = argparse.ArgumentParser(description="Smooth phase-cal phases")
 parser.add_argument('-f', dest='file', default=None,
                     help="input file")
 parser.add_argument('-p', dest='pout', default=None,
                     help="smoothed phase-cal phases")
 parser.add_argument('-d', dest='dout', default=None,
-                    help="slope within each channel")
+                    help="slope, i.e., delay offset, within each channel")
+parser.add_argument('-c', dest='cout', default=None,
+                    help="fourfit control file")
+parser.add_argument('-g', dest='gout', default=None,
+                    help="graphic output to show the smoothing")
 args = parser.parse_args()
 
 # Read args.file or stdin to a Pandas DataFrame
@@ -47,3 +51,17 @@ for i, r in df.iterrows():
 # Write phase-cal phases to args.pout or stdout
 df.to_csv(sys.stdout if args.pout is None else args.pout,
           index=False, header=False, sep=" ", float_format="%.9g")
+
+# TODO: Use mid-point method to estimate derivatives
+
+# TODO: write delay offsets to args.dout
+if args.dout is not None:
+    raise ValueError("The option \"-d\" is not implemented")
+
+# TODO: write HOPS control file to args.cout
+if args.cout is not None:
+    raise ValueError("The option \"-c\" is not implemented")
+
+# TODO: plot the smoothing to args.gout
+if args.gout is not None:
+    raise ValueError("The option \"-g\" is not implemented")
