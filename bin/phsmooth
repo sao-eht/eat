@@ -47,10 +47,15 @@ slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
                             np.reshape(phases[:,-1 ] - phases[:, -2], (-1,1))),
                            axis=1)
 
+# Extra polation
 a, b, c = qfit(phases[:,-4], phases[:,-3], phases[:,-2])
 phases[:,-1] = a + 3.0*b + 9.0*c # == a + b x +   c x**2 with x == 3
-slopes[:,-2] =         b + 4.0*c # ==     b   + 2 c x    with x == 2
 slopes[:,-1] =         b + 6.0*c # ==     b   + 2 c x    with x == 3
+
+# Fitted slope (instead of one-side derivative)
+slopes[:,-2] = b + 4.0*c # == b   + 2 c x    with x == 2
+a, b, c = qfit(phases[:,0], phases[:,1], phases[:,2])
+slopes[:, 0] = b         # == b   + 2 c x    with x == 0
 
 # Write phase-cal phases to args.pout or stdout
 df.to_csv(sys.stdout if args.pout is None else args.pout,
