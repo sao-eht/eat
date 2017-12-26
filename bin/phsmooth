@@ -9,21 +9,17 @@ import numpy  as np
 
 def unwrap(phi):
     for i in np.arange(phi.shape[1]-1)+1:
-        print(i)
-        a = phi[:,i-1]
-        b = phi[:,i]
+        a, b = phi[:,i-1], phi[:,i]
         b[b - a >  180] -= 360
         b[b - a < -180] += 360
         phi[:,i] = b
     return phi
 
-def qextra(y1, y2, y3):
+def qfit(y1, y2, y3):
     a  =       y1
     b  = (-3.0*y1 + 4.0*y2 - y3) / 2.0
     c  = (     y1 - 2.0*y2 + y3) / 2.0
-    return (a + 3.0*b + 9.0*c, # == a + b x +   c x**2 with x == 3
-                    b + 4.0*c, # ==     b   + 2 c x    with x == 2
-                    b + 6.0*c) # ==     b   + 2 c x    with x == 3
+    return a, b, c
 
 # Argument parsing
 parser = argparse.ArgumentParser(description="Smooth phase-cal phases")
@@ -42,22 +38,19 @@ args = parser.parse_args()
 # Read args.file or stdin to a Pandas DataFrame
 df = pd.read_table(sys.stdin if args.file is None else args.file,
                    header=None, sep='\s+')
-#dg = df.copy
 
 # Quadratic extrapolation to the last channel
-#for i, r in df.iterrows():
-#    uw = unwrap(r.values[1:])
-#    la = np.concatenate(([uw[1]-uw[0]], 0.5*(uw[2:]-uw[:-2]), [0]))
-#    uw[-1], la[-2], la[-1] = qextra(uw[-4], uw[-3], uw[-2])
-#    df.iloc[i,1:] = uw
-#    dg.iloc[i,1:] = la
-
 baselines = df[0]
 phases    = unwrap(df.iloc[:,1:].values)
 slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
                                 0.5 * (phases[:, 2:] - phases[:,:-2]),
                             np.reshape(phases[:,-1 ] - phases[:, -2], (-1,1))),
                            axis=1)
+
+a, b, c = qfit(phases[:,-4], phases[:,-3], phases[:,-2])
+phases[:,-1] = a + 3.0*b + 9.0*c # == a + b x +   c x**2 with x == 3
+slopes[:,-2] =         b + 4.0*c # ==     b   + 2 c x    with x == 2
+slopes[:,-1] =         b + 6.0*c # ==     b   + 2 c x    with x == 3
 
 # Write phase-cal phases to args.pout or stdout
 df.to_csv(sys.stdout if args.pout is None else args.pout,
