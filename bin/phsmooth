@@ -44,6 +44,20 @@ def output(s, a, t):
     out.insert(0, 'label', s)
     out.to_csv(t, index=False, header=False, sep=" ", float_format="%.9g")
 
+def output_cf(sites, pol, phases, delays, target):
+    with open(target, "w") as f:
+        p = "" if pol is None else "_"+pol
+        for i, s in sites.iteritems():
+            f.write("""if station {}
+  pc_phases{}  abcdefghijklmnopqrstuvwxyzABCDEF""".format(s, p))
+            for j in range(32):
+                f.write(" {:.6f}".format(phases[i,j]))
+            f.write("""
+  delay_offs{} abcdefghijklmnopqrstuvwxyzABCDEF""".format(p))
+            for j in range(32):
+                f.write(" {:.6f}".format(delays[i,j]))
+            f.write("\n\n")
+
 #------------------------------------------------------------------------------
 # Argument parsing and read input file
 parser = argparse.ArgumentParser(description="Smooth phase-cal phases")
@@ -61,8 +75,13 @@ parser.add_argument('-g', dest='gout', default=None,
                     help="graphic output to show the smoothing")
 args = parser.parse_args()
 
-df = pd.read_table(sys.stdin if args.file is None else args.file,
-                   header=None, sep='\s+')
+if args.file is None:
+    df = pd.read_table(sys.stdin, header=None, sep='\s+')
+else:
+    df = pd.read_table(args.file, header=None, sep='\s+')
+    if   "LL" in args.file: pol = "L"
+    elif "RR" in args.file: pol = "R"
+    else:                   pol = None
 
 #------------------------------------------------------------------------------
 # Pull out baselines, unwrap phases, use one-side and mid-point
@@ -104,4 +123,4 @@ if args.dout is not None:
     output(baselines.str[0], delays, args.dout)
 
 if args.cout is not None:
-    raise ValueError("The option \"-c\" is not implemented")
+    output_cf(baselines.str[0], pol, phases, delays, args.cout)
