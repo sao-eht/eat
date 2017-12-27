@@ -85,7 +85,7 @@ a, b, c = qfit(phases[:,0], phases[:,1], phases[:,2])
 slopes[:, 0] = b         # == b   + 2 c x    with x == 0
 
 d_nu   = 58.59375e6 # hard wire separation between channels
-delays = (slopes / 360.0) / d_nu
+delays = 1e9 * (slopes / 360.0) / d_nu # in nanosecond
 
 #------------------------------------------------------------------------------
 # Outputs
