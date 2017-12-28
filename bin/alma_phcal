@@ -5,8 +5,9 @@
 # 2017-12-28 CKC major update to simplify pipelining
 
 from __future__ import print_function
+import datetime, pwd, os, sys
+import argparse
 
-import sys, os, argparse
 import pandas as pd
 import numpy  as np
 
