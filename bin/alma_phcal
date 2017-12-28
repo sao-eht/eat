@@ -1,11 +1,18 @@
 #!/usr/bin/env python
+#
+# Use ALMA to reference phase-cal phases and delay offsets
+# 2017-11-22 Chi-kwan Chan (move from pipeline to EAT)
+# 2017-12-28 CKC major update to simplify pipelining
+
+from __future__ import print_function
 
 import sys, os, argparse
 import pandas as pd
 import numpy  as np
 
-#------------------------------------------------------------------------------
+#==============================================================================
 # Helper functions
+
 def unwrap(phi):
     for i in np.arange(phi.shape[1]-1)+1:
         a, b = phi[:,i-1], phi[:,i]
@@ -58,30 +65,28 @@ def output_cf(sites, pol, phases, delays, target):
                 f.write(" {:.6f}".format(delays[i,j]))
             f.write("\n\n")
 
+#==============================================================================
+# Main code
+#------------------------------------------------------------------------------
+# Logging
+statline = "[{}] {}@{}:{}$ {}".format(
+    datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(),
+    ' '.join(sys.argv))
+
 #------------------------------------------------------------------------------
 # Argument parsing and read input file
-parser = argparse.ArgumentParser(description="Smooth phase-cal phases")
-parser.add_argument('-f', dest='file', default=None,
-                    help="input file")
-parser.add_argument('-p', dest='pout', default=None,
-                    help="smoothed phase-cal phases")
-parser.add_argument('-s', dest='sout', default=None,
-                    help="slope of each channel")
-parser.add_argument('-d', dest='dout', default=None,
-                    help="delay offset within each channel")
-parser.add_argument('-c', dest='cout', default=None,
-                    help="fourfit control file")
-parser.add_argument('-g', dest='gout', default=None,
-                    help="graphic output to show the smoothing")
+parser = argparse.ArgumentParser(
+    description="Estimate phase-cal phases and delay offsets")
+parser.add_argument('filename',
+                    help='alist file')
+parser.add_argument('-o', '--outfile', default=None, type=str,
+                    help='output csv filename')
+parser.add_argument('-c', '--controlcodes', default=False, action='store_true',
+                    help='construct control codes rather than csv table')
+parser.add_argument('-g', '--graph', default=None,
+                    help="graphic output")
 args = parser.parse_args()
-
-if args.file is None:
-    df = pd.read_table(sys.stdin, header=None, sep='\s+')
-else:
-    df = pd.read_table(args.file, header=None, sep='\s+')
-    if   "LL" in args.file: pol = "L"
-    elif "RR" in args.file: pol = "R"
-    else:                   pol = None
 
 #------------------------------------------------------------------------------
 # Pull out baselines, unwrap phases, use one-side and mid-point
