@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+
+import sys, os, argparse
+import pandas as pd
+import numpy  as np
+
+#------------------------------------------------------------------------------
+# Helper functions
+def unwrap(phi):
+    for i in np.arange(phi.shape[1]-1)+1:
+        a, b = phi[:,i-1], phi[:,i]
+        b[b - a >  180] -= 360
+        b[b - a < -180] += 360
+        phi[:,i] = b
+    return phi
+
+def qfit(y1, y2, y3):
+    a  =       y1
+    b  = (-3.0*y1 + 4.0*y2 - y3) / 2.0
+    c  = (     y1 - 2.0*y2 + y3) / 2.0
+    return a, b, c
+
+def mkplot(baselines, phases, slopes, target):
+    import matplotlib.pyplot as plt
+    import matplotlib.cm     as cm # not best practice, but avoid extra
+                                   # library when no graph is specified
+    cs = cm.rainbow(np.linspace(0,1,len(df)))
+    d  = np.array([-0.5,0.5])
+    x  = np.arange(32)
+    for i, b in baselines.iteritems():
+        y = phases[i,:]
+        m = slopes[i,:]
+        plt.scatter(x, y, color=cs[i], label=b)
+        for j in np.arange(32):
+            plt.plot(x[j]+d, y[j]+d*m[j], color=cs[i])
+    plt.legend()
+    if "." in target:
+        plt.savefig(target)
+    else:
+        plt.show()
+
+def output(s, a, t):
+    out = pd.DataFrame(data=a)
+    out.insert(0, 'label', s)
+    out.to_csv(t, index=False, header=False, sep=" ", float_format="%.9g")
+
+#------------------------------------------------------------------------------
+# Argument parsing and read input file
+parser = argparse.ArgumentParser(description="Smooth phase-cal phases")
+parser.add_argument('-f', dest='file', default=None,
+                    help="input file")
+parser.add_argument('-p', dest='pout', default=None,
+                    help="smoothed phase-cal phases")
+parser.add_argument('-s', dest='sout', default=None,
+                    help="slope of each channel")
+parser.add_argument('-d', dest='dout', default=None,
+                    help="delay offset within each channel")
+parser.add_argument('-c', dest='cout', default=None,
+                    help="fourfit control file")
+parser.add_argument('-g', dest='gout', default=None,
+                    help="graphic output to show the smoothing")
+args = parser.parse_args()
+
+df = pd.read_table(sys.stdin if args.file is None else args.file,
+                   header=None, sep='\s+')
+
+#------------------------------------------------------------------------------
+# Pull out baselines, unwrap phases, use one-side and mid-point
+# methods to esimate slopes
+baselines = df[0]
+phases    = unwrap(df.iloc[:,1:].values)
+slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
+                                0.5 * (phases[:, 2:] - phases[:,:-2]),
+                            np.reshape(phases[:,-1 ] - phases[:, -2], (-1,1))),
+                           axis=1)
+
+# Extrapolation for last channel
+a, b, c = qfit(phases[:,-4], phases[:,-3], phases[:,-2])
+phases[:,-1] = a + 3.0*b + 9.0*c # == a + b x +   c x**2 with x == 3
+slopes[:,-1] =         b + 6.0*c # ==     b   + 2 c x    with x == 3
+
+# Apply fitted slope (instead of one-side derivative) to edge channels
+slopes[:,-2] = b + 4.0*c # == b   + 2 c x    with x == 2
+a, b, c = qfit(phases[:,0], phases[:,1], phases[:,2])
+slopes[:, 0] = b         # == b   + 2 c x    with x == 0
+
+d_nu   = 58.59375e6 # hard wire separation between channels
+delays = (slopes / 360.0) / d_nu
+
+#------------------------------------------------------------------------------
+# Outputs
+if args.gout is not None:
+    mkplot(baselines, phases, slopes, args.gout)
+
+if args.pout is not None:
+    output(baselines.str[0], phases, args.pout)
+else:
+    output(baselines, phases, sys.stdout)
+
+if args.sout is not None:
+    output(baselines.str[0], slopes, args.sout)
+
+if args.dout is not None:
+    output(baselines.str[0], delays, args.dout)
+
+if args.cout is not None:
+    raise ValueError("The option \"-c\" is not implemented")
