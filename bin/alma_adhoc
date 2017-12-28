@@ -23,9 +23,6 @@ parser.add_argument('-o', '--outdir', help='output directory for adhoc files (on
 parser.add_argument('-q', '--quiet', help='do not print cfcodes to stdout (they are saved in adhoc_codes)', action='store_true', default=False)
 args = parser.parse_args()
 
-# read alist file (autodetect version 5 or 6)
-a = hops.read_alist(args.filename)
-
 """
 Note: according to doc/fourfit/file_based_pcal.tex,
 
@@ -66,7 +63,7 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=5.):
     outdir = '.' if outdir is None else outdir
 
     # will put LL as ref in visib stacking if available
-    df = df[df.snr > 9].sort_values("timetag baseline polarization".split())
+    df = df.sort_values("timetag baseline polarization".split())
     util.add_path(df)
 
     # reverse sign of phases where ref is second site
@@ -74,10 +71,15 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=5.):
         ttref = ref or hu.pickref(ttrows) # reference station for this scan
         if ttref is None: # unable to find reference station, do not adhoc phase this scan
             continue
-        wref = ttrows[ttrows.baseline.str.contains(ttref)]
+        wref = ttrows[(ttrows.baseline.str.contains(ttref)) & (ttrows.snr > 9)]
+        noref = ttrows[~ttrows.baseline.str.contains(ttref)]
+        segment = dict()
+        # generate adhoc phases which are connected to ref station
         for (bl, rows) in wref.groupby('baseline'):
             # print(rows["timetag baseline polarization snr".split()])
             p = hu.params(rows.iloc[0].path, quiet=True) # representative params
+            ttrem = p.baseline.replace(ttref, "")
+            segment[ttrem] = [p.start, p.stop] # ad-hoc phased times for REM station
             print p.timetag + ' ' + p.baseline
             v = hu.align(rows.path, snrs=rows.snr) # stack data from detected fringes on baseline
             ah = hu.adhoc(v, ref=ttref, snr=np.sqrt((rows.snr**2).sum()), timeoffset=timeoffset, p=p, tau=tau,
@@ -87,6 +89,19 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=5.):
             if not args.quiet:
                 print(ah.cfcode.strip())
             cfcodes.append(ah.cfcode.strip())
+        # trim other baselines to cover ad-hoc time
+        for (bl, rows) in noref.groupby('baseline'):
+            p = hu.params(rows.iloc[0].path, quiet=True) # params for first
+            if bl[0] in segment and bl[1] in segment: # trim if both sites were ad-hoc phased
+                start = max(segment[bl[0]][0], segment[bl[1]][0])
+                stop  = min(segment[bl[0]][1], segment[bl[1]][1])
+                if (start > p.start) or (stop < p.stop):
+                    htop = datetime.datetime(p.start.year, p.start.month, p.start.day, p.start.hour) # top of hour of scan
+                    code = "if scan %s and baseline %s start %d stop %d" % \
+                                   (p.scantag, bl, (start-htop).total_seconds(), (stop-htop).total_seconds())
+                    if not args.quiet:
+                        print(code)
+                    cfcodes.append(code)
     outcf = open(outdir + '/' + 'adhoc_cfcodes', 'w')
     outcf.write('* ' + statline + '\n')
     outcf.write('\n')
