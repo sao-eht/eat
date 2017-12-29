@@ -8,6 +8,7 @@ from __future__ import print_function
 
 import datetime, pwd, os, sys
 import argparse
+import string
 
 import pandas as pd
 import numpy  as np
@@ -97,11 +98,22 @@ args = parser.parse_args()
 # Read an alist and select the columns that match the input of `bin/phases.pl`
 a = util.noauto(hops.read_alist(args.filename))
 a = a[(a.polarization == 'LL') | (a.polarization == 'RR')]
+a = a.reset_index(drop=True)
+
 a['nchan'] = 32
 util.add_path(a)
 
-cols = ['path', 'source', 'nchan', 'quality', 'snr', 'resid_phas']
-print(a[cols].iloc[0:20])
+a     = a.iloc[0:10]
+cols  = ['path', 'source', 'nchan', 'quality', 'snr', 'resid_phas']
+chans = list(string.ascii_letters[:32])
+
+phases = np.zeros((len(a), len(chans)), dtype=np.float32)
+rad2deg = 180.0 / np.pi
+for i, p in a.path.iteritems():
+    phases[i,:] = np.angle(hu.pop210(p)) * rad2deg
+
+param = pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
+param.to_csv('demo', index=False, header=False, sep=" ", float_format="%.9g")
 
 exit(0)
 
