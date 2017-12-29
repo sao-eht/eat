@@ -155,9 +155,15 @@ args = parser.parse_args()
 
 #------------------------------------------------------------------------------
 # Get necessary data to perform phase cal
+chans = list(string.ascii_letters[:32])
 param = get_param(args.filename, head=True)
+phcal = param.groupby('baseline')[chans].mean()
 
-pritn(param)
+baselines = phcal.index.values
+phases    = phcal.values
+
+print(baselines)
+print(phases)
 
 #------------------------------------------------------------------------------
 # Pull out baselines, unwrap phases, use one-side and mid-point
