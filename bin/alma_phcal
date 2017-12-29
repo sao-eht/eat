@@ -111,7 +111,7 @@ def mkplot(baselines, phases, slopes, target):
     else:
         plt.show()
 
-def output(s, a, t):
+def output_csv(s, a, t):
     out = pd.DataFrame(data=a)
     out.insert(0, 'label', s)
     out.to_csv(t, index=False, header=False, sep=" ", float_format="%.9g")
@@ -200,6 +200,6 @@ if args.controlcodes:
     output_cf(baselines.str[1], args.polarization, -phases, -delays,
               args.outfile[0])
 else:
-    output(baselines.str[1], -slopes, args.outfile[0])
+    output_csv(baselines.str[1], -slopes, args.outfile[0])
     if len(args.outfile) > 1:
-        output(baselines.str[1], -delays, args.outfile[1])
+        output_csv(baselines.str[1], -delays, args.outfile[1])
