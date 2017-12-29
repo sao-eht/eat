@@ -34,11 +34,10 @@ def get_param(file, test=False):
     else:
         cols      = ['baseline', 'quality', 'snr', 'resid_phas']
 
-    chans   = list(string.ascii_letters[:32])
-    phases  = np.zeros((len(a), len(chans)), dtype=np.float32)
-    rad2deg = 180.0 / np.pi
+    chans  = list(string.ascii_letters[:32])
+    phases = np.zeros((len(a), len(chans)), dtype=np.float32)
     for i, p in a.path.iteritems():
-        phases[i,:] = np.angle(hu.pop210(p)) * rad2deg
+        phases[i,:] = np.angle(hu.pop210(p), deg=True)
 
     return pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
 
