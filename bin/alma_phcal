@@ -19,13 +19,19 @@ from eat.hops import util as hu
 #==============================================================================
 # Helper functions
 
-def get_param(file, baseline=True, diff=True, source=False, nchan=False, head=False):
+def get_param(file, diff=True, pol=None,
+              baseline=True, source=False, nchan=False, head=False):
     """Read alist and select columns that are needed for phase cal
     """
     a = util.noauto(hops.read_alist(file))
-    a = a[(a.polarization == 'LL') | (a.polarization == 'RR')]
-    a = a.reset_index(drop=True)
+    a = a[a.baseline.str.contains("A")] # must contain ALMA
+    if pol is None:
+        a = a[(a.polarization == 'LL') | (a.polarization == 'RR')]
+    else:
+        a = a[a.polarization == pol]
     util.add_path(a)
+
+    a = a.reset_index(drop=True)
 
     if head: # for testing
         a = a.iloc[0:10]
