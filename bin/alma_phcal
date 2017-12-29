@@ -19,21 +19,23 @@ from eat.hops import util as hu
 #==============================================================================
 # Helper functions
 
-def get_param(file):
-    """Read alist and select columns that match the input of `bin/phases.pl`
+def get_param(file, test=False):
+    """Read alist and select columns that are needed for phase cal
     """
     a = util.noauto(hops.read_alist(file))
     a = a[(a.polarization == 'LL') | (a.polarization == 'RR')]
     a = a.reset_index(drop=True)
-
-    a['nchan'] = 32
     util.add_path(a)
 
-    a     = a.iloc[0:10]
-    cols  = ['path', 'source', 'nchan', 'quality', 'snr', 'resid_phas']
-    chans = list(string.ascii_letters[:32])
+    if test: # for testing---match the input requirement of `bin/phases.pl`
+        a         = a.iloc[0:16]
+        a['nchan']= 32
+        cols      = ['path', 'source', 'nchan', 'quality', 'snr', 'resid_phas']
+    else:
+        cols      = ['baseline', 'quality', 'snr', 'resid_phas']
 
-    phases = np.zeros((len(a), len(chans)), dtype=np.float32)
+    chans   = list(string.ascii_letters[:32])
+    phases  = np.zeros((len(a), len(chans)), dtype=np.float32)
     rad2deg = 180.0 / np.pi
     for i, p in a.path.iteritems():
         phases[i,:] = np.angle(hu.pop210(p)) * rad2deg
