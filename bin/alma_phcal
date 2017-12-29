@@ -145,7 +145,7 @@ parser = argparse.ArgumentParser(
     description="Estimate phase-cal phases and delay offsets")
 parser.add_argument('filename',
                     help='alist file')
-parser.add_argument('-o', '--outfile', default=None, type=str,
+parser.add_argument('-o', '--outfile', default=[sys.stdout], nargs='+',
                     help='output csv filename')
 parser.add_argument('-c', '--controlcodes', default=False, action='store_true',
                     help='construct control codes rather than csv table')
@@ -153,16 +153,22 @@ parser.add_argument('-g', '--graph', default=None,
                     help="graphic output")
 args = parser.parse_args()
 
+if len(args.outfile) > 2:
+    print("At most 2 output files are supported")
+    exit(1)
+elif args.controlcodes and len(args.outfile) != 1:
+    print("Only 1 output file is supported when \"--controlcodes\" is set")
+    exit(1)
+
 #------------------------------------------------------------------------------
 # Get data and perform phase cal
 chans = list(string.ascii_letters[:32])
 param = get_param(args.filename, head=True)
 phcal = param.groupby('baseline')[chans].mean()
 
-#------------------------------------------------------------------------------
 # Pull out baselines and phases, use one-side and mid-point
 # methods to esimate slopes
-baselines = pd.DataFrame(phcal.index.values, columns=['baseline'])
+baselines = pd.Series(phcal.index.values)
 phases    = phcal.values
 slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
                                 0.5 * (phases[:, 2:] - phases[:,:-2]),
@@ -179,24 +185,18 @@ slopes[:,-2] = b + 4.0*c # == b   + 2 c x    with x == 2
 a, b, c = qfit(phases[:,0], phases[:,1], phases[:,2])
 slopes[:, 0] = b         # == b   + 2 c x    with x == 0
 
+# Convert slopes to delay offsets
 d_nu   = 58.59375e6 # hard wire separation between channels
 delays = 1e9 * (slopes / 360.0) / d_nu # in nanosecond
 
 #------------------------------------------------------------------------------
 # Outputs
-if args.gout is not None:
-    mkplot(baselines, phases, slopes, args.gout)
+if args.graph is not None:
+    mkplot(baselines, phases, slopes, args.graph)
 
-if args.pout is not None:
-    output(baselines.str[0], phases, args.pout)
+if args.controlcodes:
+    output_cf(baselines.str[1], pol, -phases, -delays, args.outfile[0])
 else:
-    output(baselines, phases, sys.stdout)
-
-if args.sout is not None:
-    output(baselines.str[0], slopes, args.sout)
-
-if args.dout is not None:
-    output(baselines.str[0], delays, args.dout)
-
-if args.cout is not None:
-    output_cf(baselines.str[0], pol, phases, delays, args.cout)
+    output(baselines.str[1], -slopes, args.outfile[0])
+    if len(args.outfile) > 1:
+        output(baselines.str[1], -delays, args.outfile[1])
