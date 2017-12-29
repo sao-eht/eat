@@ -21,21 +21,30 @@ from eat.hops import util as hu
 
 def get_param(file, diff=True, pol=None,
               baseline=True, source=False, nchan=False, head=False):
-    """Read alist and select columns that are needed for phase cal
+    """Read an alist file and prepare phases phase-cal
+
+    Read an alist file, apply filter to select the userful rows, and
+    then access the corel (per-channel) phases for performing
+    phase-cal.
     """
     a = util.noauto(hops.read_alist(file))
-    a = a[a.baseline.str.contains("A")] # must contain ALMA
-    if pol is None:
-        a = a[(a.polarization == 'LL') | (a.polarization == 'RR')]
-    else:
-        a = a[a.polarization == pol]
-    util.add_path(a)
 
-    a = a.reset_index(drop=True)
+    # Apply row filtering
+    if pol is None:
+        a = a[(a.polarization == 'LL')|
+              (a.polarization == 'RR')]
+    else:
+        a = a[(a.polarization == pol )]
+
+    a = a[a.baseline.str.contains("A")] # must contain ALMA
 
     if head: # for testing
         a = a.iloc[0:10]
 
+    a = a.reset_index(drop=True)
+    util.add_path(a)
+
+    # Decide which columns to return
     cols = ['baseline' if baseline else 'path']
     if source:
         cols += ['source']
@@ -44,6 +53,7 @@ def get_param(file, diff=True, pol=None,
         cols += ['nchan']
     cols += ['quality', 'snr', 'resid_phas']
 
+    # Access corel (per-channel) phases
     chans  = list(string.ascii_letters[:32])
     phases = np.zeros((len(a), len(chans)), dtype=np.float32)
     for i, p in a.path.iteritems():
@@ -55,6 +65,7 @@ def get_param(file, diff=True, pol=None,
             v = hu.pop210(p)
         phases[i,:] = np.angle(v, deg=True)
 
+    # Construct and return final Pandas DataFrame
     return pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
 
 def unwrap(phi):
