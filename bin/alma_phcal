@@ -154,22 +154,16 @@ parser.add_argument('-g', '--graph', default=None,
 args = parser.parse_args()
 
 #------------------------------------------------------------------------------
-# Get necessary data to perform phase cal
+# Get data and perform phase cal
 chans = list(string.ascii_letters[:32])
 param = get_param(args.filename, head=True)
 phcal = param.groupby('baseline')[chans].mean()
 
-baselines = phcal.index.values
-phases    = phcal.values
-
-print(baselines)
-print(phases)
-
 #------------------------------------------------------------------------------
-# Pull out baselines, unwrap phases, use one-side and mid-point
+# Pull out baselines and phases, use one-side and mid-point
 # methods to esimate slopes
-baselines = df[0]
-phases    = unwrap(df.iloc[:,1:].values)
+baselines = pd.DataFrame(phcal.index.values, columns=['baseline'])
+phases    = phcal.values
 slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
                                 0.5 * (phases[:, 2:] - phases[:,:-2]),
                             np.reshape(phases[:,-1 ] - phases[:, -2], (-1,1))),
