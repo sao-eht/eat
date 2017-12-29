@@ -19,7 +19,7 @@ from eat.hops import util as hu
 #==============================================================================
 # Helper functions
 
-def get_param(file, baseline=True, source=False, nchan=False, head=False):
+def get_param(file, baseline=True, diff=True, source=False, nchan=False, head=False):
     """Read alist and select columns that are needed for phase cal
     """
     a = util.noauto(hops.read_alist(file))
@@ -41,7 +41,13 @@ def get_param(file, baseline=True, source=False, nchan=False, head=False):
     chans  = list(string.ascii_letters[:32])
     phases = np.zeros((len(a), len(chans)), dtype=np.float32)
     for i, p in a.path.iteritems():
-        phases[i,:] = np.angle(hu.pop210(p), deg=True)
+        if diff:
+            deg2rad = np.pi / 180.0
+            t = a.resid_phas[i] * deg2rad
+            v = hu.pop210(p) * np.exp(-1j * t)
+        else:
+            v = hu.pop210(p)
+        phases[i,:] = np.angle(v, deg=True)
 
     return pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
 
@@ -123,10 +129,6 @@ args = parser.parse_args()
 #------------------------------------------------------------------------------
 # Get necessary data to perform phase cal
 param = get_param(args.filename, head=True)
-
-# Replace the corel phases by phase differences
-param.iloc[:,-32:] = (param.iloc[:,-32:].values -
-                      param.resid_phas.values[:,np.newaxis])
 
 #------------------------------------------------------------------------------
 # Pull out baselines, unwrap phases, use one-side and mid-point
