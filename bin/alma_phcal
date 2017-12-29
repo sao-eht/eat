@@ -96,7 +96,7 @@ def mkplot(baselines, phases, slopes, target):
     import matplotlib.pyplot as plt
     import matplotlib.cm     as cm # not best practice, but avoid extra
                                    # library when no graph is specified
-    cs = cm.rainbow(np.linspace(0,1,len(df)))
+    cs = cm.rainbow(np.linspace(0,1,len(baselines)))
     d  = np.array([-0.5,0.5])
     x  = np.arange(32)
     for i, b in baselines.iteritems():
