@@ -121,6 +121,10 @@ args = parser.parse_args()
 # Get necessary data to perform phase cal
 param = get_param(args.filename)
 
+# Replace the corel phases by phase differences
+param.iloc[:,-32:] = (param.iloc[:,-32:].values -
+                      param.resid_phas.values[:,np.newaxis])
+
 #------------------------------------------------------------------------------
 # Pull out baselines, unwrap phases, use one-side and mid-point
 # methods to esimate slopes
