@@ -4,7 +4,7 @@
 # 2017-05-22 Lindy Blackburn
 
 from __future__ import division
-from builtins import str
+# from builtins import str
 import sys
 import optparse # dewi has optparse, no argparse
 
