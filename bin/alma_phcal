@@ -5,11 +5,15 @@
 # 2017-12-28 CKC major update to simplify pipelining
 
 from __future__ import print_function
+
 import datetime, pwd, os, sys
 import argparse
 
 import pandas as pd
 import numpy  as np
+
+from eat.io   import hops, util
+from eat.hops import util as hu
 
 #==============================================================================
 # Helper functions
@@ -88,6 +92,19 @@ parser.add_argument('-c', '--controlcodes', default=False, action='store_true',
 parser.add_argument('-g', '--graph', default=None,
                     help="graphic output")
 args = parser.parse_args()
+
+#------------------------------------------------------------------------------
+# Read an alist and select the columns that match the input of `bin/phases.pl`
+a = util.noauto(hops.read_alist(args.filename))
+a['nchan'] = 32
+util.add_path(a)
+
+cols = ['path', 'source', 'nchan', 'quality', 'snr', 'resid_phas']
+print(a[cols].iloc[0:3])
+
+exit(0)
+
+
 
 #------------------------------------------------------------------------------
 # Pull out baselines, unwrap phases, use one-side and mid-point
