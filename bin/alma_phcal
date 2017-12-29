@@ -52,7 +52,7 @@ def get_param(file, diff=True, pol=None,
         a = a[(a.polarization == 'LL')|
               (a.polarization == 'RR')]
     else:
-        a = a[(a.polarization == pol )]
+        a = a[(a.polarization == "{}{}".format(pol, pol).upper())]
 
     a = a[a.baseline.str.contains("A")] # must contain ALMA
 
@@ -149,6 +149,8 @@ parser.add_argument('-o', '--outfile', default=[sys.stdout], nargs='+',
                     help='output csv filename')
 parser.add_argument('-c', '--controlcodes', default=False, action='store_true',
                     help='construct control codes rather than csv table')
+parser.add_argument('-p', '--polarization', default=None,
+                    help="select polarization")
 parser.add_argument('-g', '--graph', default=None,
                     help="graphic output")
 args = parser.parse_args()
@@ -163,7 +165,7 @@ elif args.controlcodes and len(args.outfile) != 1:
 #------------------------------------------------------------------------------
 # Get data and perform phase cal
 chans = list(string.ascii_letters[:32])
-param = get_param(args.filename, head=True)
+param = get_param(args.filename, pol=args.polarization, head=True)
 phcal = param.groupby('baseline')[chans].mean()
 
 # Pull out baselines and phases, use one-side and mid-point
@@ -195,7 +197,8 @@ if args.graph is not None:
     mkplot(baselines, phases, slopes, args.graph)
 
 if args.controlcodes:
-    output_cf(baselines.str[1], pol, -phases, -delays, args.outfile[0])
+    output_cf(baselines.str[1], args.polarization, -phases, -delays,
+              args.outfile[0])
 else:
     output(baselines.str[1], -slopes, args.outfile[0])
     if len(args.outfile) > 1:
