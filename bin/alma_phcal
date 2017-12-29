@@ -19,6 +19,22 @@ from eat.hops import util as hu
 #==============================================================================
 # Helper functions
 
+def unwrap(phi):
+    """Unwrap an array of angles to avoid artificial jumps due to branching
+    """
+    for i in np.arange(len(phi)-1)+1:
+        if   phi[i] - phi[i-1] >  180: phi[i:] -= 360
+        elif phi[i] - phi[i-1] < -180: phi[i:] += 360
+    return phi
+
+def offset(phi):
+    """Offset an array of angles (in degree) to the principle branch
+    """
+    m = np.mean(phi)
+    if   m >  180: phi -= 360
+    elif m < -180: phi += 360
+    return phi
+
 def get_param(file, diff=True, pol=None,
               baseline=True, source=False, nchan=False, head=False):
     """Read an alist file and prepare phases phase-cal
@@ -63,18 +79,10 @@ def get_param(file, diff=True, pol=None,
             v = hu.pop210(p) * np.exp(-1j * t)
         else:
             v = hu.pop210(p)
-        phases[i,:] = np.angle(v, deg=True)
+        phases[i,:] = offset(unwrap(np.angle(v, deg=True)))
 
     # Construct and return final Pandas DataFrame
     return pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
-
-def unwrap(phi):
-    for i in np.arange(phi.shape[1]-1)+1:
-        a, b = phi[:,i-1], phi[:,i]
-        b[b - a >  180] -= 360
-        b[b - a < -180] += 360
-        phi[:,i] = b
-    return phi
 
 def qfit(y1, y2, y3):
     a  =       y1
@@ -146,6 +154,8 @@ args = parser.parse_args()
 #------------------------------------------------------------------------------
 # Get necessary data to perform phase cal
 param = get_param(args.filename, head=True)
+
+pritn(param)
 
 #------------------------------------------------------------------------------
 # Pull out baselines, unwrap phases, use one-side and mid-point
