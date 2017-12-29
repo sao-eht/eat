@@ -30,9 +30,11 @@ def unwrap(phi):
 def offset(phi):
     """Offset an array of angles (in degree) to the principle branch
     """
-    m = np.mean(phi)
-    if   m >  180: phi -= 360
-    elif m < -180: phi += 360
+    while True:
+        m = np.mean(phi)
+        if   m >  180: phi -= 360
+        elif m < -180: phi += 360
+        else         : break
     return phi
 
 def get_param(file, diff=True, pol=None,
