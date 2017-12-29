@@ -96,11 +96,12 @@ args = parser.parse_args()
 #------------------------------------------------------------------------------
 # Read an alist and select the columns that match the input of `bin/phases.pl`
 a = util.noauto(hops.read_alist(args.filename))
+a = a[(a.polarization == 'LL') | (a.polarization == 'RR')]
 a['nchan'] = 32
 util.add_path(a)
 
 cols = ['path', 'source', 'nchan', 'quality', 'snr', 'resid_phas']
-print(a[cols].iloc[0:3])
+print(a[cols].iloc[0:20])
 
 exit(0)
 
