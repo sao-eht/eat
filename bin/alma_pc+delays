@@ -103,12 +103,12 @@ def qfit(y1, y2, y3):
 def mkplot(baselines, phases, slopes, file):
     cs = cm.rainbow(np.linspace(0,1,len(baselines)))
     d  = np.array([-0.5,0.5])
-    x  = np.arange(32)
+    x  = np.arange(phases.shape[1])
     for i, b in baselines.iteritems():
         y = -phases[i,:]
         m = -slopes[i,:]
         plt.scatter(x, y, color=cs[i], label=b)
-        for j in np.arange(32):
+        for j in x:
             plt.plot(x[j]+d, y[j]+d*m[j], color=cs[i])
     plt.legend()
     if "." in file:
