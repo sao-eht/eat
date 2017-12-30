@@ -88,6 +88,7 @@ def load(file, pol=None):
         if b[1] == "A": # need to swap baseline and negate phases
             a.baseline[i] = b[::-1]
             phases[i,:]   = -phases[i,:]
+            print("WARNING: ALMA is not the reference", file=sys.stderr)
 
     # Construct and return final Pandas DataFrame
     chans = list(string.ascii_letters[:phases.shape[1]])
