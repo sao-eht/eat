@@ -6,9 +6,9 @@
 
 from __future__ import print_function
 
-import datetime, pwd, os, sys
+import datetime, string
+import pwd, os, sys
 import argparse
-import string
 
 import pandas as pd
 import numpy  as np
@@ -37,8 +37,7 @@ def offset(phi):
         else         : break
     return phi
 
-def get_param(file, diff=True, pol=None,
-              baseline=True, source=False, nchan=False, head=False):
+def load(file, pol=None):
     """Read an alist file and prepare phases phase-cal
 
     Read an alist file, apply filter to select the userful rows, and
@@ -48,42 +47,32 @@ def get_param(file, diff=True, pol=None,
     a = util.noauto(hops.read_alist(file))
 
     # Apply row filtering
+    a = a[a.baseline.str.contains("A")] # must contain ALMA
+
     if pol is None:
         a = a[(a.polarization == 'LL')|
               (a.polarization == 'RR')]
     else:
         a = a[(a.polarization == "{}{}".format(pol, pol).upper())]
 
-    a = a[a.baseline.str.contains("A")] # must contain ALMA
-
-    if head: # for testing
-        a = a.iloc[0:10]
-
     a = a.reset_index(drop=True)
     util.add_path(a)
 
-    # Decide which columns to return
-    cols = ['baseline' if baseline else 'path']
-    if source:
-        cols += ['source']
-    if nchan:
-        a['nchan']= 32
-        cols += ['nchan']
-    cols += ['quality', 'snr', 'resid_phas']
-
     # Access corel (per-channel) phases
-    chans  = list(string.ascii_letters[:32])
-    phases = np.zeros((len(a), len(chans)), dtype=np.float32)
+    phases = None
     for i, p in a.path.iteritems():
-        if diff:
-            deg2rad = np.pi / 180.0
-            t = a.resid_phas[i] * deg2rad
-            v = hu.pop210(p) * np.exp(-1j * t)
-        else:
-            v = hu.pop210(p)
-        phases[i,:] = offset(unwrap(np.angle(v, deg=True)))
+        v = hu.pop210(p)
+
+        if phases is None: # allocate after pop210() to get number of channels
+            phases = np.zeros((len(a), len(v)), dtype=np.float32)
+
+        deg2rad = np.pi / 180.0
+        phasor  = np.exp(-1j * a.resid_phas[i] * deg2rad)
+        phases[i,:] = offset(unwrap(np.angle(v * phasor, deg=True)))
 
     # Construct and return final Pandas DataFrame
+    chans = list(string.ascii_letters[:len(v)])
+    cols  = ['baseline', 'quality', 'snr', 'resid_phas']
     return pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
 
 def qfit(y1, y2, y3):
@@ -165,13 +154,13 @@ elif args.controlcodes and len(args.outfile) != 1:
 #------------------------------------------------------------------------------
 # Get data and perform phase cal
 chans = list(string.ascii_letters[:32])
-param = get_param(args.filename, pol=args.polarization, head=True)
-phcal = param.groupby('baseline')[chans].mean()
+df = load(args.filename, pol=args.polarization)
+pc = df.groupby('baseline')[chans].mean()
 
 # Pull out baselines and phases, use one-side and mid-point
 # methods to esimate slopes
-baselines = pd.Series(phcal.index.values)
-phases    = phcal.values
+baselines = pd.Series(pc.index.values)
+phases    = pc.values
 slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
                                 0.5 * (phases[:, 2:] - phases[:,:-2]),
                             np.reshape(phases[:,-1 ] - phases[:, -2], (-1,1))),
