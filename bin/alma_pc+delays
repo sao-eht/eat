@@ -85,7 +85,7 @@ def qfit(y1, y2, y3):
     c  = (     y1 - 2.0*y2 + y3) / 2.0
     return a, b, c
 
-def mkplot(baselines, phases, slopes, target):
+def mkplot(baselines, phases, slopes, file):
     import matplotlib.pyplot as plt
     import matplotlib.cm     as cm # not best practice, but avoid extra
                                    # library when no graph is specified
@@ -99,18 +99,18 @@ def mkplot(baselines, phases, slopes, target):
         for j in np.arange(32):
             plt.plot(x[j]+d, y[j]+d*m[j], color=cs[i])
     plt.legend()
-    if "." in target:
-        plt.savefig(target)
+    if "." in file:
+        plt.savefig(file)
     else:
         plt.show()
 
-def output_csv(s, a, t):
-    out = pd.DataFrame(data=a)
-    out.insert(0, 'label', s)
-    out.to_csv(t, index=False, header=False, sep=" ", float_format="%.9g")
+def output_csv(sites, data, file):
+    out = pd.DataFrame(data)
+    out.insert(0, 'label', sites)
+    out.to_csv(file, index=False, header=False, sep=" ", float_format="%.9g")
 
-def output_cf(sites, pol, phases, delays, target):
-    with open(target, "w") as f:
+def output_cf(sites, pol, phases, delays, file):
+    with open(file, "w") as f:
         p = "" if pol is None else "_"+pol
         for i, s in sites.iteritems():
             f.write("""if station {}
