@@ -76,11 +76,14 @@ def load(file, pol=None):
         b = a.baseline[i]
         p = a.resid_phas[i] * np.pi / 180.0
         v = hu.pop210(f)
-
+        l = len(v)
         if phases is None: # allocate after pop210() to get number of channels
-            phases = np.zeros((len(a), len(v)), dtype=np.float32)
+            phases = np.zeros((len(a), l), dtype=np.float32)
+        elif l != phases.shape[1]:
+            print("WARNING: \"{}\" has {} less channel(s) than expected".
+                  format(f, phases.shape[1] - l), file=sys.stderr)
 
-        phases[i,:] = offset(unwrap(np.angle(v * np.exp(-1j * p), deg=True)))
+        phases[i,:l] = offset(unwrap(np.angle(v * np.exp(-1j * p), deg=True)))
 
         if b[1] == "A": # need to swap baseline and negate phases
             a.baseline[i] = b[::-1]
