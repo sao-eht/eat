@@ -140,10 +140,17 @@ def output_cf(baselines, pol, phases, delays, file):
 # Main code
 #------------------------------------------------------------------------------
 # Argument parsing and read input file
+try:
+    datadir = os.environ['DATADIR']
+except:
+    datadir = None
+
 parser = argparse.ArgumentParser(
     description="Estimate phase-cal phases and delay offsets")
 parser.add_argument('filename',
                     help='alist file')
+parser.add_argument('-d', '--datadir', default=datadir,
+                    help='use fringe files from this data directory')
 parser.add_argument('-o', '--outfile', default=[sys.stdout], nargs='+',
                     help='output csv filename')
 parser.add_argument('-c', '--controlcodes', default=False, action='store_true',
@@ -163,9 +170,12 @@ elif args.controlcodes and len(args.outfile) != 1:
 
 #------------------------------------------------------------------------------
 # Get data and perform phase cal
+if args.datadir is not None:
+    hu.set_datadir(args.datadir)
+
 chans = list(string.ascii_letters[:32])
-df = load(args.filename, pol=args.polarization)
-pc = df.groupby('baseline')[chans].mean()
+df    = load(args.filename, pol=args.polarization)
+pc    = df.groupby('baseline')[chans].mean()
 
 # Pull out baselines and phases, use one-side and mid-point
 # methods to esimate slopes
