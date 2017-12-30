@@ -104,9 +104,9 @@ def mkplot(baselines, phases, slopes, file):
     else:
         plt.show()
 
-def output_csv(sites, data, file):
-    out = pd.DataFrame(-data)
-    out.insert(0, 'label', sites)
+def output_csv(baselines, data, file):
+    out = pd.DataFrame(data)
+    out.insert(0, 'label', baselines)
     out.to_csv(file, index=False, header=False, sep=" ", float_format="%.9g")
 
 def output_cf(sites, pol, phases, delays, file):
@@ -193,6 +193,6 @@ if args.controlcodes:
     output_cf(baselines.str[1], args.polarization, phases, delays,
               args.outfile[0])
 else:
-    output_csv(baselines.str[1], slopes, args.outfile[0])
+    output_csv(baselines, slopes, args.outfile[0])
     if len(args.outfile) > 1:
-        output_csv(baselines.str[1], delays, args.outfile[1])
+        output_csv(baselines, delays, args.outfile[1])
