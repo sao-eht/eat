@@ -10,6 +10,11 @@ import datetime, string
 import pwd, os, sys
 import argparse
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.cm     as cm
+
 import pandas as pd
 import numpy  as np
 
@@ -93,9 +98,6 @@ def qfit(y1, y2, y3):
     return a, b, c
 
 def mkplot(baselines, phases, slopes, file):
-    import matplotlib.pyplot as plt
-    import matplotlib.cm     as cm # not best practice, but avoid extra
-                                   # library when no graph is specified
     cs = cm.rainbow(np.linspace(0,1,len(baselines)))
     d  = np.array([-0.5,0.5])
     x  = np.arange(32)
