@@ -123,13 +123,20 @@ def output_csv(baselines, data, file):
     out.to_csv(file, index=False, header=False, sep=" ", float_format="%.9g")
 
 def output_cf(baselines, pol, phases, delays, file):
+    need_open_close = not hasattr(file, "write")
+
     sites = baselines.str[1]
     chans = string.ascii_letters[:phases.shape[1]]
     post  = "" if pol is None else "_"+pol
-    with open(file, "w") as f:
-        f.write("* {}\n\n".format(statline))
-        for i, s in sites.iteritems():
-            f.write("""if station {}
+
+    if need_open_close:
+        f = open(file, "w")
+    else:
+        f = file
+
+    f.write("* {}\n\n".format(statline))
+    for i, s in sites.iteritems():
+        f.write("""if station {}
   pc_phases{}  {}
     {}
   delay_offs{} {}
@@ -140,6 +147,9 @@ def output_cf(baselines, pol, phases, delays, file):
            " ".join(["{:.6f}".format(p) for p in -phases[i,:]]),
            post, chans,
            " ".join(["{:.6f}".format(p) for p in -delays[i,:]])))
+
+    if need_open_close:
+        f.close()
 
 #==============================================================================
 # Main code
