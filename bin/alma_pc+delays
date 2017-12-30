@@ -90,7 +90,7 @@ def load(file, pol=None):
             phases[i,:]   = -phases[i,:]
 
     # Construct and return final Pandas DataFrame
-    chans = list(string.ascii_letters[:len(v)])
+    chans = list(string.ascii_letters[:phases.shape[1]])
     cols  = ['baseline', 'quality', 'snr', 'resid_phas']
     return pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
 
@@ -123,20 +123,21 @@ def output_csv(baselines, data, file):
 
 def output_cf(baselines, pol, phases, delays, file):
     sites = baselines.str[1]
+    chans = string.ascii_letters[:phases.shape[1]]
     post  = "" if pol is None else "_"+pol
     with open(file, "w") as f:
         f.write("* {}\n\n".format(statline))
         for i, s in sites.iteritems():
             f.write("""if station {}
-  pc_phases{}  abcdefghijklmnopqrstuvwxyzABCDEF
+  pc_phases{}  {}
     {}
-  delay_offs{} abcdefghijklmnopqrstuvwxyzABCDEF
+  delay_offs{} {}
     {}
 
 """.format(s,
-           post,
+           post, chans,
            " ".join(["{:.6f}".format(p) for p in -phases[i,:]]),
-           post,
+           post, chans,
            " ".join(["{:.6f}".format(p) for p in -delays[i,:]])))
 
 #==============================================================================
@@ -176,9 +177,9 @@ elif args.controlcodes and len(args.outfile) != 1:
 if args.datadir is not None:
     hu.set_datadir(args.datadir)
 
-chans = list(string.ascii_letters[:32])
-df    = load(args.filename, pol=args.polarization)
-pc    = df.groupby('baseline')[chans].mean()
+df = load(args.filename, pol=args.polarization)
+n  = string.ascii_letters.find(df.columns[-1]) + 1
+pc = df.groupby('baseline')[list(string.ascii_letters[:n])].mean()
 
 # Pull out baselines and phases, use one-side and mid-point
 # methods to esimate slopes
