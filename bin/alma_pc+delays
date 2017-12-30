@@ -16,6 +16,13 @@ import numpy  as np
 from eat.io   import hops, util
 from eat.hops import util as hu
 
+#------------------------------------------------------------------------------
+# Logging
+statline = "[{}] {}@{}:{}$ {}".format(
+    datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(),
+    ' '.join(sys.argv))
+
 #==============================================================================
 # Helper functions
 
@@ -113,6 +120,7 @@ def output_cf(baselines, pol, phases, delays, file):
     sites = baselines.str[1]
     post  = "" if pol is None else "_"+pol
     with open(file, "w") as f:
+        f.write("* {}\n\n".format(statline))
         for i, s in sites.iteritems():
             f.write("""if station {}
   pc_phases{}  abcdefghijklmnopqrstuvwxyzABCDEF
@@ -128,13 +136,6 @@ def output_cf(baselines, pol, phases, delays, file):
 
 #==============================================================================
 # Main code
-#------------------------------------------------------------------------------
-# Logging
-statline = "[{}] {}@{}:{}$ {}".format(
-    datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-    pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(),
-    ' '.join(sys.argv))
-
 #------------------------------------------------------------------------------
 # Argument parsing and read input file
 parser = argparse.ArgumentParser(
