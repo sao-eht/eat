@@ -109,19 +109,22 @@ def output_csv(baselines, data, file):
     out.insert(0, 'label', baselines)
     out.to_csv(file, index=False, header=False, sep=" ", float_format="%.9g")
 
-def output_cf(sites, pol, phases, delays, file):
+def output_cf(baselines, pol, phases, delays, file):
+    sites = baselines.str[1]
+    post  = "" if pol is None else "_"+pol
     with open(file, "w") as f:
-        p = "" if pol is None else "_"+pol
         for i, s in sites.iteritems():
             f.write("""if station {}
-  pc_phases{}  abcdefghijklmnopqrstuvwxyzABCDEF""".format(s, p))
-            for j in range(32):
-                f.write(" {:.6f}".format(-phases[i,j]))
-            f.write("""
-  delay_offs{} abcdefghijklmnopqrstuvwxyzABCDEF""".format(p))
-            for j in range(32):
-                f.write(" {:.6f}".format(-delays[i,j]))
-            f.write("\n\n")
+  pc_phases{}  abcdefghijklmnopqrstuvwxyzABCDEF
+    {}
+  delay_offs{} abcdefghijklmnopqrstuvwxyzABCDEF
+    {}
+
+""".format(s,
+           post,
+           " ".join(["{:.6f}".format(p) for p in -phases[i,:]]),
+           post,
+           " ".join(["{:.6f}".format(p) for p in -delays[i,:]])))
 
 #==============================================================================
 # Main code
@@ -190,8 +193,7 @@ if args.graph is not None:
     mkplot(baselines, phases, slopes, args.graph)
 
 if args.controlcodes:
-    output_cf(baselines.str[1], args.polarization, phases, delays,
-              args.outfile[0])
+    output_cf(baselines, args.polarization, phases, delays, args.outfile[0])
 else:
     output_csv(baselines, slopes, args.outfile[0])
     if len(args.outfile) > 1:
