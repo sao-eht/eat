@@ -214,23 +214,29 @@ if args.controlcodes:
     if need_open_close:
         f.close()
 else:
-    d = {'r': pcr.values,
+    k = list("rlfds")
+    b = {'r': pcr.index.values,
+         'l': pcl.index.values,
+         'f': pcf.index.values,
+         'd': pcf.index.values,
+         's': pcf.index.values}
+    v = {'r': pcr.values,
          'l': pcl.values,
+         'f': phases,
          'd': delays,
          's': slopes}
     if len(args.outfile) == 1:
         f = args.outfile[0]
         if hasattr(f, "write"):
-            for k, v in d.items():
-                output_csv(baselines, v, f)
+            for j in k:
+                output_csv(b[j], v[j], f)
         else:
             p, x = os.path.splitext(f)
-            for k, v in d.items():
-                output_csv(baselines, v, p+'_'+k+x)
+            for j in k:
+                output_csv(b[j], v[j], p+'_'+j+x)
     else:
-        k = list("rlds")
         for i, f in enumerate(args.outfile):
-            output_csv(baselines, d[k[i]], f)
+            output_csv(b[k[i]], d[k[i]], f)
 
 if args.graph:
     mkplot(pcr.index.values, pcr.values, slopes, "pc_phase_r.eps")
