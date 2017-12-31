@@ -160,15 +160,17 @@ parser.add_argument('filename',
 parser.add_argument('-d', '--datadir', default=datadir,
                     help='use fringe files from this data directory')
 parser.add_argument('-o', '--outfile', default=[sys.stdout], nargs='+',
-                    help='output csv filename')
+                    help='output file name(s); '+
+                         'if "-c" is used, then only 1 file name is allowed; '+
+                         'otherwise, at most 1 names can be used')
 parser.add_argument('-c', '--controlcodes', default=False, action='store_true',
                     help='construct control codes rather than csv table')
 parser.add_argument('-g', '--graph', default=None,
                     help="graphic output")
 args = parser.parse_args()
 
-if len(args.outfile) > 2:
-    print("At most 2 output files are supported")
+if len(args.outfile) > 4:
+    print("At most 4 output files are supported")
     exit(1)
 elif args.controlcodes and len(args.outfile) != 1:
     print("Only 1 output file is supported when \"--controlcodes\" is set")
@@ -211,9 +213,23 @@ delays = 1e9 * (slopes / 360.0) / d_nu # in nanosecond
 if args.controlcodes:
     output_cf(baselines, phases, phases, delays, args.outfile[0])
 else:
-    output_csv(baselines, slopes, args.outfile[0])
-    if len(args.outfile) > 1:
-        output_csv(baselines, delays, args.outfile[1])
+    d = {'r': phases,
+         'l': phases,
+         'd': delays,
+         's': slopes}
+    if len(args.outfile) == 1:
+        f = args.outfile[0]
+        if hasattr(f, "write"):
+            for k, v in d.items():
+                output_csv(baselines, v, f)
+        else:
+            p, x = os.path.splitext(f)
+            for k, v in d.items():
+                output_csv(baselines, v, p+'_'+k+x)
+    else:
+        k = list("rlds")
+        for i, f in enumerate(args.outfile):
+            output_csv(baselines, d[k[i]], f)
 
 if args.graph is not None:
     mkplot(baselines, phases, slopes, args.graph)
