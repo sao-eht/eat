@@ -193,13 +193,12 @@ nchan = string.ascii_letters.find(df.columns[-1]) + 1
 chans = list(string.ascii_letters[:nchan])
 cols  = ['baseline'] + chans
 
-ll   = df[df.polarization == 'LL'][cols]
-rr   = df[df.polarization == 'RR'][cols]
-full = df[cols]
+ll = df[df.polarization == 'LL']
+rr = df[df.polarization == 'RR']
 
-pcf = df.groupby('baseline').mean()
-pcl = ll.groupby('baseline').mean()
-pcr = rr.groupby('baseline').mean()
+pcf = df.groupby('baseline')[cols].mean()
+pcl = ll.groupby('baseline')[cols].mean()
+pcr = rr.groupby('baseline')[cols].mean()
 
 #------------------------------------------------------------------------------
 # Pull out baselines and phases, use one-side and mid-point
