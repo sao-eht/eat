@@ -87,7 +87,8 @@ def load(file):
 
     # Construct and return final Pandas DataFrame
     chans = list(string.ascii_letters[:phases.shape[1]])
-    return pd.concat([a, pd.DataFrame(phases, columns=chans)], axis=1)
+    cols  = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas']
+    return pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
 
 def qfit(y1, y2, y3):
     a  =       y1
