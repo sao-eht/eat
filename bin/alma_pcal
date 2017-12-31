@@ -67,7 +67,8 @@ def load(file):
         v = hu.pop210(f)
         l = len(v)
         if phases is None: # allocate after pop210() to get number of channels
-            phases = np.zeros((len(a), l), dtype=np.float32)
+            phases = np.empty((len(a), l), dtype=np.float32)
+            phases.fill(np.nan)
         elif l != phases.shape[1]:
             print("WARNING: \"{}\" has {} less channel(s) than expected".
                   format(f, phases.shape[1] - l), file=sys.stderr)
