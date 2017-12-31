@@ -95,6 +95,12 @@ def qfit(y1, y2, y3):
     c  = (     y1 - 2.0*y2 + y3) / 2.0
     return a, b, c
 
+def derivative(y, dx=1.0):
+    return np.concatenate((np.reshape(y[:, 1 ] - y[:,  0], (-1,1)),
+                               0.5 * (y[:, 2:] - y[:,:-2]),
+                           np.reshape(y[:,-1 ] - y[:, -2], (-1,1))),
+                          axis=1) / dx
+
 def mkplot(baselines, phases, slopes, file):
     cs = cm.rainbow(np.linspace(0,1,len(baselines)))
     d  = np.array([-0.5,0.5])
@@ -199,10 +205,7 @@ pcr = rr.groupby('baseline').mean()
 # methods to esimate slopes
 baselines = pd.Series(pcf.index.values)
 phases    = pcf.values
-slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
-                                0.5 * (phases[:, 2:] - phases[:,:-2]),
-                            np.reshape(phases[:,-1 ] - phases[:, -2], (-1,1))),
-                           axis=1)
+slopes    = derivative(phases)
 
 # Extrapolation for last channel
 a, b, c = qfit(phases[:,-4], phases[:,-3], phases[:,-2])
