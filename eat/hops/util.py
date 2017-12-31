@@ -154,6 +154,17 @@ def mk4time(time):
         (time.year, time.day, time.hour, time.minute, int(time.second), int(0.5+1e6*(time.second-int(time.second)))),
         "%Y-%j %H:%M:%S.%f")
 
+# populate the type_210 visib data into array
+# (nchan)
+def pop210(b=None, pol=None):
+    b = getfringefile(b, pol=pol)
+    nchan = b.n212
+    q = (mk4.polars*nchan).from_address(ctypes.addressof(b.t210.contents.amp_phas))
+    data210 = np.frombuffer(q, dtype=np.float32, count=-1).reshape((nchan, 2))
+    deg2rad = np.pi / 180.0
+    v = data210[:,0] * np.exp(1j * data210[:,1] * deg2rad)
+    return v
+
 # populate the type_212 visib data into array
 # (nap, nchan)
 def pop212(b=None, pol=None, weights=False):
@@ -882,7 +893,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         polyorder = 2
     if window_length is None:
         window_length = max(1+polyorder, 1+2*int((1+polyorder)*R/2.))
-    
+
     # basic constraints
     if window_length > nap:
         window_length = 1+2*((nap-1)//2)
