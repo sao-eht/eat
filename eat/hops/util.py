@@ -1373,11 +1373,11 @@ def align(bs, snrs=None, tint=5.):
     vsmooth = [np.convolve(v, win, mode='same') for v in vw]
     phase = np.array([np.angle(np.sum(vi * vsmooth[0].conj())) for vi in vsmooth])
     # align in phase and stack
-    wstack = w.sum(axis=0)[:,None]
+    wstack = w.sum(axis=0)
     vstack = (v212 * w[:,:,None] * np.exp(-1j* phase)[:,None,None]).sum(axis=0)
     # interpolate over 0 weight (flagged) data
     igood = wstack > 0.
-    vstack[igood] = vstack[igood] / wstack[igood]
+    vstack[igood] = vstack[igood] / wstack[igood, None]
     vstack[~igood] = interp1d(p0.dtvec[igood], vstack[igood], axis=0,
                               kind='linear', bounds_error=False)(p0.dtvec[~igood])
     return vstack
