@@ -110,7 +110,8 @@ def mkplot(baselines, phases, slopes, file):
     cs = cm.rainbow(np.linspace(0,1,len(baselines)))
     d  = np.array([-0.5,0.5])
     x  = np.arange(phases.shape[1])
-    for i, b in baselines.iteritems():
+    plt.figure()
+    for i, b in enumerate(baselines):
         y = -phases[i,:]
         m = -slopes[i,:]
         plt.scatter(x, y, color=cs[i], label=b)
@@ -164,7 +165,7 @@ parser.add_argument("-o", "--outfile", default=[sys.stdout], nargs="+",
                          "otherwise, at most 1 names can be used")
 parser.add_argument("-c", "--controlcodes", default=False, action="store_true",
                     help="construct control codes rather than csv table")
-parser.add_argument("-g", "--graph", default=None,
+parser.add_argument("-g", "--graph",        default=False, action="store_true",
                     help="graphic output")
 args = parser.parse_args()
 
@@ -231,5 +232,7 @@ else:
         for i, f in enumerate(args.outfile):
             output_csv(baselines, d[k[i]], f)
 
-if args.graph is not None:
-    mkplot(baselines, pcf.values, slopes, args.graph)
+if args.graph:
+    mkplot(pcr.index.values, pcr.values, slopes, "pc_phase_r.eps")
+    mkplot(pcl.index.values, pcl.values, slopes, "pc_phase_l.eps")
+    mkplot(pcf.index.values, pcf.values, slopes, "pc_phase_f.eps")
