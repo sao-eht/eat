@@ -181,14 +181,24 @@ elif args.controlcodes and len(args.outfile) != 1:
 if args.datadir is not None:
     hu.set_datadir(args.datadir)
 
-df = load(args.filename)
-n  = string.ascii_letters.find(df.columns[-1]) + 1
-pc = df[['baseline']+list(string.ascii_letters[:n])].groupby('baseline').mean()
+df    = load(args.filename)
+nchan = string.ascii_letters.find(df.columns[-1]) + 1
+chans = list(string.ascii_letters[:nchan])
+cols  = ['baseline'] + chans
 
+ll   = df[df.polarization == 'LL'][cols]
+rr   = df[df.polarization == 'RR'][cols]
+full = df[cols]
+
+pcf = df.groupby('baseline').mean()
+pcl = ll.groupby('baseline').mean()
+pcr = rr.groupby('baseline').mean()
+
+#------------------------------------------------------------------------------
 # Pull out baselines and phases, use one-side and mid-point
 # methods to esimate slopes
-baselines = pd.Series(pc.index.values)
-phases    = pc.values
+baselines = pd.Series(pcf.index.values)
+phases    = pcf.values
 slopes    = np.concatenate((np.reshape(phases[:, 1 ] - phases[:,  0], (-1,1)),
                                 0.5 * (phases[:, 2:] - phases[:,:-2]),
                             np.reshape(phases[:,-1 ] - phases[:, -2], (-1,1))),
@@ -211,10 +221,10 @@ delays = 1e9 * (slopes / 360.0) / d_nu # in nanosecond
 #------------------------------------------------------------------------------
 # Outputs
 if args.controlcodes:
-    output_cf(baselines, phases, phases, delays, args.outfile[0])
+    output_cf(baselines, pcr.values, pcl.values, delays, args.outfile[0])
 else:
-    d = {'r': phases,
-         'l': phases,
+    d = {'r': pcr.values,
+         'l': pcl.values,
          'd': delays,
          's': slopes}
     if len(args.outfile) == 1:
@@ -232,4 +242,4 @@ else:
             output_csv(baselines, d[k[i]], f)
 
 if args.graph is not None:
-    mkplot(baselines, phases, slopes, args.graph)
+    mkplot(baselines, pcf.values, slopes, args.graph)
