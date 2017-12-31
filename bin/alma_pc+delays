@@ -151,7 +151,7 @@ statline = "[{}] {}@{}:{}$ {}".format(
     ' '.join(sys.argv))
 
 #------------------------------------------------------------------------------
-# Argument parsing and read input file
+# Argument parsing
 try:
     datadir = os.environ['DATADIR']
 except:
@@ -181,7 +181,7 @@ elif args.controlcodes and len(args.outfile) != 1:
     exit(1)
 
 #------------------------------------------------------------------------------
-# Get data and perform phase cal
+# Get data, perform phase cal, and compute delay offsets
 if args.datadir is not None:
     hu.set_datadir(args.datadir)
 
