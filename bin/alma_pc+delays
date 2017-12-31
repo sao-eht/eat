@@ -104,9 +104,13 @@ def fix_last(y):
     return y
 
 def derivative(y, dx=1.0):
-    return np.concatenate((np.reshape(y[:, 1 ] - y[:,  0], (-1,1)),
-                               0.5 * (y[:, 2:] - y[:,:-2]),
-                           np.reshape(y[:,-1 ] - y[:, -2], (-1,1))),
+    a, b, c = qfit(y[:,-3], y[:,-2], y[:,-1])
+    m1 = b + 4.0*c # == b + 2 c x with x == 2
+    a, b, c = qfit(y[:,0], y[:,1], y[:,2])
+    m0 = b         # == b + 2 c x with x == 0
+    return np.concatenate((np.reshape(m0, (-1,1)),
+                           0.5 * (y[:,2:] - y[:,:-2]),
+                           np.reshape(m1, (-1,1))),
                           axis=1) / dx
 
 def mkplot(baselines, phases, slopes, file):
