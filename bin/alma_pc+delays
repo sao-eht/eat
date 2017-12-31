@@ -183,7 +183,7 @@ if args.datadir is not None:
 
 df = load(args.filename)
 n  = string.ascii_letters.find(df.columns[-1]) + 1
-pc = df.groupby('baseline')[list(string.ascii_letters[:n])].mean()
+pc = df[['baseline']+list(string.ascii_letters[:n])].groupby('baseline').mean()
 
 # Pull out baselines and phases, use one-side and mid-point
 # methods to esimate slopes
