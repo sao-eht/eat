@@ -164,8 +164,6 @@ parser.add_argument('-o', '--outfile', default=[sys.stdout], nargs='+',
                     help='output csv filename')
 parser.add_argument('-c', '--controlcodes', default=False, action='store_true',
                     help='construct control codes rather than csv table')
-parser.add_argument('-p', '--polarization', default=None,
-                    help="select polarization")
 parser.add_argument('-g', '--graph', default=None,
                     help="graphic output")
 args = parser.parse_args()
@@ -182,7 +180,7 @@ elif args.controlcodes and len(args.outfile) != 1:
 if args.datadir is not None:
     hu.set_datadir(args.datadir)
 
-df = load(args.filename, pol=args.polarization)
+df = load(args.filename)
 n  = string.ascii_letters.find(df.columns[-1]) + 1
 pc = df.groupby('baseline')[list(string.ascii_letters[:n])].mean()
 
@@ -212,7 +210,7 @@ delays = 1e9 * (slopes / 360.0) / d_nu # in nanosecond
 #------------------------------------------------------------------------------
 # Outputs
 if args.controlcodes:
-    output_cf(baselines, args.polarization, phases, delays, args.outfile[0])
+    output_cf(baselines, phases, delays, args.outfile[0])
 else:
     output_csv(baselines, slopes, args.outfile[0])
     if len(args.outfile) > 1:
