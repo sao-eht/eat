@@ -52,6 +52,7 @@ def load(file):
     a = util.noauto(hops.read_alist(file))
 
     # Apply row filtering
+    a = a[a.snr > 50]
     a = a[a.baseline.str.contains("A")] # must contain ALMA
     a = a[(a.polarization == 'LL')|
           (a.polarization == 'RR')]
