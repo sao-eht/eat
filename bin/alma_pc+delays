@@ -134,33 +134,14 @@ def output_csv(baselines, data, file):
     out.insert(0, 'label', baselines)
     out.to_csv(file, index=False, header=False, sep=" ", float_format="%.9g")
 
-def output_cf(baselines, phas_r, phas_l, delays, file):
-    need_open_close = not hasattr(file, "write")
-
-    sites = baselines.str[1]
-    chans = string.ascii_letters[:delays.shape[1]]
-
-    if need_open_close:
-        f = open(file, "w")
-    else:
-        f = file
-
-    f.write("* {}\n\n".format(statline))
-    for i, s in sites.iteritems():
-        f.write("""if station {}
-  pc_phases_r {}
+def get_cf(baselines, code, data):
+    sites = [b[1] for b in baselines]
+    chans = string.ascii_letters[:data.shape[1]]
+    return ["""if station {}
+  {} {}
     {}
-  pc_phases_l {}
-    {}
-  delay_offs  {}
-    {}
-
-""".format(s, chans, " ".join(["{:.6f}".format(p) for p in -phas_r[i,:]]),
-              chans, " ".join(["{:.6f}".format(p) for p in -phas_l[i,:]]),
-              chans, " ".join(["{:.6f}".format(p) for p in -delays[i,:]])))
-
-    if need_open_close:
-        f.close()
+""".format(s, code, chans, " ".join(["{:.6f}".format(p) for p in -data[i,:]]))
+            for i, s in enumerate(sites)]
 
 #==============================================================================
 # Main code
@@ -211,21 +192,18 @@ pcf = df.groupby('baseline')[cols].mean()
 pcl = ll.groupby('baseline')[cols].mean()
 pcr = rr.groupby('baseline')[cols].mean()
 
-#------------------------------------------------------------------------------
-# Pull out baselines and phases, use one-side and mid-point
-# methods to esimate slopes
-baselines = pd.Series(pcf.index.values)
-phases    = fix_last(pcf.values)
-slopes    = derivative(phases)
+phases = fix_last(pcf.values)
+slopes = derivative(phases)
 
-# Convert slopes to delay offsets
 d_nu   = 58.59375e6 # hard wire separation between channels
 delays = 1e9 * (slopes / 360.0) / d_nu # in nanosecond
 
 #------------------------------------------------------------------------------
 # Outputs
 if args.controlcodes:
-    output_cf(baselines, pcr.values, pcl.values, delays, args.outfile[0])
+    print("\n".join(get_cf(pcr.index.values, "pc_phases_r", pcr.values) +
+                    get_cf(pcl.index.values, "pc_phases_l", pcl.values) +
+                    get_cf(pcf.index.values, "delay_offs",  delays)))
 else:
     d = {'r': pcr.values,
          'l': pcl.values,
