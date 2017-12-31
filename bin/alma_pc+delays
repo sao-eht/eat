@@ -49,7 +49,7 @@ def offset(phi):
         else         : break
     return phi
 
-def load(file, pol=None):
+def load(file):
     """Read an alist file and prepare phases phase-cal
 
     Read an alist file, apply filter to select the userful rows, and
@@ -60,13 +60,8 @@ def load(file, pol=None):
 
     # Apply row filtering
     a = a[a.baseline.str.contains("A")] # must contain ALMA
-
-    if pol is None:
-        a = a[(a.polarization == 'LL')|
-              (a.polarization == 'RR')]
-    else:
-        a = a[(a.polarization == "{}{}".format(pol, pol).upper())]
-
+    a = a[(a.polarization == 'LL')|
+          (a.polarization == 'RR')]
     a = a.reset_index(drop=True)
     util.add_path(a)
 
@@ -92,8 +87,7 @@ def load(file, pol=None):
 
     # Construct and return final Pandas DataFrame
     chans = list(string.ascii_letters[:phases.shape[1]])
-    cols  = ['baseline', 'quality', 'snr', 'resid_phas']
-    return pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
+    return pd.concat([a, pd.DataFrame(phases, columns=chans)], axis=1)
 
 def qfit(y1, y2, y3):
     a  =       y1
