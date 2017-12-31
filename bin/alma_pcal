@@ -243,6 +243,11 @@ else:
             mkcsv(b[k[i]], d[k[i]], f)
 
 if args.graph:
-    mkplot(pcr.index.values, pcr.values, slopes, "pc_phase_r.eps")
-    mkplot(pcl.index.values, pcl.values, slopes, "pc_phase_l.eps")
-    mkplot(pcf.index.values, pcf.values, slopes, "pc_phase_f.eps")
+    k = pcf.index.values
+    mkplot(pcf.index.values, pcf.values, slopes,      "pc_phase_f.eps")
+
+    i = [np.where(k == b)[0][0] for b in pcr.index.values]
+    mkplot(pcr.index.values, pcr.values, slopes[i,:], "pc_phase_r.eps")
+
+    i = [np.where(k == b)[0][0] for b in pcl.index.values]
+    mkplot(pcl.index.values, pcl.values, slopes[i,:], "pc_phase_l.eps")
