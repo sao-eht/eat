@@ -21,13 +21,6 @@ import numpy  as np
 from eat.io   import hops, util
 from eat.hops import util as hu
 
-#------------------------------------------------------------------------------
-# Logging
-statline = "[{}] {}@{}:{}$ {}".format(
-    datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-    pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(),
-    ' '.join(sys.argv))
-
 #==============================================================================
 # Helper functions
 
@@ -146,6 +139,13 @@ def get_cf(baselines, code, data):
 #==============================================================================
 # Main code
 #------------------------------------------------------------------------------
+# Logging
+statline = "[{}] {}@{}:{}$ {}".format(
+    datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(),
+    ' '.join(sys.argv))
+
+#------------------------------------------------------------------------------
 # Argument parsing and read input file
 try:
     datadir = os.environ['DATADIR']
@@ -206,6 +206,7 @@ if args.controlcodes:
         f = open(args.outfile[0], "w")
     else:
         f = args.outfile[0]
+    f.write("* {}\n\n".format(statline))
     f.write("\n".join(get_cf(pcr.index.values, "pc_phases_r", pcr.values) +
                       get_cf(pcl.index.values, "pc_phases_l", pcl.values) +
                       get_cf(pcf.index.values, "delay_offs",  delays)))
