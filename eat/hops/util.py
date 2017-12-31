@@ -1340,6 +1340,7 @@ def trendplot(df, rem='', offs={}, col='sbdelay'):
 # tint: incoherent averaging time to phase alignment optimization
 def align(bs, snrs=None, tint=5.):
     from scipy.optimize import fmin
+    from scipy.interpolate import interp1d
     bs = [getfringefile(b, quiet=True) for b in bs] # data objects
     ps = [params(b) for b in bs] # meta data parameters
     p0 = ps[0] # reference set of parameters
@@ -1361,7 +1362,12 @@ def align(bs, snrs=None, tint=5.):
     vsmooth = [np.convolve(v, win, mode='same') for v in vw]
     phase = np.array([np.angle(np.sum(vi * vsmooth[0].conj())) for vi in vsmooth])
     # align in phase and stack
-    vstack = (v212 * w[:,:,None] * np.exp(-1j* phase)[:,None,None]).sum(axis=0) / w.sum(axis=0)[:,None]
+    wstack = w.sum(axis=0)
+    vstack = (vw * np.exp(-1j* phase)[:,None]).sum(axis=0)
+    # interpolate over 0 weight (flagged) data
+    igood = wstack > 0.
+    vstack[igood] = vstack[igood] / wstack[igood]
+    vstack[~igood] = interp1d(p0.dtvec[igood], vstack[igood], kind='linear', bounds_error=False)(p0.dtvec[~igood])
     return vstack
 
 # pick a reference station based on maximum sum(log(snr)) of detections
