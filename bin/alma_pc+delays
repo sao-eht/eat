@@ -155,17 +155,17 @@ except:
 
 parser = argparse.ArgumentParser(
     description="Estimate phase-cal phases and delay offsets")
-parser.add_argument('filename',
-                    help='alist file')
-parser.add_argument('-d', '--datadir', default=datadir,
-                    help='use fringe files from this data directory')
-parser.add_argument('-o', '--outfile', default=[sys.stdout], nargs='+',
-                    help='output file name(s); '+
-                         'if "-c" is used, then only 1 file name is allowed; '+
-                         'otherwise, at most 1 names can be used')
-parser.add_argument('-c', '--controlcodes', default=False, action='store_true',
-                    help='construct control codes rather than csv table')
-parser.add_argument('-g', '--graph', default=None,
+parser.add_argument("filename",
+                    help="alist file")
+parser.add_argument("-d", "--datadir", default=datadir,
+                    help="use fringe files from this data directory")
+parser.add_argument("-o", "--outfile", default=[sys.stdout], nargs="+",
+                    help="output file name(s); "+
+                         "if \"-c\" is used, only 1 file name is allowed; "+
+                         "otherwise, at most 1 names can be used")
+parser.add_argument("-c", "--controlcodes", default=False, action="store_true",
+                    help="construct control codes rather than csv table")
+parser.add_argument("-g", "--graph", default=None,
                     help="graphic output")
 args = parser.parse_args()
 
