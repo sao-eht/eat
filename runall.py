@@ -4,14 +4,14 @@ import os, sys
 ######### SET PATHS FOR THE DATA DIRECTORY AND THE CALIBRATION TABLES #########
 
 #Katie  
-#band = 'hi'
-#datadir = '/Users/klbouman/Research/vlbi_imaging/software/hops/er1-hops-' + band
-#caldir = '/Users/klbouman/Research/vlbi_imaging/software/hops/SEFDs/SEFD_HI/'
+band = 'hi'
+datadir = '/Users/klbouman/Research/vlbi_imaging/software/hops/er1-hops-' + band
+caldir = '/Users/klbouman/Research/vlbi_imaging/software/hops/SEFDs/SEFD_HI/'
 
 #Andrew
-band= 'lo'
-caldir = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/SEFDs/SEFD_HI/'
-datadir = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-lo'
+#band= 'lo'
+#caldir = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/SEFDs/SEFD_LO/'
+#datadir = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-lo'
 
 ######### RUN THE UVFITS CONVERSION AND APRIORI CALIBRATION #########
 
@@ -48,9 +48,9 @@ for dayident in os.listdir(datadir + fringefolder) :
             os.mkdir(uvcalfolder)
         
         # generate the uvfits files from hops files
-        #os.system(call_genuvfits)
+        os.system(call_genuvfits)
         # apriori calibrate the uvfits files using the SEFD tables
-        os.system(call_caluvfits)
+        #os.system(call_caluvfits)
         
         
         

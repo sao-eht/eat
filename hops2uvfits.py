@@ -461,6 +461,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             obsseconds = np.arange(0, len(outdat)*inttime_fixed, inttime_fixed )
             fractimes = (mjd_start - np.floor(mjd_start)) + ( obsseconds / 86400.)
             jds = jds + fractimes
+            jds = jds + ( (0.5 * inttime_fixed) / 86400. )
             
             # get the complex visibilities
             visibilities = eat.hops.util.pop212(a)
