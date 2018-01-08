@@ -664,7 +664,7 @@ def timeseries(bs, dt=1, pol=None):
         dt = min(dt, nt)
         nt = nt - np.fmod(nt, dt) # fit time segments after decimation
         v = v[:nt].reshape((nt//dt, -1)).mean(axis=1) # clip to multiple of dt and stack
-        t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1) + frtoff
+        t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1) + p.frtoff
         amp = np.abs(v)
         phase = np.angle(v)
         plt.plot(t, amp, 'b.-')
