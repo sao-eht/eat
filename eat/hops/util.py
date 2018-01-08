@@ -1337,7 +1337,7 @@ def trendplot(df, rem='', offs={}, col='sbdelay'):
         label = bl if pol == 'LL' else '_nolabel'
         offset = np.array([offs.get((bl[1], expt), 0.) - offs.get((bl[0], expt), 0.)
                            for expt in rows.expt_no])
-        val = (1e3 if ('mbd' in col or 'sbd' in col or 'delay' in col) and (not rate in col) else 1.) * rows[col]
+        val = (1e3 if ('mbd' in col or 'sbd' in col or 'delay' in col) and (not 'rate' in col) else 1.) * rows[col]
         h = plt.plot(rows.scan_no, val - offset, marker=mk[pol], ls='none',
                 color=color[bl], label=label)
     lines = [plt.Line2D([0], [0], color='k', marker=mk[pol], ls='none') for pol in mk.keys()]
