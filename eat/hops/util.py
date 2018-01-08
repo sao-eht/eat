@@ -662,7 +662,7 @@ def timeseries(bs, dt=1, pol=None):
         dt = min(dt, nt)
         nt = nt - np.fmod(nt, dt) # fit time segments after decimation
         v = v[:nt].reshape((nt//dt, -1)).mean(axis=1) # clip to multiple of dt and stack
-        t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1) + p.T/2.
+        t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1) + dt*p.T/2.
         amp = np.abs(v)
         phase = np.angle(v)
         plt.plot(t, amp, 'b.-')
@@ -675,7 +675,7 @@ def timeseries(bs, dt=1, pol=None):
         # plt.gca().set_yticklabels([])
         plt.ylabel('phase [rad]', color='red')
         putil.rmgaps(1e6, 2.0)
-        plt.xlim(0, p.T)
+        plt.xlim(t[0] - dt*p.T/2., t[-1] + dt*p.T/2.)
         plt.xlabel('time [s]')
         plt.gca().add_artist(AnchoredText(p.baseline + ' (' + p.pol + ')', loc=1, frameon=False, borderpad=0))
         plt.gca().add_artist(AnchoredText(p.timetag + ' (' + p.source + ')', loc=2, frameon=False, borderpad=0))
