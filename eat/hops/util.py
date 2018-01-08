@@ -1385,11 +1385,12 @@ def align(bs, snrs=None, tint=5.):
     return vstack
 
 # pick a reference station based on maximum sum(log(snr)) of detections
-def pickref(df):
+# nosma: exclude SMAP, SMAR, JCMT due to sideband leakage
+def pickref(df, nosma=True):
     df = df[(df.snr > 9) & ~df.baseline.isin({'SR', 'RS'})].copy()
     sites = set(''.join(df.baseline))
     # don't let S or J be ref if they are both present (due to wrong sideband contamination)
-    if 'J' in sites and 'S' in sites:
+    if nosma and ('J' in sites and 'S' in sites):
         sites.remove('J')
         sites.remove('S')
     score = {site: np.log(df[df.baseline.str.contains(site)].snr).sum() for site in sites}
