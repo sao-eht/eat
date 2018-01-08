@@ -273,7 +273,7 @@ def params(b=None, pol=None, quiet=None):
         T: processed time [s]
         ap: accumulation period spacing [s]
         days: days since Jan 1 00:00:00 UT of each processed AP center time
-        dtvec: a time vector with zero at utc_central (time reference for scan)
+        dtvec: a time vector with zero at frt (time reference for scan)
         dfvec: a frequency vector by visib type with zero at ref_freq
         trot: time rotators to rotate out fringe solution
         fedge: frequency edge of each channel
@@ -287,6 +287,7 @@ def params(b=None, pol=None, quiet=None):
         stopidx: stop idx into type120 of processed APs (not inclusive)
         apfilter: boolean indexer for type120 of processed time
         frt: fourfit reference time
+        frtoff: frt offset from scan start time (scantime)
         utc_centeral: from fringe file, probaby marks reference time for delay rate compensation
         scan_name: name of scan (various conventions)
         scantime: scantime, generally start time of scan
@@ -326,6 +327,7 @@ def params(b=None, pol=None, quiet=None):
     days0 = (start - datetime.datetime(start.year, 1, 1)).total_seconds() / 86400. # days since jan1
     days = days0 + (ap * np.arange(nap) + ap/2.)/86400. # days since jan1 of all AP center times
     scantime = mk4time(b.t200.contents.scantime)
+    frtoff = (frt - scantime).total_seconds()
     scanlength = b.t200.contents.stop_offset - b.t200.contents.start_offset
     apfilter = np.zeros(int(1e-6 + scanlength/ap), dtype=bool)
     startidx = int(1e-6 + ((start - mk4time(b.t200.contents.scantime)).total_seconds()
@@ -351,7 +353,7 @@ def params(b=None, pol=None, quiet=None):
     frot[212] = np.exp(-1j * delay * dfvec[212] * 2*np.pi) # note type_212 is already rotated in data
     return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags, days=days,
         code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
-        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot, frt=frt,
+        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot, frt=frt, frtoff=frtoff,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
         scan_name=b.t200.contents.scan_name, scantime=scantime, timetag=util.dt2tt(scantime),
         scantag=util.dt2tt(scantime + datetime.timedelta(seconds=b.t200.contents.start_offset)),
@@ -662,7 +664,7 @@ def timeseries(bs, dt=1, pol=None):
         dt = min(dt, nt)
         nt = nt - np.fmod(nt, dt) # fit time segments after decimation
         v = v[:nt].reshape((nt//dt, -1)).mean(axis=1) # clip to multiple of dt and stack
-        t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1) + dt*p.T/2.
+        t = p.dtvec[:nt].reshape((-1, dt)).mean(axis=1) + frtoff
         amp = np.abs(v)
         phase = np.angle(v)
         plt.plot(t, amp, 'b.-')
@@ -675,7 +677,7 @@ def timeseries(bs, dt=1, pol=None):
         # plt.gca().set_yticklabels([])
         plt.ylabel('phase [rad]', color='red')
         putil.rmgaps(1e6, 2.0)
-        plt.xlim(t[0] - dt*p.T/2., t[-1] + dt*p.T/2.)
+        plt.xlim(t[0] - dt*p.ap/2., t[-1] + dt*p.ap/2.)
         plt.xlabel('time [s]')
         plt.gca().add_artist(AnchoredText(p.baseline + ' (' + p.pol + ')', loc=1, frameon=False, borderpad=0))
         plt.gca().add_artist(AnchoredText(p.timetag + ' (' + p.source + ')', loc=2, frameon=False, borderpad=0))
