@@ -1388,7 +1388,7 @@ def align(bs, snrs=None, tint=5.):
 
 # pick a reference station based on maximum sum(log(snr)) of detections
 # nosma: exclude SMAP, SMAR, JCMT due to sideband leakage
-def pickref(df, nosma=True, threshold=9):
+def pickref(df, nosma=True, threshold=0):
     df = df[(df.snr > threshold) & ~df.baseline.isin({'SR', 'RS'})].copy()
     df['ssq'] = df.snr**2 * np.sqrt(df.length) # no meaningful scale here, just prioritize livetime slightly
     sites = set(''.join(df.baseline))
