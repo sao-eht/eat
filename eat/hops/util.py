@@ -1388,13 +1388,15 @@ def align(bs, snrs=None, tint=5.):
 
 # pick a reference station based on maximum sum(log(snr)) of detections
 # nosma: exclude SMAP, SMAR, JCMT due to sideband leakage
-def pickref(df, nosma=True):
-    df = df[(df.snr > 9) & ~df.baseline.isin({'SR', 'RS'})].copy()
+def pickref(df, nosma=True, threshold=9):
+    df = df[(df.snr > threshold) & ~df.baseline.isin({'SR', 'RS'})].copy()
+    df['ssq'] = df.snr**2 * np.sqrt(df.length) # no meaningful scale here, just prioritize livetime slightly
     sites = set(''.join(df.baseline))
+    ssq = df[["baseline", "ssq"]].groupby('baseline').sum().reset_index()
     # don't let S or J be ref if they are both present (due to wrong sideband contamination)
     if nosma and ('J' in sites and 'S' in sites):
         sites.remove('J')
         sites.remove('S')
-    score = {site: np.log(df[df.baseline.str.contains(site)].snr).sum() for site in sites}
+    score = {site: np.log(ssq[ssq.baseline.str.contains(site)].ssq).sum() for site in sites}
     ref = max(score, key=score.get) if len(score) > 0 else None
     return ref
