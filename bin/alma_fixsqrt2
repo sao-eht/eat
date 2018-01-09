@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+# temporary fix ALMA sqrt(2) scaling issue in Rev1-Cal
+# 2018-01-09 Lindy Blackburn
+
+from eat.io import hops, util
+import numpy as np
+import pandas as pd
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('filename', help='alist file')
+args = parser.parse_args()
+
+# read alist file (autodetect version 5 or 6)
+a = hops.read_alist(args.filename)
+
+idx = a.baseline.str.count('A') == 1
+a.loc[idx, 'amp'] /= np.sqrt(2.0)
+a.loc[idx, 'snr'] /= np.sqrt(2.0)
+
+hops.write_alist_v6(a)
+
