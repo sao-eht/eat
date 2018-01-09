@@ -828,7 +828,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     Returns:
         v: visibility vector from which adhoc phase is estimated (not normalized)
         vcorr: corrected visibility (adhoc phase removed)
-        phase: estimated baseline phase in degrees
+        phase: estimated baseline phase in radians
         code: params code (params and control file statements returned if sent mk4 object)
         days: params days vector (note this does not account for fourfit adhoc indexing bug)
         scan_name: params scan_name
@@ -1363,16 +1363,18 @@ def align(bs, snrs=None, tint=5.):
     vs = v212.mean(axis=-1) # integrate over channels: ff, ap
     w = np.ones_like(vs, dtype=np.float) * snrs[:,None]**2 # derived weights
     w[vs == -1.0] = 0. # HOPS data invalid flag (data loss, etc)
-    vw = w * vs # weighted visibs
     rates = np.array([p.rate for p in ps])
     r0 = np.sum(rates * snrs**2) / np.sum(snrs**2) # mean rate
     dr = rates - r0 # differential rate from mean rate
-    trot = np.exp(-1j * 1e-6*dr[:,None] * p0.dtvec[None,:] * 2*np.pi*p0.ref_freq)
+    trot = np.exp(1j * dr[:,None] * p0.dtvec[None,:] * 2*np.pi*p0.ref_freq) # add back in rate
     vs = vs * trot # correct for differential rate
+    v212 = v212 * trot[:,:,None]
+    vw = w * vs # weighted visibs
     # tint segmented average of phase offset
     apint = max(1, int(0.5 + float(tint) / ap)) # tint in units of AP
     win = np.ones(apint) # rectangular smoothing window
     vsmooth = [np.convolve(v, win, mode='same') for v in vw]
+    # mean phase from reference (first) signal
     phase = np.array([np.angle(np.sum(vi * vsmooth[0].conj())) for vi in vsmooth])
     # align in phase and stack
     wstack = w.sum(axis=0)
