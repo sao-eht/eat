@@ -38,6 +38,7 @@ args = parser.parse_args()
 # read alist file (autodetect version 5 or 6)
 a = util.noauto(hops.read_alist(args.filename))
 a = a[(a.snr > 9) & (a.baseline.str[0] == 'A')]
+nchan = a.freq_code.str[1:].astype(int).max()
 
 # add delay and rate errors, with systematic limits on resolution
 util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_error,
@@ -45,7 +46,7 @@ util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_
 
 
 # RRLL stats after segmentation
-(p, stats) = hu.rrll_segmented(a, restarts=restarts, start='2017-04-04 21:00:00', stop='2017-04-12 21:00:00')
+(p, stats) = hu.rrll_segmented(a, restarts=restarts)
 
 # make delay out table
 offs = stats.reset_index()
@@ -60,7 +61,7 @@ else:
 
 if args.controlcodes:
     out.write('* ' + statline + '\n')
-    cflines = offs.apply(hu.doff2cf, axis=1)
+    cflines = offs.apply(hu.doff2cf, axis=1, args=(nchan,))
     out.write(''.join(cflines))
 else:
     offs["start stop site LR_delay LR_delay_err".split()].to_csv(out, float_format='%+9.7f', index=False)

@@ -29,10 +29,13 @@ statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist txt file')
+parser.add_argument('-b', '--baseline', help='use baseline', default='AX')
 parser.add_argument('-d', '--datadir', help='hops datadir, default to alist location', dest='datadir', nargs='?', default=None)
 parser.add_argument('-n', '--nchan', help='number of channels', nargs='?', type=int, default=None)
 parser.add_argument('-o', '--outfile', help='output csv filename', type=str, default=None)
 parser.add_argument('-c', '--controlcodes', help='construct control codes rather than csv table', action='store_true', default=False)
+parser.add_argument('-v', '--verbose', help='print scan-by-scan output', action='store_true', default=False)
+parser.add_argument('-g', '--guess', help='guess MBD offset for fit', default=7.25, type=float) # -1.63 for GMVA2017
 args = parser.parse_args()
 
 # read alist file (autodetect version 5 or 6)
@@ -48,9 +51,9 @@ nchan = args.nchan or (31 if a.iloc[0].ref_freq > 228000. else 32)
 def fitpoly(f, v, deg=2, split=None):
     from scipy.optimize import fmin
     df = f - np.mean(f) # center at df=0
-    frot = .00725*2*np.pi*df
+    frot = 1e-3 * args.guess * 2*np.pi * df
     guess = np.zeros(deg+1)
-    guess[-2:] = (-.00725*2*np.pi, np.angle(np.sum(v*1j*frot))) # 1st order
+    guess[-2:] = (-1e-3*args.guess*2*np.pi, np.angle(np.sum(v*1j*frot))) # 1st order
     def vmag(par, *s):
         phase = np.polyval(par, df[s])
         vrot = v[s] * np.exp(-1j * phase)
@@ -82,16 +85,20 @@ def doffcalc(e, lastchan=nchan):
                         for i in range(len(freq)-1)]
             deltaf = np.remainder(np.array(deltaf), 2*np.pi)
             toff.append(np.mean(deltaf) / (2*np.pi * 58.59375))
+            if args.verbose:
+                print row.path + ' ' + p.baseline + ' ' + p.pol + ' ' + repr(deltaf) + ' ' + repr(toff[-1])
             ftot = np.cumsum(deltaf)[1:] # offset applied to each channel
             # this ends up being a noiser estimate
             fpre = np.mean(deltaf) * np.arange(len(ftot)) # predicted linear trend
             # tstd.append(np.std(fpre - ftot - ftot[0])*180/np.pi) # std of deviations from linear trend
             tstd.append(np.std(deltaf) * 180/np.pi)
             tdph.append(deltaf)
-        except:
-            tdph.append(np.zeros(lastchan-1) * np.nan)
-            toff.append(np.nan)
-            tstd.append(np.nan)
+        except Exception as e:
+             if args.verbose:
+                print e
+             tdph.append(np.zeros(lastchan-1) * np.nan)
+             toff.append(np.nan)
+             tstd.append(np.nan)
     e['tdph'] = tdph
     e['toff'] = toff
     e['tstd'] = tstd
@@ -99,7 +106,7 @@ def doffcalc(e, lastchan=nchan):
 
 # restarts[site] = [pd.Timestamp list of clock resets]
 # assume additional clock reset at 21:00 UT for all sites
-def sbdmbd_segmented(a, restarts={}, start='2017-04-04 21:00:00', stop='2017-04-12 21:00:00'):
+def sbdmbd_segmented(a, restarts={}, boundary=21):
     """
     Args:
         a: dataframe from alist file with rates and delays, delay errors are added if missing
@@ -111,8 +118,12 @@ def sbdmbd_segmented(a, restarts={}, start='2017-04-04 21:00:00', stop='2017-04-
     import pandas as pd
     b = a.copy()
     util.add_delayerr(b, mbd_systematic=3e-6/32) # used to estimate error on sbd
-    g = b.groupby('baseline')
+    t0 = b.datetime.min()
+    t1 = b.datetime.max()
+    start = pd.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
+    stop  = pd.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
     drange = list(pd.date_range(start, stop))
+    g = b.groupby('baseline')
     for (bl, rows) in g:
         # segments for baseline, adding in any known restarts for either site
         tsbounds = sorted(set(
@@ -136,7 +147,7 @@ def sbdmbd_segmented(a, restarts={}, start='2017-04-04 21:00:00', stop='2017-04-
     toff_stats['sbdmbd_nout'] = toff_stats.sbdmbd_nout.astype(int)
     return((p.sort_index(), toff_stats))
 
-b = a[a.baseline.str.contains('AX') & (a.snr > 50) & ~a.polarization.isin({'RL', 'LR'})].copy()
+b = a[a.baseline.str.contains(args.baseline) & (a.snr > 50) & ~a.polarization.isin({'RL', 'LR'})].copy()
 util.add_path(b)
 c = parmap(b, doffcalc)
 
