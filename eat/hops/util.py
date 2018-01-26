@@ -176,7 +176,7 @@ def pop212(b=None, pol=None, weights=False):
         data212[i] = np.frombuffer(q, dtype=np.float32, count=-1).reshape((nap, 3))
     v = data212[:,:,0] * np.exp(1j * data212[:,:,1])
     if weights:
-        return v.T, data[:,:,2].T
+        return v.T, data212[:,:,2].T
     else:
         return v.T
 
@@ -213,7 +213,8 @@ def pop120(b=None, pol=None, fill=0):
     ap = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds() / b.t212[0].contents.nap
     T = (mk4time(c.t100.contents.stop) - mk4time(c.t100.contents.start)).total_seconds()
     # some slob just in case roundoff error from non-integer ap, ap_space from HOPS is too big
-    (nchan, nap, nspec) = (b.n212, int(1e-6 + T / ap), c.t100.contents.nlags)
+    # CorAsc2 reads records until NULL, however we want to know nap a-priori here
+    (nchan, nap, nspec) = (b.n212, int(1. - 1e-5 + T / ap), c.t100.contents.nlags)
     data120 = np.zeros((nchan, nap, nspec), dtype=np.complex64)
     # require spectral type (DiFX)
     firstap = next(a.contents.ap for a in c.index[0].t120[0:c.index[0].ap_space] if a)
@@ -329,7 +330,7 @@ def params(b=None, pol=None, quiet=None):
     scantime = mk4time(b.t200.contents.scantime)
     frtoff = (frt - scantime).total_seconds()
     scanlength = b.t200.contents.stop_offset - b.t200.contents.start_offset
-    apfilter = np.zeros(int(1e-6 + scanlength/ap), dtype=bool)
+    apfilter = np.zeros(int(1. - 1e-5 + b.t200.contents.stop_offset / ap), dtype=bool)
     startidx = int(1e-6 + ((start - mk4time(b.t200.contents.scantime)).total_seconds()
                         - b.t200.contents.start_offset) / ap)
     stopidx = int(1e-6 + ((stop - mk4time(b.t200.contents.scantime)).total_seconds()
@@ -550,8 +551,10 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # df: decimation factor in frequency for better SNR
 # df: decimation factor in time if timeseires==True
 # centerphase: subtract out mean phase for fewer wraps
+# do_adhoc: adhoc phase correct before time-average
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
-             timeseries=False, centerphase=False, snrweight=True, kind=230, pol=None, grid=True):
+             timeseries=False, centerphase=False, snrweight=True, kind=120, pol=None, grid=True,
+             do_adhoc=True):
     if type(bs) is str:
         bs = getfringefile(bs, filelist=True, pol=pol)
     if not hasattr(bs, '__len__'):
@@ -561,6 +564,7 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
     vs = None
     for b in bs:
         b = getfringefile(b, pol=pol)
+        p = params(b) # channel and fringe parameters
         if b.t208.contents.snr < snrthr:
             print("snr %.2f, skipping" % b.t208.contents.snr)
             continue
@@ -570,20 +574,22 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         if kind==230:
             v = pop230(b)   # visib array (nchan, nap, nspec/2)
         elif kind==120:
-            v = pop120(b)   # visib array (nchan, nap, nspec/2)
-        p = params(b) # channel and fringe parameters
+            v = pop120(b)[:,p.startidx:p.stopidx,:]   # visib array (nchan, nap, nspec/2)
         nrow = bool(timeseries) + np.int(np.ceil(p.nchan / ncol))
         delay = p.delay if delay is None else delay
         rate = p.rate if rate is None else rate
         trot = np.exp(-1j * rate * p.dtvec * 2*np.pi*p.ref_freq)
         frot = np.exp(-1j * delay * p.dfvec[kind] * 2*np.pi)
         vrot = v * trot[None,:,None] * frot[:,None,:]
+        if do_adhoc:
+            ah = adhoc(b, bowlfix=False, roundrobin=False)
+            vrot = vrot * np.exp(-1j*ah.phase.T)[:,:,None]
         if centerphase: # rotate out the average phase over all channels
             crot = vrot.sum()
             crot = crot / np.abs(crot)
             vrot = vrot * crot.conj()
         if timeseries:
-            vs = (0 if vs is None else vs) + vrot
+            vs = (0 if vs is None else vs) + vrot * (p.snr**2 if snrweight else 1.)
         else:
             # stack in time (will work for different T) and add back axis
             vs = (0 if vs is None else vs) + vrot.sum(axis=1)[:,None]
@@ -1104,7 +1110,7 @@ def wavg(x, sigma=1., col=None, w=None, robust=10.):
     sigma = np.broadcast_to(sigma, x.shape)
     ssq = sigma**2
     noutliers = 0
-    if robust:
+    if robust and len(x) >= 5:
         sigsort = np.sort(sigma)
         merr = 1.253 * sigsort / np.sqrt(np.arange(1, 1+len(x)))
         imin = np.argmin(merr)
@@ -1131,23 +1137,26 @@ def wavg(x, sigma=1., col=None, w=None, robust=10.):
 
 # segmented RR-LL delay differences
 # restarts[site] = [pd.Timestamp list of clock resets]
-# assume additional clock reset at 21:00 UT for all sites
-def rrll_segmented(a, restarts={}, start='2017-04-04 21:00:00', stop='2017-04-12 21:00:00'):
+# assume additional clock reset at 21:00 UT for all sites = boundary [h]
+def rrll_segmented(a, restarts={}, boundary=21):
     """rrll_segmented: general RR-LL delay statistics given alist data
 
     Args:
         a: dataframe from alist file with rates and delays, delay errors are added if missing
         restarts: special times in which to segment certain stations
-        start: start time for establishing day boundaries (default '2017-04-04 21:00:00')
-        stop: stop time for establishing day boundaries (default '2017-04-12 21:00:00')
+        boundary: hour boundary for daily segments (default 21h)
     """
     import pandas as pd
     b = a[a.polarization.isin({'RR', 'LL'})].copy()
     if 'mbd_unwrap' not in b.columns:
         util.unwrap_mbd(b)
     util.add_delayerr(b, bw_factor=sys_fac, mbd_systematic=sys_par, crosspol_systematic=sys_cross)
-    g = b.groupby('baseline')
+    t0 = b.datetime.min()
+    t1 = b.datetime.max()
+    start = pd.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
+    stop  = pd.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
     drange = list(pd.date_range(start, stop))
+    g = b.groupby('baseline')
     for (bl, rows) in g:
         # segments for baseline, adding in any known restarts for either site
         tsbounds = sorted(set(
