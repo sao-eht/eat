@@ -324,6 +324,12 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                     ant1 = station_dic[ant1]
                 if ant2 in station_dic:
                     ant2 = station_dic[ant2]
+                    
+                scalingFac = 1.0
+                if ant1 == 'AA' and ant2 == 'AA':
+                    scalingFac = 1.0
+                elif ant1== 'AA' or ant2 == 'AA':
+                    scalingFac = 1.0 / np.sqrt(2) 
                 
                 baselineName = b.t202.contents.baseline # first one is ref antenna second one is rem
 
@@ -473,7 +479,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             #TODO ANDREW is below comment still true? 
             #print 'WARNING: the coherent average is currently off by 4 orders of magnitude - check it!'
             
-            snr = b.t208[0].snr
+            snr = b.t208[0].snr * scalingFac
             if snr==0.0:
                 sigma_ind = -1 * np.ones(weights.shape)
             else:
@@ -507,7 +513,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 # set weight to 0 if the snr is 0
                 visweight[sigma_ind[i,:] == -1 ] = 0.0 
                 
-                vis_i = visibilities[:,i]
+                vis_i = visibilities[:,i] * scalingFac
                 vis_i = vis_i * np.exp( 1j * shift[i,:] )
                 
                 # account for the correlation coefficient
