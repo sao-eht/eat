@@ -195,14 +195,14 @@ ll = df[df.polarization == 'LL']
 
 nchan = string.ascii_letters.find(df.columns[-1]) + 1
 chans = list(string.ascii_letters[:nchan])
-cols  = ['baseline'] + chans
-pcr   = offset(unwrap(np.angle(rr.groupby('baseline')[cols].mean())))
-pcl   = offset(unwrap(np.angle(ll.groupby('baseline')[cols].mean())))
-pcf   = offset(unwrap(np.angle(df.groupby('baseline')[cols].mean())))
 
-pcr[:] = fix_nan(pcr.values)
-pcl[:] = fix_nan(pcl.values)
-pcf[:] = fix_nan(pcf.values)
+pcr   = rr.groupby('baseline')[chans].mean().apply(np.angle)
+pcl   = ll.groupby('baseline')[chans].mean().apply(np.angle)
+pcf   = df.groupby('baseline')[chans].mean().apply(np.angle)
+
+pcr[:] = fix_nan(offset(unwrap(pcr.values)))
+pcl[:] = fix_nan(offset(unwrap(pcl.values)))
+pcf[:] = fix_nan(offset(unwrap(pcf.values)))
 
 slopes = derivative(pcf.values)
 d_nu   = 58.59375e6 # hard wire separation between channels
