@@ -59,31 +59,31 @@ def load(file):
     a = a.reset_index(drop=True)
     util.add_path(a)
 
-    # Access corel (per-channel) phases
-    phases = None
+    # Access corel (per-channel) visibility
+    vis = None
     for i, f in a.path.iteritems():
         b = a.baseline[i]
         p = a.resid_phas[i] * np.pi / 180.0
         v = hu.pop210(f)
         l = len(v)
-        if phases is None: # allocate after pop210() to get number of channels
-            phases = np.empty((len(a), l), dtype=np.float32)
-            phases.fill(np.nan)
-        elif l != phases.shape[1]:
+        if vis is None: # allocate after pop210() to get number of channels
+            vis = np.empty((len(a), l), dtype=np.complex64)
+            vis.fill(np.nan)
+        elif l != vis.shape[1]:
             print("WARNING: \"{}\" has {} less channel(s) than expected".
-                  format(f, phases.shape[1] - l), file=sys.stderr)
+                  format(f, vis.shape[1] - l), file=sys.stderr)
 
-        phases[i,:l] = offset(unwrap(np.angle(v * np.exp(-1j * p), deg=True)))
+        vis[i,:l] = v * np.exp(-1j * p)
 
-        if b[1] == "A": # need to swap baseline and negate phases
+        if b[1] == "A": # need to swap baseline and negate vis
             a.baseline[i] = b[::-1]
-            phases[i,:]   = -phases[i,:]
+            vis[i,:]      = np.conj(vis[i,:])
             print("WARNING: ALMA is not the reference", file=sys.stderr)
 
     # Construct and return final Pandas DataFrame
-    chans = list(string.ascii_letters[:phases.shape[1]])
+    chans = list(string.ascii_letters[:vis.shape[1]])
     cols  = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas']
-    return pd.concat([a[cols], pd.DataFrame(phases, columns=chans)], axis=1)
+    return pd.concat([a[cols], pd.DataFrame(vis, columns=chans)], axis=1)
 
 def qfit(y1, y2, y3):
     """Quadratic fits
@@ -196,9 +196,9 @@ ll = df[df.polarization == 'LL']
 nchan = string.ascii_letters.find(df.columns[-1]) + 1
 chans = list(string.ascii_letters[:nchan])
 cols  = ['baseline'] + chans
-pcr   = rr.groupby('baseline')[cols].mean()
-pcl   = ll.groupby('baseline')[cols].mean()
-pcf   = df.groupby('baseline')[cols].mean()
+pcr   = offset(unwrap(np.angle(rr.groupby('baseline')[cols].mean())))
+pcl   = offset(unwrap(np.angle(ll.groupby('baseline')[cols].mean())))
+pcf   = offset(unwrap(np.angle(df.groupby('baseline')[cols].mean())))
 
 pcr[:] = fix_nan(pcr.values)
 pcl[:] = fix_nan(pcl.values)
