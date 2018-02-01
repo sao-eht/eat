@@ -63,8 +63,10 @@ def load(file):
     vis = None
     for i, f in a.path.iteritems():
         b = a.baseline[i]
-        p = a.resid_phas[i] * np.pi / 180.0
-        v = hu.pop210(f)
+        # p = a.resid_phas[i] * np.pi / 180.0
+        # v = hu.pop210(f)
+        v = hu.adhoc(f, roundrobin=False).vcorr.mean(axis=0)
+        p = np.angle(np.mean(v))
         l = len(v)
         if vis is None: # allocate after pop210() to get number of channels
             vis = np.empty((len(a), l), dtype=np.complex64)
