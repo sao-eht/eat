@@ -228,7 +228,7 @@ class Datastruct(object):
 #######################################################################
 ##########################  Load/Save FUNCTIONS #######################
 ####################################################################### 
-def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False, recompute_uv=False):
+def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False, recompute_uv=False, sqrt2corr=False):
     """read all fringe files in a directory and produce single baseline uvfits files
 
        Args:
@@ -324,6 +324,12 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                     ant1 = station_dic[ant1]
                 if ant2 in station_dic:
                     ant2 = station_dic[ant2]
+                    
+                scalingFac = 1.0
+                if ant1 == 'AA' and ant2 == 'AA':
+                    scalingFac = 1.0
+                elif ant1== 'AA' or ant2 == 'AA':
+                    scalingFac = 1.0 / np.sqrt(2) 
                 
                 baselineName = b.t202.contents.baseline # first one is ref antenna second one is rem
 
@@ -473,7 +479,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             #TODO ANDREW is below comment still true? 
             #print 'WARNING: the coherent average is currently off by 4 orders of magnitude - check it!'
             
-            snr = b.t208[0].snr
+            snr = b.t208[0].snr * scalingFac
             if snr==0.0:
                 sigma_ind = -1 * np.ones(weights.shape)
             else:
@@ -507,7 +513,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 # set weight to 0 if the snr is 0
                 visweight[sigma_ind[i,:] == -1 ] = 0.0 
                 
-                vis_i = visibilities[:,i]
+                vis_i = visibilities[:,i] * scalingFac
                 vis_i = vis_i * np.exp( 1j * shift[i,:] )
                 
                 # account for the correlation coefficient
@@ -1216,7 +1222,7 @@ def save_uvfits(datastruct, fname):
 ##########################  Main FUNCTION ########################################################################################
 ################################################################################################################################## 
 def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl_fits=True,
-                    recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False):
+                    recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False, sqrt2corr=False):
     
 
     print "********************************************************"
@@ -1262,7 +1268,7 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
                 print '    WARNING - not recomputing U,V coordinates!' 
             print "---------------------------------------------------------"
             print "---------------------------------------------------------"
-            convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv)
+            convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv, sqrt2corr=sqrt2corr)
         
         print    
         print "Merging baseline uvfits files in directory: ", scandir
@@ -1325,7 +1331,8 @@ if __name__=='__main__':
               "   --clean : specify to remove individual baseline files after they are merged \n" + 
               "   --rot_rate : specify to remove rate solution in fringe files \n" + 
               "   --rot_delay : specify to remove delay rate solution in fringe files \n" + 
-              "   --uv : specify to recompute uv points \n"
+              "   --uv : specify to recompute uv points \n" + 
+              "   --sqrt2corr : specify to include the sqrt(2) correction to ALMA baselines"
              )
         sys.exit()
 
@@ -1345,6 +1352,9 @@ if __name__=='__main__':
     rot_delay = False
     if "--rot_delay" in sys.argv: rot_delay = True
     
+    sqrt2corr = False
+    if "--sqrt2corr" in sys.argv: sqrt2corr = True
+    
     ident = ""
     if "--ident" in sys.argv: 
         for a in range(0, len(sys.argv)):
@@ -1361,4 +1371,4 @@ if __name__=='__main__':
 
     main(datadir=datadir, outdir=outdir, ident=ident,
          recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits,
-         rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv)
+         rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv, sqrt2corr=sqrt2corr)
