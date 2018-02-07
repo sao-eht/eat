@@ -324,12 +324,14 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                     ant1 = station_dic[ant1]
                 if ant2 in station_dic:
                     ant2 = station_dic[ant2]
-                    
+                
+                
                 scalingFac = 1.0
-                if ant1 == 'AA' and ant2 == 'AA':
-                    scalingFac = 1.0
-                elif ant1== 'AA' or ant2 == 'AA':
-                    scalingFac = 1.0 / np.sqrt(2) 
+                if sqrt2corr:
+                    if ant1 == 'AA' and ant2 == 'AA':
+                        scalingFac = 1.0
+                    elif ant1== 'AA' or ant2 == 'AA':
+                        scalingFac = 1.0 / np.sqrt(2) 
                 
                 baselineName = b.t202.contents.baseline # first one is ref antenna second one is rem
 
