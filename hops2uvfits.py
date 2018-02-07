@@ -476,7 +476,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             if antennas[ant2] < antennas[ant1]:
                 visibilities =  visibilities.conj()
 
-            amplitude = b.t208[0].amplitude * 10000.
+            amplitude = b.t208[0].amplitude * 10000. * scalingFac
             #amplitude = np.abs(np.mean(visibilities))
             #TODO ANDREW is below comment still true? 
             #print 'WARNING: the coherent average is currently off by 4 orders of magnitude - check it!'
