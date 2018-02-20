@@ -804,7 +804,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
     return outdata
 
 def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0.,
-          roundrobin=True, bowlfix=True, secondorder=True, p=None, tau=5., alpha=5./3., ap=None):
+          roundrobin=True, bowlfix=True, secondorder=True, p=None, tau=None, alpha=5./3., ap=None):
     """
     create ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
@@ -846,12 +846,14 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
         v = b
-        ap = ap or 1.
+        ap = ap or 0.5
+        tau = tau or 8.0
     else:
         b = getfringefile(b, pol=pol, quiet=True)
         p = p if p is not None else params(b)
         v = pop212(b)
         ap = ap or p.ap
+        tau = tau or 8.0 * (220e3 / p.ref_freq)
 
     if bowlfix and p is not None:
         rfdict = {'A':-0.2156, 'X':0.163} # ps/s
