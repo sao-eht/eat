@@ -847,13 +847,13 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     if type(b) is np.ndarray:
         v = b
         ap = ap or 0.5
-        tau = tau or 8.0
+        tau = tau or 6.0
     else:
         b = getfringefile(b, pol=pol, quiet=True)
         p = p if p is not None else params(b)
         v = pop212(b)
         ap = ap or p.ap
-        tau = tau or 8.0 * (220e3 / p.ref_freq)
+        tau = tau or 6.0 * (220e3 / p.ref_freq) * 2./alpha
 
     if bowlfix and p is not None:
         rfdict = {'A':-0.2156, 'X':0.163} # ps/s
