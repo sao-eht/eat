@@ -68,7 +68,7 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=args.tau):
     util.add_path(df)
 
     # reverse sign of phases where ref is second site
-    for (timetag, ttrows) in df.groupby('timetag'):
+    for (scantuple, ttrows) in df.groupby(['expt_no', 'scan_id']):
         ttref = ref or hu.pickref(ttrows) # reference station for this scan
         if ttref is None: # unable to find reference station, do not adhoc phase this scan
             continue
