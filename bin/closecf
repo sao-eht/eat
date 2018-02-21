@@ -31,6 +31,7 @@ parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic
 parser.add_argument('-sw', '--sigmas_to_window', help='sigmas to window for both delay and rate', type=float, default=0)
 parser.add_argument('-dw', '--delay_window', help='fixed delay window to apply in [us]', type=float, default=0)
 parser.add_argument('-rw', '--rate_window', help='fixed rate window to apply in [ps/s]', type=float, default=0)
+parser.add_argument('-t', '--threshold', help='SNR cutoff threshold for detections', type=float, default=6.5)
 args = parser.parse_args()
 
 # read alist file (autodetect version 5 or 6)
@@ -50,8 +51,8 @@ util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_
 
 # extra error for JS baseline, possible noise fringes, SR baseline, JR sideband contamination (rate)
 a['mbd_err'] = np.sqrt(a['mbd_err']**2 + 50e-6**2*(a.baseline.isin({'JS', 'JR', 'SJ', 'RJ'}))
-                       + 1.*(a.baseline.isin({'SR', 'RS'})) + 1.*(a.snr < 9.))
-a['rate_err'] = np.sqrt(a['rate_err']**2 + 0.25*(a.baseline.isin({'SR', 'RS'})) + 4.0*(a.baseline.isin({'JR', 'RJ'})) + 1.*(a.snr < 9.))
+                       + 1.*(a.baseline.isin({'SR', 'RS'})) + 1.*(a.snr < args.threshold))
+a['rate_err'] = np.sqrt(a['rate_err']**2 + 0.25*(a.baseline.isin({'SR', 'RS'})) + 4.0*(a.baseline.isin({'JR', 'RJ'})) + 1.*(a.snr < args.threshold))
 
 # least squares objective function: (predict - model) / std
 # par is a list of the mdoel parameters fit against alldata and allerr
@@ -100,8 +101,9 @@ g = a.groupby('timetag')
 for (scan, b) in g:
     sites = set(chain(*b.baseline))
     for site in sites:
+        # this may still accept some unconnected baselines
         snrmax = b[b.baseline.str.contains(site)].snr.max()
-        if snrmax < 9:
+        if snrmax < args.threshold:
             print("if scan %s and station %s skip true * maxsnr %.1f" % (scan, site, snrmax))
     for c in b.groupby('baseline').first().reset_index().itertuples():
         # hack fix for fourfit issue on one scan with X VEX start offset

@@ -21,7 +21,8 @@ parser.add_argument('filename', help='alist file')
 parser.add_argument('-d', '--datadir', help='use fringe files from this data directory', default='.')
 parser.add_argument('-o', '--outdir', help='output directory for adhoc files (one per scan)', default=None)
 parser.add_argument('-q', '--quiet', help='do not print cfcodes to stdout (they are saved in adhoc_codes)', action='store_true', default=False)
-parser.add_argument('-t', '--tau', help='coherence timescale to use for deciding INTTIME', default=None, type=float)
+parser.add_argument('-c', '--cohtime', help='coherence timescale to use for deciding INTTIME', default=None, type=float)
+parser.add_argument('-t', '--threshold', help='SNR threshold for detection', default=6.5, type=float)
 args = parser.parse_args()
 
 """
@@ -47,7 +48,7 @@ be different in case of a scan_offset ?
 if args.outdir is not None and not os.path.exists(args.outdir):
     os.makedirs(args.outdir)
 
-def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=args.tau):
+def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=args.cohtime):
     """use reference site to make adhoc phases to other stations in data frame
 
     Args:
@@ -72,7 +73,7 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=args.tau):
         ttref = ref or hu.pickref(ttrows) # reference station for this scan
         if ttref is None: # unable to find reference station, do not adhoc phase this scan
             continue
-        wref = ttrows[(ttrows.baseline.str.contains(ttref)) & (ttrows.snr > 9)]
+        wref = ttrows[(ttrows.baseline.str.contains(ttref)) & (ttrows.snr > args.threshold)]
         noref = ttrows[~ttrows.baseline.str.contains(ttref)]
         segment = dict()
         # generate adhoc phases which are connected to ref station
