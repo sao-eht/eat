@@ -911,6 +911,9 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         polyorder = max(0, window_length-1)
 
     Tdof = ap * window_length / (1.+polyorder) # effectve T per DOF
+    snrdof = snr * np.sqrt(window_length / (1.+polyorder) / nap)
+    # not used, no good way here to transition to zero correction at low SNR and maintain independence
+    fac = np.exp(-1./snrdof**2) if snrdof > 0 else 0
 
     if roundrobin: # apply round-robin training to avoid self-tuning
         for i in range(nchan): # i is the channel to exclude in fit
@@ -950,6 +953,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     vcorr = v * np.exp(-1j * phase)
 
     # add estimated phase from bowl effect (unphysical delay drift)
+    # is bowl effect same for different arrays? correlation parameters?
     phase += ratefix_phase
 
     if p:
