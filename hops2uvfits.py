@@ -42,7 +42,6 @@ RDATE_OFFSET += 1.e-6*(rdate_tt.ut1.datetime.microsecond - rdate_tt.utc.datetime
 ROUND_SCAN_INT = 5
 
 #conversion factors and data types
-station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR'}
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
 DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
 DTPOL = [('time','f8'),('freq','f8'),('tint','f8'),
@@ -316,15 +315,8 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
                 ###################################  ANTENNA INFO ###################################
                 # names of antennas
-                ant1 = b.t202.contents.ref_name # antenna 1 name
-                ant2 = b.t202.contents.rem_name # anetnna 2 name
-                
-                # change names to match with aips
-                if ant1 in station_dic:
-                    ant1 = station_dic[ant1]
-                if ant2 in station_dic:
-                    ant2 = station_dic[ant2]
-                
+                ant1 = b.t202.contents.ref_intl_id.upper()
+                ant2 = b.t202.contents.rem_intl_id.upper()
                 
                 scalingFac = 1.0
                 if sqrt2corr:
