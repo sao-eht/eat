@@ -24,6 +24,7 @@ import numpy.matlib
 DATADIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/er1-hops-hi/5.+close/data/3601' 
 OUTDIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/tmpout2'
 
+
 # For Katie
 #DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
 # source hops.bash in /Users/klbouman/Research/vlbi_imaging/software/hops/build
@@ -247,6 +248,9 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
     baselineNames = set(baselineNames)
         
+    print 'baselineNames'
+    print baselineNames
+    
     ###################################  LOAD DATA ###################################
     for baselineName in baselineNames:
         nap = 0
@@ -257,7 +261,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
         #TODO will currently create an empty uvfits file for every non hops file not caught here
         #TODO make eat throw errors if its reading something that's not a fringe file
-        if baselineName.split("_")[-1] == "bl":
+        if baselineName.split("_")[-1] == "baseline":
             continue
         if baselineName.split("_")[-1] == "merged":
             continue
@@ -556,7 +560,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
         outstruct = Datastruct(obsinfo,  antennainfo, alldata)
         
         #print "Saving baseline uvfits file: ", fname 
-        fname= datadir + baselineName + '_hops_bl.uvfits'
+        fname= datadir + baselineName + '_hops_baseline.uvfits'
         save_uvfits(outstruct, fname)
     
 
@@ -1256,7 +1260,7 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
             # clean up the files in case there were extra ones already there that we no longer want
             if clean_bl_fits:
                 print '    REMOVING old uvfits baseline files due to --clean flag'
-                for filename in glob.glob(scandir + '*_hops_bl.uvfits'):
+                for filename in glob.glob(scandir + '*_hops_baseline.uvfits'):
                     os.remove(filename)
             if not recompute_bl_fits:
                 print '    WARNING - not recomputing U,V coordinates!' 
@@ -1268,11 +1272,11 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
         print "Merging baseline uvfits files in directory: ", scandir
 
         bl_fitsFiles = []
-        for filename in glob.glob(scandir + '*_hops_bl.uvfits'):
+        for filename in glob.glob(scandir + '*_hops_baseline.uvfits'):
             bl_fitsFiles.append(filename)
         if not len(bl_fitsFiles):
-            #raise Exception("cannot find any fits files with extension _hops_bl.uvfits in %s" % scandir)
-            print("cannot find any fits files with extension _hops_bl.uvfits in %s" % scandir)
+            #raise Exception("cannot find any fits files with extension _hops_baseline.uvfits in %s" % scandir)
+            print("cannot find any fits files with extension _hops_baseline.uvfits in %s" % scandir)
         
         datastruct = merge_hops_uvfits(bl_fitsFiles)
         outname = scandir + "scan_hops_merged.uvfits"
