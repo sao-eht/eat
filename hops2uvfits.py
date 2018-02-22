@@ -247,9 +247,6 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             baselineNames.append(os.path.basename(filename).split(os.extsep)[0])
 
     baselineNames = set(baselineNames)
-        
-    print 'baselineNames'
-    print baselineNames
     
     ###################################  LOAD DATA ###################################
     for baselineName in baselineNames:
