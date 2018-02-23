@@ -1394,7 +1394,7 @@ hoffs={
 # offs: dict of offsets by site, if REM will be subtracted from baseline value
 # rem: use only baselines including station and set as REM station
 # col: column in data frame to plot
-def trendplot(df, rem='', offs={}, col='sbdelay'):
+def trendplot(df, rem='', offs={}, col='sbdelay', **kwargs):
     band = 'lo' if df.iloc[0].ref_freq < 228000 else 'hi'
     from matplotlib.legend import Legend
     mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_')))
@@ -1411,7 +1411,7 @@ def trendplot(df, rem='', offs={}, col='sbdelay'):
                            for expt in rows.expt_no])
         val = (1e3 if ('mbd' in col or 'sbd' in col or 'delay' in col) and (not 'rate' in col) else 1.) * rows[col]
         h = plt.plot(rows.scan_no, val - offset, marker=mk[pol], ls='none',
-                color=color[bl], label=label)
+                color=color[bl], label=label, **kwargs)
     lines = [plt.Line2D([0], [0], color='k', marker=mk[pol], ls='none') for pol in mk.keys()]
     leg = Legend(plt.gca(), lines, mk.keys(), loc='lower right', ncol=1)
     plt.gca().add_artist(leg)
