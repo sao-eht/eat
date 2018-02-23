@@ -972,6 +972,63 @@ if station %s and scan %s * from %s per %.1f s
     else:
         return Namespace(v=vchop, phase=phase, vcorr=vcorr)
 
+# close in place alist fringe solution based on mbd errors
+# assume R-L has been delay corrected
+def closefringe(a):
+
+    # dishes and reverse index of lookup for single dish station code
+    dishes = sorted(set(chain(*a.baseline)))
+    idish = {f:i for i, f in enumerate(dishes)}
+
+    # missing columns
+    if 'mbd_unwrap' not in a.columns:
+        util.unwrap_mbd(a)
+    if 'mbd_err' not in a.columns:
+        util.add_delayerr(a)        
+
+    # least squares objective function: (predict - model) / std
+    # par is a list of the mdoel parameters fit against alldata and allerr
+    # idx1: the iloc of the first HOPS station in each baseline
+    # idx2: the iloc of the second HOPS station in each baseline
+    def errfunc(par, idx1, idx2, alldata, allerr):
+        model = par[idx1] - par[idx2]
+        return (alldata - model) / allerr
+
+    # indices for unique dishes/dishes
+    a['idish0'] = [idish[bl[0]] for bl in a.baseline]
+    a['idish1'] = [idish[bl[1]] for bl in a.baseline]
+
+    def closescan(scan):
+        idx = g.groups[scan]
+        # skip if only one baseline (avoid warning)
+        if len(idx) < 2:
+            continue
+        b = a.loc[idx]
+        # initial guess
+        rates = np.zeros(len(dishes))
+        delays = np.zeros(len(dishes))
+        # f_scale will be the deviation [in sigma] where the loss function kicks in
+        # it should be a function of the SNR of the detection ideally..
+        # but it looks like scipy just supports a single float
+        fit_mbd = least_squares(errfunc, np.zeros(len(dishes)),
+                                args=(b.idish0, b.idish1, b.mbd_unwrap, b.mbd_err),
+                                loss='soft_l1', f_scale=8).x
+        fit_rate = least_squares(errfunc, np.zeros(len(dishes)),
+                                args=(b.idish0, b.idish1, b.delay_rate, b.rate_err),
+                                loss='soft_l1', f_scale=8).x
+        a.ix[idx,'mbd_unwrap'] = fit_mbd[b.idish0] - fit_mbd[b.idish1]
+        a.ix[idx,'delay_rate'] = fit_rate[b.idish0] - fit_rate[b.idish1]
+
+    g = a.groupby('timetag')
+    scans = sorted(set(a.timetag))
+
+    # loop over all scans and overwrite with new solution
+    for scan in scans:
+        closescan(scan)
+
+    a['sbdelay'] = a.mbd_unwrap # set sbdelay to the closed unwrapped mbd
+    util.rewrap_mbd(a)
+
 # helper class for embedded PDF in ipython notebook
 class PDF(object):
     def __init__(self, pdfdata):
@@ -1365,7 +1422,7 @@ def trendplot(df, rem='', offs={}, col='sbdelay'):
     putil.tag('%s %s' % (rem, band), loc='upper left')
     plt.grid(alpha=0.25)
 
-# tint: incoherent averaging time to phase alignment optimization
+# tint: incoherent averaging time [s] to phase alignment optimization
 def align(bs, snrs=None, tint=5.):
     from scipy.optimize import fmin
     from scipy.interpolate import interp1d
