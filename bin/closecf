@@ -7,9 +7,8 @@
 # 2017-12-22 Lindy Blackburn, update for ER2
 
 from eat.io import hops, util
+from eat.hops import util as hu
 import numpy as np
-from scipy.optimize import least_squares
-from itertools import chain
 import pandas as pd
 import argparse
 import os
@@ -37,11 +36,6 @@ args = parser.parse_args()
 # read alist file (autodetect version 5 or 6)
 a = util.noauto(hops.read_alist(args.filename))
 
-dishes = sorted(set(chain(*a.baseline)))
-
-# reverse index of lookup for single dish station code
-idish = {f:i for i, f in enumerate(dishes)}
-
 # unwrap mbd to be aligned to sbd
 util.unwrap_mbd(a)
 
@@ -54,63 +48,29 @@ a['mbd_err'] = np.sqrt(a['mbd_err']**2 + 50e-6**2*(a.baseline.isin({'JS', 'JR', 
                        + 1.*(a.baseline.isin({'SR', 'RS'})) + 1.*(a.snr < args.threshold))
 a['rate_err'] = np.sqrt(a['rate_err']**2 + 0.25*(a.baseline.isin({'SR', 'RS'})) + 4.0*(a.baseline.isin({'JR', 'RJ'})) + 1.*(a.snr < args.threshold))
 
-# least squares objective function: (predict - model) / std
-# par is a list of the mdoel parameters fit against alldata and allerr
-# idx1: the iloc of the first HOPS station in each baseline
-# idx2: the iloc of the second HOPS station in each baseline
-def errfunc(par, idx1, idx2, alldata, allerr):
-    model = par[idx1] - par[idx2]
-    return (alldata - model) / allerr
-
-# indices for unique dishes/dishes
-a['idish0'] = [idish[bl[0]] for bl in a.baseline]
-a['idish1'] = [idish[bl[1]] for bl in a.baseline]
-
-g = a.groupby('timetag')
-scans = sorted(set(a.timetag))
-
-# loop over all scans and overwrite with new solution
-# for scan in scans:
-for scan in scans:
-    idx = g.groups[scan]
-    # skip if only one baseline (avoid warning)
-    if len(idx) < 2:
-        continue
-    b = a.loc[idx]
-    # initial guess
-    rates = np.zeros(len(dishes))
-    delays = np.zeros(len(dishes))
-    # f_scale will be the deviation [in sigma] where the loss function kicks in
-    # it should be a function of the SNR of the detection ideally..
-    # but it looks like scipy just supports a single float
-    fit_mbd = least_squares(errfunc, np.zeros(len(dishes)),
-                            args=(b.idish0, b.idish1, b.mbd_unwrap, b.mbd_err),
-                            loss='soft_l1', f_scale=8).x
-    fit_rate = least_squares(errfunc, np.zeros(len(dishes)),
-                            args=(b.idish0, b.idish1, b.delay_rate, b.rate_err),
-                            loss='soft_l1', f_scale=8).x
-    a.ix[idx,'mbd_unwrap'] = fit_mbd[b.idish0] - fit_mbd[b.idish1]
-    a.ix[idx,'delay_rate'] = fit_rate[b.idish0] - fit_rate[b.idish1]
-
-util.rewrap_mbd(a)
+hu.closefringe(a)
 
 # print out FF control file
 
 print '* ' + statline
 g = a.groupby('timetag')
 for (scan, b) in g:
-    sites = set(chain(*b.baseline))
-    for site in sites:
-        # this may still accept some unconnected baselines
-        snrmax = b[b.baseline.str.contains(site)].snr.max()
-        if snrmax < args.threshold:
-            print("if scan %s and station %s skip true * maxsnr %.1f" % (scan, site, snrmax))
+#     sites = set(chain(*b.baseline))
+#     for site in sites:
+#         # this may still accept some unconnected baselines
+#         snrmax = b[b.baseline.str.contains(site)].snr.max()
+#         if snrmax < args.threshold:
+#             print("if scan %s and station %s skip true * maxsnr %.1f" % (scan, site, snrmax))
+    # sets of connected groups of sites for scan based on good detections
+    connected = hu.fringegroups(b[b.snr >= args.threshold].baseline)
     for c in b.groupby('baseline').first().reset_index().itertuples():
         # hack fix for fourfit issue on one scan with X VEX start offset
         if c.timetag == '097-051800' and 'X' in c.baseline:
             timetag = '097-051850'
         else:
             timetag = c.timetag
-        print("if scan %s and baseline %s sb_win %10.7f %10.7f mb_win %10.7f %10.7f dr_win %15.12f %15.12f * expt_no %d" %
-            (timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate, c.expt_no))
-
+        if any((c.baseline[0] in sites and c.baseline[1] in sites for sites in connected)):
+            print("if scan %s and baseline %s sb_win %10.7f %10.7f mb_win %10.7f %10.7f dr_win %15.12f %15.12f * expt_no %d" %
+                (timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate, c.expt_no))
+        else:
+            print("if scan %s and baseline %s skip true * expt_no %d snr %.1f" % (timetag, c.baseline, c.expt_no, c.snr))

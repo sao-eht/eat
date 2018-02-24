@@ -33,6 +33,7 @@ from collections import OrderedDict
 import matplotlib.pyplot as plt
 from ..plots import util as putil
 from matplotlib.offsetbox import AnchoredText
+from scipy.optimize import least_squares
 import glob
 import re
 import os
@@ -977,7 +978,7 @@ if station %s and scan %s * from %s per %.1f s
 def closefringe(a):
 
     # dishes and reverse index of lookup for single dish station code
-    dishes = sorted(set(chain(*a.baseline)))
+    dishes = sorted(set(itertools.chain(*a.baseline)))
     idish = {f:i for i, f in enumerate(dishes)}
 
     # missing columns
@@ -1002,7 +1003,7 @@ def closefringe(a):
         idx = g.groups[scan]
         # skip if only one baseline (avoid warning)
         if len(idx) < 2:
-            continue
+            return
         b = a.loc[idx]
         # initial guess
         rates = np.zeros(len(dishes))
@@ -1473,3 +1474,18 @@ def pickref(df, nosma=True, threshold=0):
     score = {site: np.log(ssq[ssq.baseline.str.contains(site)].ssq).sum() for site in sites}
     ref = max(score, key=score.get) if len(score) > 0 else None
     return ref
+
+# take set of fringe detection baselines and return sites representing connected arrays
+def fringegroups(bls):
+    groups = []
+    for bl in bls:
+        newgroup = True
+        for g in groups:
+            if bl[0] in g or bl[1] in g:
+                newgroup = False
+                g.add(bl[0])
+                g.add(bl[1])
+        if newgroup:
+            groups.append(set(bl))
+    return groups
+
