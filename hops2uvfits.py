@@ -1271,9 +1271,12 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
         bl_fitsFiles = []
         for filename in glob.glob(scandir + '*_hops_baseline.uvfits'):
             bl_fitsFiles.append(filename)
+            
+        i += 1
         if not len(bl_fitsFiles):
             #raise Exception("cannot find any fits files with extension _hops_baseline.uvfits in %s" % scandir)
             print("cannot find any fits files with extension _hops_baseline.uvfits in %s" % scandir)
+            continue
         
         datastruct = merge_hops_uvfits(bl_fitsFiles)
         outname = scandir + "scan_hops_merged.uvfits"
@@ -1281,7 +1284,7 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
         
         scan_fitsFiles.append(outname)
         scan_sources.append(datastruct.obs_info.src)
-        i += 1
+        
 
         print "Saved scan merged data to ", outname
         print
