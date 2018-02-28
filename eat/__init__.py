@@ -6,5 +6,5 @@
 .. moduleauthor:: Lindy Blackburn (lindylam@gmail.com)
 
 """
-from .factor import *
-from .eht    import *
+# from .factor import *
+# from .eht    import *
