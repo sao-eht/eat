@@ -48,7 +48,7 @@ be different in case of a scan_offset ?
 if args.outdir is not None and not os.path.exists(args.outdir):
     os.makedirs(args.outdir)
 
-def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=args.cohtime):
+def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
     """use reference site to make adhoc phases to other stations in data frame
 
     Args:
@@ -84,7 +84,7 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tau=args.cohtime):
             segment[ttrem] = [p.start, p.stop] # ad-hoc phased times for REM station
             print p.timetag + ' ' + p.baseline
             v = hu.align(rows.path, snrs=rows.snr) # stack data from detected fringes on baseline
-            ah = hu.adhoc(v, ref=ttref, snr=np.sqrt((rows.snr**2).sum()), timeoffset=timeoffset, p=p, tau=tau,
+            ah = hu.adhoc(v, ref=ttref, snr=np.sqrt((rows.snr**2).sum()), timeoffset=timeoffset, p=p, tcoh=tcoh,
                           prefix='' if outdir == '.' else outdir + '/')
             out = open(ah.filename, 'w')
             out.write(ah.string)

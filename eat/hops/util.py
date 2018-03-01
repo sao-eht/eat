@@ -805,7 +805,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
     return outdata
 
 def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0.,
-          roundrobin=True, bowlfix=True, secondorder=True, p=None, tau=None, alpha=5./3., ap=None):
+          roundrobin=True, bowlfix=True, secondorder=True, p=None, tcoh=None, alpha=5./3., ap=None):
     """
     create ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
@@ -828,7 +828,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         bowlfix: fix bowl effect in 2017 data (must send fringe file for parameters)
         secondorder: fix the second-order effect from delay change over time
         p: custom params
-        tau: coherence timescale in seconds, if no AP is available it is assumed to be 1.0s
+        tcoh: coherence timescale in seconds, if no AP is available it is assumed to be 1.0s
         alpha: structure function index
         ap: overwrite ap
 
@@ -848,13 +848,13 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     if type(b) is np.ndarray:
         v = b
         ap = ap or 0.5
-        tau = tau or 6.0
+        tcoh = tcoh or 6.0
     else:
         b = getfringefile(b, pol=pol, quiet=True)
         p = p if p is not None else params(b)
         v = pop212(b)
         ap = ap or p.ap
-        tau = tau or 6.0 * (220e3 / p.ref_freq) * 2./alpha
+        tcoh = tcoh or 6.0 * (220e3 / p.ref_freq) * 2./alpha
 
     if bowlfix and p is not None:
         rfdict = {'A':-0.2156, 'X':0.163} # ps/s
@@ -898,7 +898,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     #     window_length = 1+2*max(1, int(0.5 + float(nap * polyorder) / float(nfit) / 2.))
 
     # new method balances window length against coherence timescale
-    r0 = tau / ap # put r0 in units of AP
+    r0 = tcoh / ap # put r0 in units of AP
     R = (r0**alpha * 4*np.pi**2 * nap/snr**2)**(1./(1+alpha)) # optimal integration time per DOF [in APs]
     if polyorder is None:
         polyorder = 2
@@ -1462,18 +1462,27 @@ def align(bs, snrs=None, tint=5.):
 # pick a reference station based on maximum sum(log(snr)) of detections
 # remove EB baseline (Effelsberg RDBE & DBBC3)
 # nosma: exclude SMAP, SMAR, JCMT due to sideband leakage
-def pickref(df, nosma=True, threshold=0):
-    df = df[(df.snr > threshold) & ~df.baseline.isin({'SR', 'RS'}) & ~df.baseline.isin({'EB', 'BE'})].copy()
-    df['ssq'] = df.snr**2 * np.sqrt(df.length) # no meaningful scale here, just prioritize livetime slightly
+# threshold: soft threshold at which to being considering fringes as real
+# tcoh: coherence timescale for setting useful number of DOF to fit (5 per tcoh)
+# full: return useful DOF per baseline instead of site with the best total
+def pickref(df, nosma=True, threshold=6., tcoh=6., full=False):
+    df = df[~df.baseline.isin({'SR', 'RS'}) & ~df.baseline.isin({'EB', 'BE'})].copy()
+    # some arbitrary logistic function to minimize false detections
+    df['ssq'] = df.snr**2 * (2./np.pi)*np.arctan(df.snr**4 / threshold**4)
     sites = set(''.join(df.baseline))
-    ssq = df[["baseline", "ssq"]].groupby('baseline').sum().reset_index()
+    merged = df[["baseline", "ssq", "length"]].groupby('baseline').agg({"ssq":"sum", "length":"first"})
+    # stop counting fitted DOF after some timescale
+    snrdof = 10. # required SNR per DOF
+    dofmax = 5. * merged.length / tcoh # maximum number of DOF desired
+    dof = (merged.ssq + 1e-6) / snrdof**2
+    usefuldof = (dofmax * np.log(1. + dof / dofmax))
     # don't let S or J be ref if they are both present (due to wrong sideband contamination)
     if nosma and ('J' in sites and 'S' in sites):
         sites.remove('J')
         sites.remove('S')
-    score = {site: np.log(ssq[ssq.baseline.str.contains(site)].ssq).sum() for site in sites}
+    score = {site: usefuldof[usefuldof.index.str.contains(site)].sum() for site in sites}
     ref = max(score, key=score.get) if len(score) > 0 else None
-    return ref
+    return usefuldof if full else ref
 
 # take set of fringe detection baselines and return sites representing connected arrays
 def fringegroups(bls):
@@ -1489,3 +1498,17 @@ def fringegroups(bls):
             groups.append(set(bl))
     return groups
 
+def setparity(df):
+    if 'triangle' in df.columns:
+        striangle = [''.join(sorted(tri)) for tri in df.triangle]
+        parity = [1 if tri in ''.join(stri + stri[:2]) else -1 for (tri, stri) in zip(df.triangle, striangle)]
+        df['bis_phas'] = parity * df.bis_phas
+        df['cmbdelay'] = parity * df.cmbdelay
+        df['csbdelay'] = parity * df.csbdelay
+        df['triangle'] = striangle
+
+# fix sqrt2 factor in Rev1 correlation
+def fixsqrt2(df):
+    idx = df.baseline.str[0] == 'A'
+    df.loc[idx,'snr'] /= np.sqrt(2.0)
+    df.loc[idx,'amp'] /= np.sqrt(2.0)
