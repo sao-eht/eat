@@ -49,6 +49,7 @@ parser.add_argument('-t', '--threshold', help='signal-to-noise threshold (same a
 parser.add_argument('-na', '--no-auto', help='do not print autocorrelations', action="store_true")
 parser.add_argument('-nh', '--no-header', help="don't print column header", action="store_true")
 parser.add_argument('-ni', '--no-index', help="don't print index (row number)", action="store_true")
+parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
 # which kind of file are we looking at (may not close file until garbage collect?)
@@ -74,6 +75,10 @@ else:
     defaultcol = None
 
 a = pd.concat([readfun(fname) for fname in args.filename], ignore_index=True)
+
+if not args.no_fix:
+    util.fix(a)
+
 if args.columns is None:
     columns = defaultcol or a.columns
 else:

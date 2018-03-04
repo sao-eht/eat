@@ -112,5 +112,6 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
 
 hu.set_datadir(args.datadir)
 a = util.noauto(hops.read_alist(args.filename))
+util.fix(a) # fix various polconvert errors
 adhocref(a, outdir=args.outdir, timeoffset=-1.)
 

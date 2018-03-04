@@ -41,6 +41,9 @@ args = parser.parse_args()
 # read alist file (autodetect version 5 or 6)
 a = util.noauto(hops.read_alist(args.filename))
 
+# fix various polconvert errors
+util.fix(a)
+
 # assume alist is produced in data directory if not given
 hu.set_datadir(args.datadir or (os.path.dirname(args.filename) or '.'))
 

@@ -37,6 +37,7 @@ args = parser.parse_args()
 
 # read alist file (autodetect version 5 or 6)
 a = util.noauto(hops.read_alist(args.filename))
+util.fix(a) # fix various polconvert errors
 a = a[(a.snr > 9) & (a.baseline.str[0] == 'A')]
 nchan = a.freq_code.str[1:].astype(int).max()
 

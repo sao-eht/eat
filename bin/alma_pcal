@@ -50,6 +50,7 @@ def load(file):
     phase-cal.
     """
     a = util.noauto(hops.read_alist(file))
+    util.fix(a) # fix various polconvert errors
 
     # Apply row filtering
     a = a[a.snr > 50]
