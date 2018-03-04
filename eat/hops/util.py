@@ -1470,19 +1470,19 @@ def pickref(df, nosma=True, threshold=6., tcoh=6., full=False):
     # some arbitrary logistic function to minimize false detections
     df['ssq'] = df.snr**2 * (2./np.pi)*np.arctan(df.snr**4 / threshold**4)
     sites = set(''.join(df.baseline))
-    merged = df[["baseline", "ssq", "length"]].groupby('baseline').agg({"ssq":"sum", "length":"first"})
+    merged = df[["baseline", "ssq", "length"]].groupby('baseline').agg({"ssq":"sum", "length":"first"}).reset_index()
     # stop counting fitted DOF after some timescale
     snrdof = 10. # required SNR per DOF
     dofmax = 5. * merged.length / tcoh # maximum number of DOF desired
-    dof = (merged.ssq + 1e-6) / snrdof**2
-    usefuldof = (dofmax * np.log(1. + dof / dofmax))
+    merged['dof'] = (merged.ssq + 1e-6) / snrdof**2
+    merged['usefuldof'] = (dofmax * np.log(1. + merged.dof / dofmax))
     # don't let S or J be ref if they are both present (due to wrong sideband contamination)
     if nosma and ('J' in sites and 'S' in sites):
         sites.remove('J')
         sites.remove('S')
-    score = {site: usefuldof[usefuldof.index.str.contains(site)].sum() for site in sites}
+    score = {site: merged[merged.baseline.str.contains(site)].usefuldof.sum() for site in sites}
     ref = max(score, key=score.get) if len(score) > 0 else None
-    return usefuldof if full else ref
+    return merged if full else ref
 
 # take set of fringe detection baselines and return sites representing connected arrays
 def fringegroups(bls):
