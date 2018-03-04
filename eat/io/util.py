@@ -168,29 +168,42 @@ def noauto(df):
     return df[~auto].copy()
 
 # a number of polconvert fixes based on rootcode (correlation proc time)
-# optionally undo fix
 def fix(df):
-    # sqrt2 fix er2lo:('zplptp', 'zrmvon') er2hi:('zplscn', 'zrmvoi')
-    idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zrzzzz')
+    nchan = max(pd.to_numeric(df.freq_code.str[1:]))
+    # sqrt2 fix er2lo:('zplptp', 'zrmvon') er2hi:('zplscn', 'zrmvoi') gmva-sgra:('zydcyi', 'zyddcl')
+    if nchan > 16: # EHT case
+        idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zrzzzz')
+    else: # VLBA case
+        idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zzzzzz')
     df.loc[idx,'snr'] /= np.sqrt(2.0)
     df.loc[idx,'amp'] /= np.sqrt(2.0)
     # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd')
-    idx1 = df.baseline.str.contains('A') & (df.polarization == 'LR') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
-    idx2 = df.baseline.str.contains('A') & (df.polarization == 'RL') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
-    df.loc[idx1,'polarization'] = 'RL'
-    df.loc[idx2,'polarization'] = 'LR'
+    if nchan > 16: # EHT case
+        idx1 = df.baseline.str.contains('A') & (df.polarization == 'LR') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
+        idx2 = df.baseline.str.contains('A') & (df.polarization == 'RL') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
+        df.loc[idx1,'polarization'] = 'RL'
+        df.loc[idx2,'polarization'] = 'LR'
+    else: # VLBA case
+        None
     
-def undofix(df):        
 # a number of polconvert fixes based on rootcode (correlation proc time)
-    # sqrt2 fix er2lo:('zplptp', 'zrmvon') er2hi:('zplscn', 'zrmvoi')
-    idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zrzzzz')
+def undofix(df):        
+    nchan = max(pd.to_numeric(df.freq_code.str[1:]))
+    # sqrt2 fix er2lo:('zplptp', 'zrmvon') er2hi:('zplscn', 'zrmvoi') gmva-sgra:('zydcyi', 'zyddcl')
+    if nchan > 16: # EHT case
+        idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zrzzzz')
+    else: # VLBA case
+        idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zzzzzz')
     df.loc[idx,'snr'] *= np.sqrt(2.0)
     df.loc[idx,'amp'] *= np.sqrt(2.0)
     # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd')
-    idx1 = df.baseline.str.contains('A') & (df.polarization == 'LR') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
-    idx2 = df.baseline.str.contains('A') & (df.polarization == 'RL') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
-    df.loc[idx1,'polarization'] = 'RL'
-    df.loc[idx2,'polarization'] = 'LR'
+    if nchan > 16: # EHT case
+        idx1 = df.baseline.str.contains('A') & (df.polarization == 'LR') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
+        idx2 = df.baseline.str.contains('A') & (df.polarization == 'RL') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
+        df.loc[idx1,'polarization'] = 'RL'
+        df.loc[idx2,'polarization'] = 'LR'
+    else: # VLBA case
+        None
 
 def uvdict(filename):
     """take calibration output data frame, and make UV dictionary lookup table"""
