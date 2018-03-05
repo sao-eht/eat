@@ -1224,7 +1224,7 @@ def save_uvfits(datastruct, fname):
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
 ################################################################################################################################## 
-def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl_fits=True,
+def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_fits=True,
                     recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False, sqrt2corr=False, flip_ALMA_pol=False):
     
 
