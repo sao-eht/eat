@@ -228,7 +228,7 @@ class Datastruct(object):
 #######################################################################
 ##########################  Load/Save FUNCTIONS #######################
 ####################################################################### 
-def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False, recompute_uv=False, sqrt2corr=False):
+def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False, recompute_uv=False, sqrt2corr=False, flip_ALMA_pol=False):
     """read all fringe files in a directory and produce single baseline uvfits files
 
        Args:
@@ -515,6 +515,14 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 vis_i = vis_i / CORRCOEFF
                 visweight = visweight * (CORRCOEFF**2)
                 #visweight = inttime[i,:] * channel_bw_ant1[i] #TODO: WHAT WERE WE DOING?
+                                    
+                if flip_ALMA_pol and (ant1== 'AA' or ant2 == 'AA'):
+                    if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='L':
+                        channel_pol_ant1[i]=='L'
+                        channel_pol_ant2[i]=='R'
+                    elif channel_pol_ant1[i]=='L' and channel_pol_ant2[i]=='R':
+                        channel_pol_ant1[i]=='R'
+                        channel_pol_ant2[i]=='L'
 
                 # put visibilities in the data table
                 if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='R':
@@ -1217,7 +1225,7 @@ def save_uvfits(datastruct, fname):
 ##########################  Main FUNCTION ########################################################################################
 ################################################################################################################################## 
 def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl_fits=True,
-                    recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False, sqrt2corr=False):
+                    recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False, sqrt2corr=False, flip_ALMA_pol=False):
     
 
     print "********************************************************"
@@ -1263,7 +1271,7 @@ def main(datadir=DATADIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='', recompute_bl
                 print '    WARNING - not recomputing U,V coordinates!' 
             print "---------------------------------------------------------"
             print "---------------------------------------------------------"
-            convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv, sqrt2corr=sqrt2corr)
+            convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv, sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol)
         
         print    
         print "Merging baseline uvfits files in directory: ", scandir
@@ -1331,6 +1339,7 @@ if __name__=='__main__':
               "   --rot_delay : specify to remove delay rate solution in fringe files \n" + 
               "   --uv : specify to recompute uv points \n" + 
               "   --sqrt2corr : specify to include the sqrt(2) correction to ALMA baselines"
+              "   --flip_ALMA_pol : flip RL and LR for ALMA"
              )
         sys.exit()
 
@@ -1353,6 +1362,9 @@ if __name__=='__main__':
     sqrt2corr = False
     if "--sqrt2corr" in sys.argv: sqrt2corr = True
     
+    flip_ALMA_pol = False
+    if "--flip_ALMA_pol" in sys.argv: flip_ALMA_pol = True
+    
     ident = ""
     if "--ident" in sys.argv: 
         for a in range(0, len(sys.argv)):
@@ -1369,4 +1381,4 @@ if __name__=='__main__':
 
     main(datadir=datadir, outdir=outdir, ident=ident,
          recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits,
-         rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv, sqrt2corr=sqrt2corr)
+         rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv, sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol)
