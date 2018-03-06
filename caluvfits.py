@@ -34,7 +34,7 @@ OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/7.
 
 
 #conversion factors and data types
-station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR'}
+station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR', 'SPT':'SP'}
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
 DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
 DTCAL = [('time','f8'), ('rscale','c16'), ('lscale','c16')]

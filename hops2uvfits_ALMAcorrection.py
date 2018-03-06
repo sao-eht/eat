@@ -42,7 +42,7 @@ RDATE_OFFSET += 1.e-6*(rdate_tt.ut1.datetime.microsecond - rdate_tt.utc.datetime
 ROUND_SCAN_INT = 5
 
 #conversion factors and data types
-station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR'}
+station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR', 'SPT':'SP'}
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
 DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
 DTPOL = [('time','f8'),('freq','f8'),('tint','f8'),
