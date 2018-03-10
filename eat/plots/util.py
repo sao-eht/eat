@@ -92,3 +92,9 @@ def normconfidence(maxval=10.):
     from scipy.stats import norm
     xx = np.linspace(0, maxval, 200)
     sf = nomm.sf(xx)
+
+def multline(xs, fun=plt.axvline):
+    for x in xs: fun(x, alpha=0.25, ls='--', color='k')
+
+def wide(w=8, h=3): plt.setp(plt.gcf(), figwidth=w, figheight=h); \
+    plt.tight_layout()

@@ -55,19 +55,20 @@ def unwrap_mbd(df, mbd_ambiguity=None):
     """Add *mbd_unwrap* to DataFrame based on ambiguity [us], choose value closest to SBD
     """
 
-    if mbd_ambiguity is None:      # we may want to set this manually
-        mbd_ambiguity = df.ambiguity # if alist file does not contain sufficient precision
+    if mbd_ambiguity is None:
+        df['ambiguity'] = 1./np.round(1./df.ambiguity, 5) # improve precision of ambiguity
+        mbd_ambiguity = df.ambiguity
     offset = np.remainder(df.sbdelay - df.mbdelay + 1.5*mbd_ambiguity, df.ambiguity)
     df['mbd_unwrap'] = df.sbdelay - offset + 0.5*mbd_ambiguity
 
 def rewrap_mbd(df, mbd_ambiguity=None):
     """Rewrap in place the MBD based on the ambiguity [us], choose value within +/-ambiguity window"""
-    if mbd_ambiguity is None:      # we may want to set this manually
-        mbd_ambiguity = df.ambiguity # if alist file does not contain sufficient precision
+    if mbd_ambiguity is None:
+        mbd_ambiguity = df.ambiguity
     df['mbdelay'] = np.remainder(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
 
-def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000010, sbd_systematic=0.000010,
-                 rate_systematic=0.001, crosspol_systematic=0.):
+def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_systematic=0.000002,
+                 rate_systematic=0.001, crosspol_systematic=0.000020):
     """Add in place error to delay and rate fit from fourfit.
 
     This is re-derived and close in spirit to the code in fourfit/fill_208.c
@@ -90,8 +91,8 @@ def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000010, sbd_system
         sbw = np.round(sbw) # account for lack of precision in alist v5 (round to MHz)
     if bw is None:
         bw = nchan * sbw # assume contiguous channels, not always correct
-    df['mbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * bw) # us
-    df['sbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * sbw) # us, for nchan measurements
+    df['mbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * bw * bw_factor) # us
+    df['sbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * sbw * bw_factor) # us, for nchan measurements
     df['rate_err'] = 1e6 * np.sqrt(12) / (2*np.pi * df.ref_freq * df.snr * df.duration) # us/s -> ps/s
     df['mbd_err'] = np.sqrt(df['mbd_err']**2 + mbd_systematic**2 +
                             crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
@@ -111,12 +112,12 @@ def add_id(df, col=['timetag', 'baseline', 'polarization']):
     """add unique *id* tuple to data frame based on columns"""
     df['id'] = list(zip(*[df[c] for c in col]))
 
-def add_scanno(df, unique=False):
-    """add *scan_no* based on 2017 scan_id e.g. No0012 -> 12, or a unique number"""
+def add_scanno(df, unique=True):
+    """add *scan_no* based on 2017 scan_id e.g. No0012 -> 12, or a unique number in increasing order"""
     if unique:
-        tts = sorted(set(df.timetag))
+        tts = sorted(sorted(set(zip(df.expt_no, df.scan_id))))
         tt2i = dict(zip(tts, range(len(tts))))
-        df['scan_no'] = df.timetag.map(tt2i)
+        df['scan_no'] = [tt2i[s] for s in zip(df.expt_no, df.scan_id)]
     else:
         df['scan_no'] = df.scan_id.str[2:].astype(int)
 

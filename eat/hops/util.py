@@ -86,7 +86,7 @@ sys_par = 2e-6 # 2 ps on fringe delay
 sys_cross = 20e-6 # 20 ps on cross hand delay
 
 # restart of backend system
-restarts_2017_low = {'X':map(util.tt2dt, ['101-010200'])}
+restarts_2017 = {'X':map(util.tt2dt, ['101-010200'])}
 
 def getpolarization(f):
     b = mk4.mk4fringe(f)
@@ -1199,10 +1199,78 @@ def wavg(x, sigma=1., col=None, w=None, robust=10.):
         from collections import OrderedDict
         return OrderedDict(zip(col, return_cols[:len(col)]))
 
+def rl_segmented(a, site, restarts={}, boundary=21,
+                 index="ref_freq expt_no scan_id scan_no source timetag baseline".split()):
+    import pandas as pd
+    # calibration R-L delay difference at [rem] site using other sites as REF
+    b = a[a.baseline.str.contains(site)].copy() # make a new copy with just baselines to/from site
+    b['site'] = site
+    flip(b, b.baseline.str[0] == site)
+    if 'mbd_unwrap' not in b.columns:
+        util.unwrap_mbd(b)
+    if 'mbd_err' not in b.columns:
+        util.add_delayerr(b)
+    if 'scan_no' not in b.columns:
+        util.add_scanno(b)
+    index = [col for col in index if col in b.columns]
+    t0 = b.datetime.min()
+    t1 = b.datetime.max()
+    start = pd.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
+    stop  = pd.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
+    drange = list(pd.date_range(start, stop))
+    # segments for baseline, adding in any known restarts for either site
+    tsbounds = sorted(drange + restarts.get(site, []))
+    # leaving this as CategoryIndex (no "get_values") results in slow pivot_table
+    # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
+    # probably pass aggfunc='first' to handle non-numeric types
+    b['segment'] = pd.cut(b.datetime, tsbounds, right=False, labels=None).get_values()
+    # convert segment to start, stop values since only 1D objects supported well in pandas
+    # for indexing, lose meta-info about right or left closed segment -- too bad
+    b['start'] = b.segment.apply(lambda x: x.left)
+    b['stop'] = b.segment.apply(lambda x: x.right)
+    b['ref_pol'] = b.polarization.str.get(0)
+    b['rem_pol'] = b.polarization.str.get(1)
+    p = b.pivot_table(aggfunc='first', index=['start', 'stop', 'site'] + index + ['ref_pol'],
+                      columns='rem_pol', values=['mbd_unwrap', 'mbd_err']).dropna()
+    p.reset_index(index + ['ref_pol'], inplace=True)
+    p['LR'] = p.mbd_unwrap.R - p.mbd_unwrap.L
+    ambiguity = b.iloc[0].ambiguity
+    p['LR_wrap'] = np.remainder(p.LR + 0.5*ambiguity, ambiguity) - 0.5*ambiguity
+    p['LR_err'] = np.sqrt(p.mbd_err.R**2 + p.mbd_err.L**2)
+    rl_stats = p.groupby(['start', 'stop', 'site']).apply(lambda df:
+        pd.Series(wavg(df.LR, df.LR_err, col=['LR_mean', 'LR_sys'])))
+    p['LR_offset'] = p.LR - rl_stats.LR_mean
+    p['LR_offset_wrap'] = np.remainder(p.LR_offset + 0.5*ambiguity, ambiguity) - 0.5*ambiguity
+    p['LR_std'] = p.LR_offset / np.sqrt(p.LR_err**2 + rl_stats.LR_sys**2)
+    return((p.sort_index(), rl_stats))
+
+def rlplot(p, corrected=True, wrap=True, vlines=[]):
+    from ..plots import util as pu
+    # plot showing the outliers
+    for (bl, rows) in p.groupby('baseline'):
+        if corrected:
+            if wrap:
+                plt.errorbar(rows.scan_no, 1e3*rows.LR_offset_wrap, yerr=1e3*rows.LR_err, fmt='.', label=bl)
+            else:
+                plt.errorbar(rows.scan_no, 1e3*rows.LR_offset, yerr=1e3*rows.LR_err, fmt='.', label=bl)
+        else:
+            if wrap:
+                plt.errorbar(rows.scan_no, 1e3*rows.LR_wrap, yerr=1e3*rows.LR_err, fmt='.', label=bl)
+            else:
+                plt.errorbar(rows.scan_no, 1e3*rows.LR, yerr=1e3*rows.LR_err, fmt='.', label=bl)
+    plt.grid(alpha=0.25)
+    pu.multline(vlines)
+    plt.xlabel('scan')
+    plt.ylabel('R-L delay difference [ns]')
+    pu.tag(p.baseline.iloc[0][1], loc='upper left')
+    plt.legend(loc='upper right')
+    # wide(9, 4)
+
 # segmented RR-LL delay differences
 # restarts[site] = [pd.Timestamp list of clock resets]
 # assume additional clock reset at 21:00 UT for all sites = boundary [h]
-def rrll_segmented(a, restarts={}, boundary=21):
+def rrll_segmented(a, restarts={}, boundary=21,
+                   index="ref_freq expt_no scan_id scan_no source timetag".split()):
     """rrll_segmented: general RR-LL delay statistics given alist data
 
     Args:
@@ -1214,7 +1282,11 @@ def rrll_segmented(a, restarts={}, boundary=21):
     b = a[a.polarization.isin({'RR', 'LL'})].copy()
     if 'mbd_unwrap' not in b.columns:
         util.unwrap_mbd(b)
-    util.add_delayerr(b, bw_factor=sys_fac, mbd_systematic=sys_par, crosspol_systematic=sys_cross)
+    if 'mbd_err' not in b.columns:
+        util.add_delayerr(b)
+    if 'scan_no' not in b.columns:
+        util.add_scanno(b)
+    index = [col for col in index if col in b.columns and col != "baseline"]
     t0 = b.datetime.min()
     t1 = b.datetime.max()
     start = pd.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
@@ -1234,28 +1306,59 @@ def rrll_segmented(a, restarts={}, boundary=21):
     # for indexing, lose meta-info about right or left closed segment -- too bad
     b['start'] = b.segment.apply(lambda x: x.left)
     b['stop'] = b.segment.apply(lambda x: x.right)
-    p = b.pivot_table(aggfunc='first',
-        index=['expt_no', 'start', 'stop', 'timetag', 'scan_id', 'source', 'baseline'],
-        columns=['polarization'],
-        values=['sbdelay', 'mbdelay', 'mbd_unwrap', 'mbd_err', 'snr'])
-    p = p.dropna().reset_index(['expt_no', 'source', 'scan_id', 'timetag'])
+    p = b.pivot_table(aggfunc='first', index=['start', 'stop', 'baseline'] + index,
+        columns=['polarization'], values=['mbd_unwrap', 'mbd_err']).dropna()
+    p.reset_index(index, inplace=True)
     p['LLRR'] = p.mbd_unwrap.RR - p.mbd_unwrap.LL
     p['LLRR_err'] = np.sqrt(p.mbd_err.RR**2 + p.mbd_err.LL**2)
-    p['LLRR_snr'] = 1./np.sqrt(1./p.snr.RR**2 + 1./p.snr.LL**2)
     rrll_stats = p.groupby(['start', 'stop', 'baseline']).apply(lambda df:
         pd.Series(wavg(df.LLRR, df.LLRR_err,
-                       col=['LLRR_mean', 'LLRR_mean_err', 'LLRR_x2', 'LLRR_nout'])))
+                       col=['LLRR_mean', 'LLRR_sys', 'LLRR_x2', 'LLRR_nout'])))
     rrll_stats['LLRR_nout'] = rrll_stats.LLRR_nout.astype(int)
     # subtract mean RR-LL from each scan
-    p['mean_offset'] = rrll_stats.LLRR_mean
-    p['mean_err'] = rrll_stats.LLRR_mean_err
-    p['offset'] = p.LLRR - p.mean_offset
-    p['offset_err'] = np.sqrt(p.LLRR_err**2 + p.mean_err**2)
-    p['offset_std'] = p.offset / p.offset_err
-    p['outlier'] = p.offset_std.abs() > 10
-    p['mbdelay', 'mean'] = ((p.snr.LL**2*p.mbdelay.LL + p.snr.RR**2*(p.mbdelay.RR - p.mean_offset)) /
-                            (p.snr.LL**2 + p.snr.RR**2))
+    p['LLRR_offset'] = p.LLRR - rrll_stats.LLRR_mean
+    p['LLRR_std'] = p.LLRR_offset / np.sqrt(p.LLRR_err**2 + rrll_stats.LLRR_sys**2)
     return((p.sort_index(), rrll_stats))
+
+def rrllplot(p, baselines=slice(None), vlines=[]):
+    from ..plots import util as pu
+    for (bl, rows) in p.loc[(slice(None),slice(None),baselines),:].groupby('baseline'):
+        h = plt.errorbar(rows.scan_no, 1e6*rows.LLRR_offset, yerr=1e6*rows.LLRR_err, fmt='.', label=bl)
+    plt.grid(alpha=0.25)
+    pu.multline(vlines)
+    plt.xlabel('scan')
+    plt.ylabel('MBD RR-LL [ps]')
+    plt.legend(loc='best')
+
+# make one plot from data frame, group by baseline
+# offs: dict of offsets by site, in [ns], positive offset means station is delayed by offset
+def delayplot(df, site, offs={}, vlines=[]):
+    from ..plots import util as pu
+    from matplotlib.legend import Legend
+    mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_')))
+    b = df[df.baseline.str.contains(site)].copy()
+    flip(b, b.baseline.str[0] == site)
+    color = dict(zip(sorted(set(b.baseline)),
+           itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])))
+    lines = []
+    labels = []
+    for (name, rows) in b.groupby(['baseline', 'polarization']):
+        (bl, pol) = name
+        label = bl if pol == 'LL' else '_nolabel'
+        offset = np.array([offs.get((bl[1], expt), 0.) - offs.get((bl[0], expt), 0.)
+                           for expt in rows.expt_no])
+        h = plt.plot(rows.scan_no, 1e3*rows.mbd_unwrap - offset, marker=mk[pol], ls='none',
+                color=color[bl], label=label)
+    lines = [plt.Line2D([0], [0], color='k', marker=mk[pol], ls='none') for pol in mk.keys()]
+    leg = Legend(plt.gca(), lines, mk.keys(), loc='lower right', ncol=1)
+    plt.gca().add_artist(leg)
+    plt.xlabel('scan')
+    plt.ylabel('delay [ns]')
+    plt.xlim(0, plt.xlim()[1]*1.06)
+    plt.legend(loc='upper right')
+    pu.tag('%s' % site, loc='upper left')
+    plt.grid(alpha=0.25)
+    pu.multline(vlines)
 
 # function to convert delay offsets table row to control code element
 def doff2cf(row, nchan=32):
@@ -1393,14 +1496,14 @@ hoffs={
 # make one plot from data frame, group by baseline
 # delays converted to [ns]
 # offs: dict of offsets by site, if REM will be subtracted from baseline value
-# rem: use only baselines including station and set as REM station
+# site: use only baselines including station and set as REM station
 # col: column in data frame to plot
-def trendplot(df, rem='', offs={}, col='sbdelay', **kwargs):
-    band = 'lo' if df.iloc[0].ref_freq < 228000 else 'hi'
+def trendplot(df, site='', offs={}, col='sbdelay', vlines=[], **kwargs):
+    from ..plots import util as pu
     from matplotlib.legend import Legend
     mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_')))
-    b = df[df.baseline.str.contains(rem)].copy()
-    flip(b, b.baseline.str[0] == rem)
+    b = df[df.baseline.str.contains(site)].copy()
+    flip(b, b.baseline.str[0] == site)
     color = dict(zip(sorted(set(b.baseline)),
            itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])))
     lines = []
@@ -1418,10 +1521,11 @@ def trendplot(df, rem='', offs={}, col='sbdelay', **kwargs):
     plt.gca().add_artist(leg)
     plt.xlabel('scan')
     plt.ylabel('%s' % col)
-    # plt.xlim(0, plt.xlim()[1]*1.03)
+    plt.xlim(0, plt.xlim()[1]*1.06)
     plt.legend(loc='upper right')
-    putil.tag('%s %s' % (rem, band), loc='upper left')
+    putil.tag('%s' % site, loc='upper left')
     plt.grid(alpha=0.25)
+    pu.multline(vlines)
 
 # tint: incoherent averaging time [s] to phase alignment optimization
 def align(bs, snrs=None, tint=5.):
@@ -1485,7 +1589,8 @@ def pickref(df, nosma=True, threshold=6., tcoh=6., full=False):
     return merged if full else ref
 
 # take set of fringe detection baselines and return sites representing connected arrays
-def fringegroups(bls):
+# baselines: if True, return all connected baselines instead of groups of sites
+def fringegroups(bls, baselines=False):
     groups = []
     for bl in bls:
         newgroup = True
@@ -1496,7 +1601,11 @@ def fringegroups(bls):
                 g.add(bl[1])
         if newgroup:
             groups.append(set(bl))
-    return groups
+    if baselines:
+        baselinegroups = set((''.join(bl) for bl in itertools.chain(*(itertools.permutations(sites, 2) for sites in groups))))
+        return baselinegroups
+    else:
+        return groups
 
 def setparity(df):
     if 'triangle' in df.columns:
@@ -1506,9 +1615,69 @@ def setparity(df):
         df['cmbdelay'] = parity * df.cmbdelay
         df['csbdelay'] = parity * df.csbdelay
         df['triangle'] = striangle
+    else:
+        sbaseline = [''.join(sorted(bl)) for bl in df.baseline]
+        parity = [False if bl == sbl else True for (bl, sbl) in zip(df.baseline, sbaseline)]
+        flip(df, parity)
 
 # fix sqrt2 factor in Rev1 correlation
 def fixsqrt2(df):
     idx = df.baseline.str[0] == 'A'
     df.loc[idx,'snr'] /= np.sqrt(2.0)
     df.loc[idx,'amp'] /= np.sqrt(2.0)
+
+def uvplot(df, source=None, color=None):
+    import pandas as pd
+    import seaborn as sns
+    from ..plots import util as pu
+    from matplotlib.legend import Legend
+    if source is not None:
+        df = df[df.source == source].copy()
+    else:
+        df = df.copy()
+    util.add_id(df)
+    def constrained(df):
+        goodbls = fringegroups(df[df.snr > 6.5].baseline, baselines=True)
+        return df[df.baseline.isin(goodbls)]
+    def notconstrained(df):
+        goodbls = fringegroups(df[df.snr > 6.5].baseline, baselines=True)
+        return df[~df.baseline.isin(goodbls)]
+    nondetections = pd.concat((notconstrained(rows) for (name, rows) in df.groupby('scan_id')), ignore_index=True)
+    measurements = pd.concat((constrained(rows) for (name, rows) in df.groupby('scan_id')), ignore_index=True)
+    detections = measurements[measurements.snr >= 6.5]
+    upperlimits = measurements[measurements.snr < 6.5]
+    if color is None:
+        bls = sorted(set(df.baseline))
+        color = dict(zip(bls, sns.color_palette(sns.hls_palette(len(bls), l=.6, s=.6))))
+    for (name, rows) in detections.sort_values('baseline').groupby('baseline'):
+        h = plt.plot(rows.u/1e3, rows.v/1e3, 'o', mew=1, label=name, alpha=1, color=color[name], zorder=100)
+        plt.plot(-rows.u/1e3, -rows.v/1e3, 'o', mew=1, label='_nolabel_', alpha=1, color=color[name], zorder=100)
+    for (name, rows) in upperlimits.groupby('baseline'):
+        plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolabel_', alpha=1, color=color[name])
+        plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolabel_', alpha=1, color=color[name])
+    for (name, rows) in nondetections.groupby('baseline'):
+        plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1, mfc='white', label='_nolabel_', alpha=0.5, color='gray', zorder=-100)
+        plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1, mfc='white', label='_nolabel_', alpha=0.5, color='gray', zorder=-100)
+    r = 1 / ((2*np.pi/360) * 50e-6 / 3600) / 1e9
+    cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
+    plt.text(0+.3, r+0.25, '(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
+    plt.gca().add_artist(cir)
+    plt.gca().set_aspect(1.0)
+    plt.xlim(-10, 10)
+    plt.ylim(-9, 9)
+    plt.xticks([-8, -6, -4, -2, 0, 2, 4, 6, 8])
+    plt.plot(0, 0, 'k.')
+    plt.title('EHT 2017 %s coverage' % source)
+    plt.xlabel('u [G$\lambda$]')
+    plt.ylabel('v [G$\lambda$]')
+    lines = []
+    lines.append(plt.Line2D([0], [0], color='k', ls='none', marker='o', mew=1, alpha=1, label='detection'))
+    lines.append(plt.Line2D([0], [0], color='k', ls='none', marker='.', mew=1.5, mfc='white', alpha=1, label='upper limit'))
+    lines.append(plt.Line2D([0], [0], color='gray', ls='none', marker='.', mew=1, mfc='white', alpha=0.5, label='non-det'))
+    leg = Legend(plt.gca(), lines, ['detection', 'upper lim', 'non-det'], loc='lower right', ncol=1)
+    leg.set_zorder(300)
+    plt.gca().add_artist(leg)
+    leg = plt.legend(loc='upper right')
+    leg.set_zorder(300)
+    pu.wide(6, 6)
+
