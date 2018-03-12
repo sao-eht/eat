@@ -1266,6 +1266,75 @@ def rlplot(p, corrected=True, wrap=True, vlines=[]):
     plt.legend(loc='upper right')
     # wide(9, 4)
 
+# segmented hi-lo delay differences
+# restarts[site] = [pd.Timestamp list of clock resets]
+# assume additional clock reset at 21:00 UT for all sites = boundary [h]
+def hilo_segmented(a1, a2, restarts={}, boundary=21, index="expt_no scan_id source timetag".split(),
+                    values="mbd_unwrap mbd_err snr path".split()):
+    """hilo_segmented: general hi-lo delay statistics given alist data
+
+    Args:
+        a1: dataframe from alist file with rates and delays, delay errors are added if missing
+        b2: dataframe from alist file with rates and delays, delay errors are added if missing
+        restarts: special times in which to segment certain stations
+        boundary: hour boundary for daily segments (default 21h)
+    """
+    import pandas as pd
+    
+    lof = a1.iloc[0].ref_freq
+    hif = a2.iloc[0].ref_freq
+    b = pd.concat((a1, a2), ignore_index=True)
+    if 'mbd_unwrap' not in b.columns:
+        util.unwrap_mbd(b)
+    if 'mbd_err' not in b.columns:
+        util.add_delayerr(b)
+    index = [col for col in index if col in b.columns and col != "baseline"]
+    values = [col for col in values if col in b.columns]
+    t0 = b.datetime.min()
+    t1 = b.datetime.max()
+    start = pd.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
+    stop  = pd.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
+    drange = list(pd.date_range(start, stop))
+    g = b.groupby('baseline')
+    for (bl, rows) in g:
+        # segments for baseline, adding in any known restarts for either site
+        tsbounds = sorted(set(
+            itertools.chain(drange, restarts.get(bl[0], []), restarts.get(bl[1], []))))
+        # leaving this as CategoryIndex (no "get_values") results in slow pivot_table
+        # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
+        # probably pass aggfunc='first' to handle non-numeric types
+        b.loc[rows.index, 'segment'] = pd.cut(
+            rows.datetime, tsbounds, right=False, labels=None).get_values()
+    # convert segment to start, stop values since only 1D objects supported well in pandas
+    # for indexing, lose meta-info about right or left closed segment -- too bad
+    b['start'] = b.segment.apply(lambda x: x.left)
+    b['stop'] = b.segment.apply(lambda x: x.right)
+    p = b.pivot_table(aggfunc='first', index=['start', 'stop', 'baseline', 'polarization'] + index,
+        columns=['ref_freq'], values=values).dropna()
+    p.reset_index(index, inplace=True)
+    p['lohi'] = p.mbd_unwrap[hif] - p.mbd_unwrap[lof]
+    p['lohi_err'] = np.sqrt(p.mbd_err[hif]**2 + p.mbd_err[lof]**2)
+    hilo_stats = p.groupby(['start', 'stop', 'baseline', 'polarization']).apply(lambda df:
+        pd.Series(wavg(df.lohi, df.lohi_err,
+                       col=['lohi_mean', 'lohi_sys', 'lohi_x2', 'lohi_nout'])))
+    hilo_stats['lohi_nout'] = hilo_stats.lohi_nout.astype(int)
+    # subtract mean RR-LL from each scan
+    p['lohi_offset'] = p.lohi - hilo_stats.lohi_mean
+    p['lohi_std'] = p.lohi_offset / np.sqrt(p.lohi_err**2 + hilo_stats.lohi_sys**2)
+    util.add_scanno(p)
+    return((p.sort_index(), hilo_stats))
+
+def hiloplot(p, baselines=slice(None), polarizations=slice(None)):
+    from ..plots import util as pu
+    for (bl, rows) in p.loc[(slice(None),slice(None),baselines,polarizations),:].groupby(['baseline', 'polarization']):
+        h = plt.errorbar(rows.scan_no, 1e6*rows.lohi_offset, yerr=1e6*rows.lohi_err, fmt='.', label=bl)
+    plt.grid(alpha=0.25)
+    vlines = p.scan_no.sort_values().values[np.nonzero(np.diff(p.expt_no.sort_values()) > 0)[0]] + 0.5
+    pu.multline(vlines)
+    plt.xlabel('scan')
+    plt.ylabel('MBD hi-lo [ps]')
+    plt.legend(loc='best')
+
 # segmented RR-LL delay differences
 # restarts[site] = [pd.Timestamp list of clock resets]
 # assume additional clock reset at 21:00 UT for all sites = boundary [h]
@@ -1498,7 +1567,7 @@ hoffs={
 # offs: dict of offsets by site, if REM will be subtracted from baseline value
 # site: use only baselines including station and set as REM station
 # col: column in data frame to plot
-def trendplot(df, site='', offs={}, col='sbdelay', vlines=[], **kwargs):
+def trendplot(df, site='', offs={}, col='sbdelay', vlines=None, **kwargs):
     from ..plots import util as pu
     from matplotlib.legend import Legend
     mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_')))
@@ -1525,6 +1594,8 @@ def trendplot(df, site='', offs={}, col='sbdelay', vlines=[], **kwargs):
     plt.legend(loc='upper right')
     putil.tag('%s' % site, loc='upper left')
     plt.grid(alpha=0.25)
+    if vlines is None:
+        vlines = df.scan_no.sort_values().values[np.nonzero(np.diff(df.expt_no.sort_values()) > 0)[0]] + 0.5
     pu.multline(vlines)
 
 # tint: incoherent averaging time [s] to phase alignment optimization
