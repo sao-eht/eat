@@ -176,8 +176,8 @@ def fix(df):
     df.loc[idx,'snr'] /= np.sqrt(2.0)
     df.loc[idx,'amp'] /= np.sqrt(2.0)
     # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd')
-    idx1 = df.baseline.str.contains('A') & (df.polarization == 'LR') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
-    idx2 = df.baseline.str.contains('A') & (df.polarization == 'RL') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
+    idx1 = df.baseline.str.contains('A') & (df.polarization == 'LR') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz') & (df.ref_freq > 228100.)
+    idx2 = df.baseline.str.contains('A') & (df.polarization == 'RL') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz') & (df.ref_freq > 228100.)
     df.loc[idx1,'polarization'] = 'RL'
     df.loc[idx2,'polarization'] = 'LR'
     # SMA polarization swap EHT high band D05
@@ -193,8 +193,8 @@ def undofix(df):
     df.loc[idx,'snr'] *= np.sqrt(2.0)
     df.loc[idx,'amp'] *= np.sqrt(2.0)
     # SMA polarization swap EHT high band D05
-    idx1 = (df.baseline.str[0] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597)
-    idx2 = (df.baseline.str[1] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597)
+    idx1 = (df.baseline.str[0] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597)  & (df.ref_freq > 228100.)
+    idx2 = (df.baseline.str[1] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597)  & (df.ref_freq > 228100.)
     df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'RL', 'LR':'RR', 'RL':'LL', 'RR':'LR'})
     df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LR', 'LR':'LL', 'RL':'RR', 'RR':'RL'})
     # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd')
