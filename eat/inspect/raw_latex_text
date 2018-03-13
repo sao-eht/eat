@@ -1,0 +1,26 @@
+\documentclass[12pt,a4paper]{article} 
+\usepackage{amsmath}\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage[left=0.5in, right=0.5in, top=0.2in, bottom=0.5in]{geometry}
+\begin{document}
+\center{HOPS vs AIPS | OJ287}\\
+\center{10/08/2017}\\
+
+\begin{figure}[h!]
+    \centering
+    \begin{subfigure}[b]{0.475\textwidth}
+    \includegraphics[width=\textwidth]{figs/JLS_RR.png}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.475\textwidth}
+    \includegraphics[width=\textwidth]{figs/JLS_RR.png}
+    \end{subfigure}\\
+     \begin{subfigure}[b]{0.475\textwidth}
+    \includegraphics[width=\textwidth]{figs/JLS_RR.png}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.475\textwidth}
+    \includegraphics[width=\textwidth]{figs/JLS_RR.png}
+    \end{subfigure} 
+\end{figure}
+
+\end{document}
