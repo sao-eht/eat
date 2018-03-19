@@ -53,7 +53,7 @@ util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_
 offs = stats.reset_index()
 offs['site'] = offs.baseline.str[1]
 offs['LR_delay'] = offs.LLRR_mean
-offs['LR_delay_err'] = offs.LLRR_mean_err
+offs['LR_delay_err'] = offs.LLRR_sys
 
 if args.outfile == None:
     out = sys.stdout
