@@ -50,6 +50,7 @@ parser.add_argument('-na', '--no-auto', help='do not print autocorrelations', ac
 parser.add_argument('-nh', '--no-header', help="don't print column header", action="store_true")
 parser.add_argument('-ni', '--no-index', help="don't print index (row number)", action="store_true")
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
+parser.add_argument('-bs', '--baseline-sites', help='only use baseline formed from sites (no spaces)', default=None)
 args = parser.parse_args()
 
 # which kind of file are we looking at (may not close file until garbage collect?)
@@ -78,6 +79,10 @@ a = pd.concat([readfun(fname) for fname in args.filename], ignore_index=True)
 
 if not args.no_fix:
     util.fix(a)
+
+if args.baseline_sites:
+    bs = set(args.baseline_sites)
+    a = a[a.baseline.str[0].isin(bs) & a.baseline.str[1].isin(bs)]
 
 if args.columns is None:
     columns = defaultcol or a.columns

@@ -1270,7 +1270,7 @@ def rlplot(p, corrected=True, wrap=True, vlines=[]):
 # restarts[site] = [pd.Timestamp list of clock resets]
 # assume additional clock reset at 21:00 UT for all sites = boundary [h]
 def hilo_segmented(a1, a2, restarts={}, boundary=21, index="expt_no scan_id source timetag".split(),
-                    values="mbd_unwrap mbd_err snr path".split()):
+                    values="mbd_unwrap mbd_err snr path".split(), idcol='ref_freq'):
     """hilo_segmented: general hi-lo delay statistics given alist data
 
     Args:
@@ -1281,8 +1281,8 @@ def hilo_segmented(a1, a2, restarts={}, boundary=21, index="expt_no scan_id sour
     """
     import pandas as pd
     
-    lof = a1.iloc[0].ref_freq
-    hif = a2.iloc[0].ref_freq
+    lof = a1.iloc[0][idcol]
+    hif = a2.iloc[0][idcol]
     b = pd.concat((a1, a2), ignore_index=True)
     if 'mbd_unwrap' not in b.columns:
         util.unwrap_mbd(b)
@@ -1310,7 +1310,7 @@ def hilo_segmented(a1, a2, restarts={}, boundary=21, index="expt_no scan_id sour
     b['start'] = b.segment.apply(lambda x: x.left)
     b['stop'] = b.segment.apply(lambda x: x.right)
     p = b.pivot_table(aggfunc='first', index=['start', 'stop', 'baseline', 'polarization'] + index,
-        columns=['ref_freq'], values=values).dropna()
+        columns=[idcol], values=values).dropna()
     p.reset_index(index, inplace=True)
     p['lohi'] = p.mbd_unwrap[hif] - p.mbd_unwrap[lof]
     p['lohi_err'] = np.sqrt(p.mbd_err[hif]**2 + p.mbd_err[lof]**2)
@@ -1397,6 +1397,53 @@ def rrllplot(p, baselines=slice(None), vlines=[]):
     pu.multline(vlines)
     plt.xlabel('scan')
     plt.ylabel('MBD RR-LL [ps]')
+    plt.legend(loc='best')
+
+def drclose(a, index="ref_freq expt_no scan_id scan_no source timetag baseline".split()):
+    import pandas as pd
+    b = a.copy()
+    if 'mbd_unwrap' not in b.columns:
+        util.unwrap_mbd(b)
+    if 'mbd_err' not in b.columns:
+        util.add_delayerr(b)
+    if 'scan_no' not in b.columns:
+        util.add_scanno(b)
+    index = [col for col in index]
+    p = b.pivot_table(aggfunc='first', index=index,
+        columns=['polarization'], values=['mbd_unwrap', 'mbd_err', 'delay_rate', 'rate_err']).dropna()
+    p.reset_index(inplace=True)
+    p['dclose'] = p.mbd_unwrap.RR + p.mbd_unwrap.LL - p.mbd_unwrap.LR - p.mbd_unwrap.RL
+    p['dclose_err'] = np.sqrt(p.mbd_err.RR**2 + p.mbd_err.LL**2 + p.mbd_err.LR**2 + p.mbd_err.RL**2)
+    p['rclose'] = p.delay_rate.RR + p.delay_rate.LL - p.delay_rate.LR - p.delay_rate.RL
+    p['rclose_err'] = np.sqrt(p.rate_err.RR**2 + p.rate_err.LL**2 + p.rate_err.LR**2 + p.rate_err.RL**2)
+    return p
+
+def dcloseplot(p, baselines=None, vlines=[]):
+    from ..plots import util as pu
+    if baselines is None:
+        baselines = slice(None)
+    else:
+        baselines = p.baseline.isin(set(baselines))
+    for (bl, rows) in p.loc[baselines,:].groupby('baseline'):
+        h = plt.errorbar(rows.scan_no, 1e6*rows.dclose, yerr=1e6*rows.dclose_err, fmt='.', label=bl)
+    plt.grid(alpha=0.25)
+    pu.multline(vlines)
+    plt.xlabel('scan')
+    plt.ylabel('MBD RR+LL-RL-LR closure [ps]')
+    plt.legend(loc='best')
+
+def rcloseplot(p, baselines=slice(None), vlines=[]):
+    from ..plots import util as pu
+    if baselines is None:
+        baselines = slice(None)
+    else:
+        baselines = p.baseline.isin(set(baselines))
+    for (bl, rows) in p.loc[baselines,:].groupby('baseline'):
+        h = plt.errorbar(rows.scan_no, rows.rclose, yerr=rows.rclose_err, fmt='.', label=bl)
+    plt.grid(alpha=0.25)
+    pu.multline(vlines)
+    plt.xlabel('scan')
+    plt.ylabel('delay rate RR+LL-RL-LR closure [ps/s]')
     plt.legend(loc='best')
 
 # make one plot from data frame, group by baseline
