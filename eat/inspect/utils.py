@@ -181,6 +181,17 @@ def mad(theta):
     madev = float(srs.mad(theta))
     return madev
 
+def mad_deg(theta):
+    '''
+    mad with shift against 2pi wrapping
+    '''
+    theta = np.asarray(theta, dtype=np.float32)
+    m = circular_median(theta)
+    foo = np.exp(1j*theta*np.pi/180)*np.exp(-1j*m*np.pi/180)
+    foo = np.angle(foo)*180/np.pi
+    madev = float(srs.mad(foo))
+    return madev
+
 def circular_mad(theta):
     theta = np.asarray(theta, dtype=np.float32)*np.pi/180.
     C = np.median(np.cos(theta))
@@ -265,7 +276,7 @@ def adj_box_outlier_plus(vec):
     return is_out
 
 def number_out(vec):
-    return len(adj_box_outlier(vec))
+    return sum(adj_box_outlier(vec))
 
 def correlate_tuple(x):
     time = np.asarray([y[0] for y in x])
@@ -275,11 +286,15 @@ def correlate_tuple(x):
 
 def detect_dropouts_kmeans(x):
     foo_data = list(zip(np.zeros(len(x)),x))
-    dataKM = [list(y) for y in foo_data]
-    dataKM = np.asarray(dataKM)
-    test1 = KMeans(n_clusters=1, random_state=0).fit(dataKM)
-    test2 = KMeans(n_clusters=2, random_state=0).fit(dataKM)
-    return test1.inertia_/test2.inertia_
+    if len(foo_data)>4:
+        dataKM = [list(y) for y in foo_data]
+        dataKM = np.asarray(dataKM)
+        test1 = KMeans(n_clusters=1, random_state=0).fit(dataKM)
+        test2 = KMeans(n_clusters=2, random_state=0).fit(dataKM)
+        out_stat = test1.inertia_/test2.inertia_
+    else:
+        out_stat = 0
+    return out_stat
 
 def get_dropout_indicator(x,inertia_treshold=3.9):
     foo_data = list(zip(np.zeros(len(x)),x))
@@ -430,8 +445,8 @@ def scans_statistics(alist,statL='all'):
     'length': len,
     'number_out': number_out,
     'kurt_amp': kurt,
-    'kurt_phase': kurt
-    #'dropout': detect_dropouts_kmeans
+    'kurt_phase': kurt,
+    'dropout': detect_dropouts_kmeans
     })
 
     return scans_stats.reset_index()
@@ -728,12 +743,17 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
 
     if 'phase' not in frame.columns:
         frame['phase'] = frame[phase_type]
-    
+
+    columns_out0 += ['amp_db']
+    frame['amp_db']= list( (np.asarray(frame['amp'])**2)*(1.-2./np.asarray(frame['snr'])**2) )
+
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
     'datetime':min,
+    'amp_db': lambda x: np.sqrt(np.mean(x)),
     'amp': np.mean,
     'phase': lambda x: circular_mean(x*np.pi/180),
-    'number': len}
+    'number': len,
+    'snr': lambda x: np.sqrt(np.sum(x**2))}
         
     if tavg=='scan': #average for entire scan
         frame_avg = frame.groupby(groupingSc).agg(aggregating)
@@ -743,8 +763,8 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
         grouping = groupingSc+['round_time']
         frame_avg = frame.groupby(grouping).agg(aggregating)
 
-    frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
-    frame_avg['phase']=frame_avg['vis'].apply(lambda x: np.angle(x)*180./np.pi)
+    #frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
+    #frame_avg['phase']=frame_avg['vis'].apply(lambda x: np.angle(x)*180./np.pi)
     frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
 
     frame_avg = frame_avg.reset_index()
@@ -819,22 +839,35 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
     frame['number']=0.
     if 'cphase_fix_amp' not in frame.columns:
         frame['cphase_fix_amp']=frame['cphase']
+    
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
     'datetime': min,
     'bsp': np.mean,
     'snr': lambda x: np.sqrt(np.sum(x**2)),
     'number': len,
     'cphase_fix_amp': circular_mean}
-
+    
+    
     def agg_mean_3tup(x):  
         x0 = np.asarray([float(y[0]) for y in x if y[0]==y[0] ])
         x1 = np.asarray([float(y[1]) for y in x if y[1]==y[1] ])
         x2 = np.asarray([float(y[2]) for y in x if y[2]==y[2] ])
         return(np.mean(x0[x0==x0]),np.mean(x1[x1==x1]),np.mean(x2[x2==x2]))
 
-    if 'EB_sigma' in frame.columns:
-        aggregating['EB_sigma'] = lambda x: np.mean(x)/np.sqrt(len(x))
+    if 'EB_sigma' in columns_out0:
+        aggregating['EB_sigma'] = lambda x: bootstrap2(x,int(1e2),lambda y: wrapped_std(y))[0]
+        frame['EB_sigma'] =  frame['cphase']
         columns_out0 += ['EB_sigma']
+
+    if 'median_cp' not in frame.columns:
+        frame['median_cp']=frame['cphase']
+    aggregating['median_cp'] = circular_median
+    columns_out0 += ['median_cp']
+
+    if 'mad_cp' not in frame.columns:
+        frame['mad_cp']=frame['cphase']
+    aggregating['mad_cp'] = mad_deg
+    columns_out0 += ['mad_cp']
 
     if 'fracpols' in frame.columns:
         aggregating['fracpols'] = agg_mean_3tup
@@ -843,7 +876,8 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
     if 'amps' in frame.columns:
         aggregating['amps'] = agg_mean_3tup
         columns_out0 += ['amps']
-        
+
+    #AVERAGING-------------------------------    
     if tavg=='scan': #average for entire scan
         frame_avg = frame.groupby(groupingSc).agg(aggregating)
         
@@ -864,6 +898,8 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
     util.add_gmst(frame_avg_out)
     frame_avg_out = add_mjd(frame_avg_out)
     frame_avg_out = add_fmjd(frame_avg_out)
+    frame_avg_out['rel_err'] = np.asarray(frame_avg_out['cphase'])/np.asarray(frame_avg_out['sigmaCP'])
+
     return frame_avg_out
 
 
@@ -874,6 +910,7 @@ def prepare_ER3_vis(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Dat
         print('loading lo band data...')
         lo_path = path+'lo/'+filen
         hops_lo = hops.read_alist(lo_path)
+        util.fix(hops_lo)
         hops_lo = cl.add_band(hops_lo,'lo')
         bandL+=[hops_lo]
 
@@ -881,6 +918,7 @@ def prepare_ER3_vis(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Dat
         print('loading hi band data...')
         hi_path = path+'hi/'+filen
         hops_hi = hops.read_alist(hi_path)
+        util.fix(hops_hi)
         hops_hi = cl.add_band(hops_hi,'hi')
         bandL+=[hops_hi]
 
@@ -900,7 +938,6 @@ def prepare_ER3_vis(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Dat
     #    print('reverse polarization labels...')
     #    hops_frame['polarization'] = hops_frame['polarization'].apply(lambda x: x[::-1])
     
-    fix_alist(hops_frame)
 
     print('adding mjd...')
     #add mjd
@@ -914,6 +951,57 @@ def prepare_ER3_vis(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Dat
     print('adding gmst...')
     util.add_gmst(hops_frame)
     return hops_frame
+
+
+
+def prepare_hops_raw(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Data/ReleaseE3/hops/ER3v1/', filen='alist.v6.2s',bands=['lo','hi'],reverse_pol=False):
+    
+    bandL=[]
+    if 'lo' in bands:
+        print('loading lo band data...')
+        lo_path = path+'lo/'+filen
+        hops_lo = hops.read_alist(lo_path)
+        #util.fix(hops_lo)
+        hops_lo = cl.add_band(hops_lo,'lo')
+        bandL+=[hops_lo]
+
+    if 'hi' in bands:
+        print('loading hi band data...')
+        hi_path = path+'hi/'+filen
+        hops_hi = hops.read_alist(hi_path)
+        #util.fix(hops_hi)
+        hops_hi = cl.add_band(hops_hi,'hi')
+        bandL+=[hops_hi]
+
+    hops_frame = pd.concat(bandL,ignore_index=True)
+
+    print('remove duplicates...')
+    hops_frame.drop_duplicates(['scan_id','expt_no', 'baseline','polarization','band','datetime'], keep='first', inplace=True)
+    print('removing autocorrelations...')
+    #remove autocorrelations
+    hops_frame.drop(list(hops_frame[hops_frame.baseline.str[0]==hops_frame.baseline.str[1]].index.values),inplace=True)
+    print('removing SR...')
+    #remove SR baseline
+    hops_frame.drop(list(hops_frame[hops_frame.baseline=='SR'].index.values),inplace=True)
+    #INVERT POLARIZATION THIS FIX BUG IN ER3
+    
+    #if reverse_pol==True:
+    #    print('reverse polarization labels...')
+    #    hops_frame['polarization'] = hops_frame['polarization'].apply(lambda x: x[::-1])
+    
+    print('adding mjd...')
+    #add mjd
+    hops_frame = add_mjd(hops_frame)
+    print('adding fmjd...')
+    hops_frame = add_fmjd(hops_frame)
+    #add baselength
+    print('adding baselength...')
+    hops_frame = add_baselength(hops_frame)
+    #add gmst
+    print('adding gmst...')
+    util.add_gmst(hops_frame)
+    return hops_frame
+
 
 
 def add_outlier_ind(frame,what='amp',scaler=2.,remove=True):
@@ -982,6 +1070,7 @@ def add_EB_scan_variability(df):
 
     dict_sig = dict(zip(df2['unique_sc'],df2['EB_sigma']))
     df['EB_sigma']=list(map(lambda x: dict_sig[x],df['unique_sc']))
+    df.drop('unique_sc',axis=1,inplace=True)
     return df
 
 def add_fracpol(df):
@@ -1010,6 +1099,7 @@ def add_fracpol(df):
 
     dict_fracpol=dict(zip(pivpol.uni_fracpol,pivpol.fracpol))
     df['fracpol'] = list(map(lambda x: dict_fracpol[x], df.uni_fracpol))
+    df.drop('uni_fracpol',axis=1,inplace=True)
    
     return df
 

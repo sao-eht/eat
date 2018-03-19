@@ -157,7 +157,7 @@ def err_nights_time_amp(data,sour='3C279',base='AL',band='lo',polar='RR',errscal
     foo = data[(data.source==sour)&(data.baseline==base)&(data.band==band)&(data.polarization==polar)]
     Nights = list(foo.Night.unique())
     Ni = len(Nights)
-    markers=["o", "d","o","d",'s']
+    markers=["o", "d","o","d",'o','d']
     markers = markers[:Ni]
     
     sns.set_style('darkgrid')
@@ -190,10 +190,14 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title=''):
         data = ut.add_fmjd(data)
 
     if line==True:   
-        markers=["bo-", "rd-","go-","md-",'s-']
+        markers=["bo-", "rd-","go-","md-","co-","cd-"]
     else:
-        markers=["bo", "rd","go","md",'s']
-    fooG = data[(data.source==sour)&(data.triangle==triangle)]
+        markers=["bo", "rd","go","md","co","cd"]
+
+    if sour=='any':
+        fooG = data[(data.triangle==triangle)&(data.snr>snr_treshold)]
+    else:
+        fooG = data[(data.source==sour)&(data.triangle==triangle)&(data.snr>snr_treshold)]
 
     Nrow=len(polar)
     if Nrow>1:
@@ -204,7 +208,7 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title=''):
             Ni = len(Nights)
             for cou in range(Ni):
                 LocNight = Nights[cou]
-                fooNi = foo[(foo.Night==LocNight)&(foo.snr>snr_treshold)]
+                fooNi = foo[(foo.Night==LocNight)]
                 fmtloc = markers[cou]
                 cphaseLoc = np.asarray(fooNi[phase_type])
                 if conj==True:
@@ -241,7 +245,7 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title=''):
         Ni = len(Nights)
         for cou in range(Ni):
             LocNight = Nights[cou]
-            fooNi = foo[(foo.Night==LocNight)&(foo.snr>snr_treshold)]
+            fooNi = foo[(foo.Night==LocNight)]
             fmtloc = markers[cou]
             #cphaseLoc = np.asarray(fooNi[phase_type])[:,1]
             cphaseLoc = np.asarray(fooNi[phase_type])
@@ -257,7 +261,10 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title=''):
                     cphaseLoc= -cphaseLoc
                 cphaseLoc = np.mod(cphaseLoc + shift,360) - shift
                 ax.errorbar(fooNi2.gmst,cphaseLoc,errscale*fooNi2.sigmaCP,fmt=fmtloc,capsize=5,label=LocNight+' '+antyPol,markersize=ms,mfc='None')
-            ax.legend()
+            try:
+                ax.legend()
+            except IndexError:
+                pass
         plt.grid()
         [x1,x2,y1,y2]=ax.axis()
         if y_range==[]:
@@ -270,8 +277,11 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title=''):
         #ax.set_title(sour+', '+Z2SMT[triangle[0]]+'-'+Z2SMT[triangle[1]]+'-'+Z2SMT[triangle[2]]+', '+band+' band'+', '+polar[couP],fontsize=13)
         ax.set_title(Z2SMT[triangle[0]]+'-'+Z2SMT[triangle[1]]+'-'+Z2SMT[triangle[2]]+', '+band+' band'+', '+polar[couP],fontsize=fonts)
         plt.tick_params(axis='both', labelsize=fonts-1)
-        plt.grid()     
-        ax.legend(fontsize=fonts-1)
+        plt.grid()
+        try:     
+            ax.legend(fontsize=fonts-1)
+        except IndexError:
+            pass
         plt.tight_layout()
         if savefig==True:
             tit= sour+'_'+Z2SMT[triangle[0]]+'_'+Z2SMT[triangle[1]]+'_'+Z2SMT[triangle[2]]+'_'+band+'_'+polar[couP]+custom_title

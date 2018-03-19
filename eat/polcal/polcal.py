@@ -135,11 +135,11 @@ def field_rotation(fra_data):
     par = fra_data[0]
     elev = fra_data[1]
     station = fra_data[2]
-    if station in {'A','J'}:
+    if station in {'A','J','Y'}:
         fra = par
     elif station in {'X','Z'}:
         fra = par+elev
-    elif station in {'L','P','Y'}:
+    elif station in {'L','P'}:
         fra = par-elev
     elif station=='S':
         fra = 45. - elev + par
@@ -873,6 +873,8 @@ def plot_consistency_gain_ratios(alist,degSMA=5):
             ax[1].set_ylabel('RR-LL amplitude ratio')
             ax[1].set_xlabel('mjd time')
             #ax[1].set_ylim((0.4,1.8))
+            ax[0].grid()
+            ax[1].grid()
             plt.show()
 
         else:
@@ -903,6 +905,8 @@ def plot_consistency_gain_ratios(alist,degSMA=5):
             ax[1].set_ylabel('RR-LL amplitude ratio')
             ax[1].set_xlabel('mjd time')
             #ax[1].set_ylim((0.4,1.8))
+            ax[0].grid()
+            ax[1].grid()
             plt.show()
 
 def plot_consistency_gain_ratios_fun(alist,degSMA=5):
@@ -963,6 +967,8 @@ def plot_consistency_gain_ratios_fun(alist,degSMA=5):
         ax[1].set_ylabel('RR-LL amplitude ratio')
         ax[1].set_xlabel('mjd time')
         #ax[1].set_ylim((0.4,1.8))
+        ax[0].grid()
+        ax[1].grid()
         plt.show()
 
 
@@ -1854,6 +1860,7 @@ def solve_single_ratio(dataLoc, which_ratio,ph0=0,use_m=False,m=0, return_raw = 
     
     if return_raw==False:
         if use_m==False:
+            #[m, D1L, D2R, D1R, D2L]
             D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
         else:
             p = Dterms[0]/m
@@ -1946,4 +1953,8 @@ def inspect_dterms_quality(dataLoc,use_gains='both'):
     ax[1,1].set_ylabel('Im')
     ax[1,1].set_xlabel('Re')
     ax[1,1].legend()
+    ax[0,0].grid()
+    ax[0,1].grid()
+    ax[1,0].grid()
+    ax[1,1].grid()
     plt.show()

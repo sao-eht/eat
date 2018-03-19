@@ -204,9 +204,14 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas'):
         #bsp.loc[:,'snr'] = bsp.loc[:,'amp']/bsp.loc[:,'sigma']
         bsp.loc[:,'sigmaCP'] = 1./bsp.loc[:,'snr']*180./np.pi #deg
         bsp_out = pd.concat([bsp_out, bsp])
+    #print(bsp_out.columns)
     bsp_out = bsp_out.reset_index()
     #print(bsp_out.columns)
-    bsp_out = bsp_out[['datetime','source','triangle','polarization','cphase','sigmaCP','amp','sigma','snr','scan_id','expt_no','band','amps','snrs','fracpols']] 
+    #try:
+    #    bsp_out = bsp_out[['datetime','source','triangle','polarization','cphase','sigmaCP','amp','sigma','snr','scan_id','expt_no','band','amps','snrs','fracpols']] 
+    #except KeyError:
+    #   pass
+    bsp_out['rel_err'] = np.asarray(bsp_out['cphase'])/np.asarray(bsp_out['sigmaCP'])
     return bsp_out
 
 

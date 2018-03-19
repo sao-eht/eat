@@ -11,6 +11,7 @@ from eat.io import hops, util
 from eat.hops import util as hu
 from eat.aips import aips2alist as a2a
 from eat.inspect import closures as closures
+from eat.inspect import utils as ut
 import statsmodels.stats.stattools as sss
 import statsmodels.robust.scale as srs
 from sklearn.cluster import KMeans
@@ -37,7 +38,7 @@ def MC_CP_dist(amp,sig,bsp_avg=1, N=int(1e5)):
 
     cphase = np.angle(bsp)*180/np.pi
     kde = st.gaussian_kde(cphase)
-    MCsig = circular_std(cphase)
+    MCsig = ut.circular_std(cphase)
     return kde, MCsig
 
 
