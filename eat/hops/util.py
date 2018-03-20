@@ -30,6 +30,7 @@ import ctypes
 from argparse import Namespace
 import itertools
 from collections import OrderedDict
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from ..plots import util as putil
 from matplotlib.offsetbox import AnchoredText
@@ -1454,8 +1455,8 @@ def delayplot(df, site, offs={}, vlines=[]):
     mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_')))
     b = df[df.baseline.str.contains(site)].copy()
     flip(b, b.baseline.str[0] == site)
-    color = dict(zip(sorted(set(b.baseline)),
-           itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])))
+    color = dict(zip(sorted(set(b.baseline)), itertools.cycle(
+        plt.rcParams['axes.prop_cycle'].by_key()['color'] if mpl.__version__ >= '1.5' else plt.rcParams['axes.color_cycle'])))
     lines = []
     labels = []
     for (name, rows) in b.groupby(['baseline', 'polarization']):
