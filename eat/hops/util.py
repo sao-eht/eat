@@ -240,7 +240,7 @@ def pop120(b=None, pol=None, fill=0):
             else:
                 data120[i,j,:] = fill
     # clear memory (until supported in mk4.py library)
-    dfio.clear_mk4corel(ctypes.byref(c))
+    # dfio.clear_mk4corel(ctypes.byref(c)) # now supported in mk4 library
     return data120
 
 # some HOPS channel parameter info
