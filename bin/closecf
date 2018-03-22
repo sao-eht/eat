@@ -31,13 +31,15 @@ parser.add_argument('-sw', '--sigmas_to_window', help='sigmas to window for both
 parser.add_argument('-dw', '--delay_window', help='fixed delay window to apply in [us]', type=float, default=0)
 parser.add_argument('-rw', '--rate_window', help='fixed rate window to apply in [ps/s]', type=float, default=0)
 parser.add_argument('-t', '--threshold', help='SNR cutoff threshold for detections', type=float, default=6.5)
+parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
 # read alist file (autodetect version 5 or 6)
 a = util.noauto(hops.read_alist(args.filename))
 
 # fix various polconvert errors
-util.fix(a)
+if not args.no_fix:
+    util.fix(a)
 
 # unwrap mbd to be aligned to sbd
 util.unwrap_mbd(a)
