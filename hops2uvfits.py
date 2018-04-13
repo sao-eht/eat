@@ -40,7 +40,7 @@ RDATE_OFFSET = rdate_tt.ut1.datetime.second - rdate_tt.utc.datetime.second
 RDATE_OFFSET += 1.e-6*(rdate_tt.ut1.datetime.microsecond - rdate_tt.utc.datetime.microsecond)
 
 # decimal precision for the scan start & stop times (fractional day)
-ROUND_SCAN_INT = 5
+ROUND_SCAN_INT = 20
 
 #conversion factors and data types
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
@@ -1060,6 +1060,7 @@ def save_uvfits(datastruct, fname):
     header['PTYPE7'] = 'INTTIM'
     header['PSCAL7'] = 1.e0
     header['PZERO7'] = 0.e0
+    header['history'] = "AIPS SORT ORDER='TB'"
              
     # Save data
     pars = ['UU---SIN', 'VV---SIN', 'WW---SIN', 'BASELINE', 'DATE', 'DATE', 'INTTIM']
@@ -1199,7 +1200,7 @@ def save_uvfits(datastruct, fname):
         print("WARNING!!!: in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
         #raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
 
-    time_nx = fits.Column(name="TIME", format="1E", unit='DAYS', array=np.array(scan_times))
+    time_nx = fits.Column(name="TIME", format="1D", unit='DAYS', array=np.array(scan_times))
     timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", unit='DAYS', array=np.array(scan_time_ints))
     sourceid_nx = fits.Column(name="SOURCE ID",format="1J", unit='', array=np.ones(len(scan_times)))
     subarr_nx = fits.Column(name="SUBARRAY",format="1J", unit='', array=np.ones(len(scan_times)))
