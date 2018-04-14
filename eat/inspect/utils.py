@@ -721,10 +721,10 @@ def match_frames(frame1, frame2, what_is_same, dt = 0):
     frame1 = frame1[list(map(lambda x: x in frames_common, frame1.all_ind))]
     frame2 = frame2[list(map(lambda x: x in frames_common, frame2.all_ind))]
 
-    frame1 = frame1.sort_values('all_ind').reset_index()
-    frame2 = frame2.sort_values('all_ind').reset_index()
-    #frame1.drop('all_ind', axis=1)
-    #frame2.drop('all_ind', axis=1)
+    frame1 = frame1.sort_values('all_ind').reset_index(drop=True)
+    frame2 = frame2.sort_values('all_ind').reset_index(drop=True)
+    frame1.drop('all_ind', axis=1,inplace=True)
+    frame2.drop('all_ind', axis=1,inplace=True)
     
     return frame1, frame2
 
@@ -734,7 +734,7 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
      
     #minimum set of columns that identifies a scan
     grouping0 = ('scan_id','expt_no','band','polarization','baseline')
-    groupingSc = list(set(['scan_id','expt_no','band','polarization','baseline','u','v','source','sbdelay',
+    groupingSc = list(set(['scan_id','expt_no','band','polarization','baseline','source','sbdelay',
                  'mbdelay','delay_rate','total_rate','total_mbdelay','total_sbresid','ref_elev','rem_elev'])&set(frame.columns))
     
     frame.drop_duplicates(subset=list(grouping0)+['datetime'], keep='first', inplace=True)
@@ -754,6 +754,13 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     'phase': lambda x: circular_mean(x*np.pi/180),
     'number': len,
     'snr': lambda x: np.sqrt(np.sum(x**2))}
+
+    if 'u' in frame.columns:
+        aggregating['u'] = np.mean
+        columns_out0 += ['u']
+    if 'v' in frame.columns:
+        aggregating['v'] = np.mean
+        columns_out0 += ['v']
         
     if tavg=='scan': #average for entire scan
         frame_avg = frame.groupby(groupingSc).agg(aggregating)
@@ -765,10 +772,13 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
 
     #frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
     #frame_avg['phase']=frame_avg['vis'].apply(lambda x: np.angle(x)*180./np.pi)
-    frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
+    if 'snr' in frame_avg.columns:
+        #print(list(frame_avg['snr']))
+        #print(frame_avg['snr'])
+        frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
 
     frame_avg = frame_avg.reset_index()
-    columns_out = columns_out0+list(grouping0)+list(set(['source','u','v','datetime','amp','phase','snr','sigma','number'])&set(frame_avg.columns))
+    columns_out = columns_out0+list(grouping0)+list(set(['source','datetime','amp','phase','snr','sigma','number'])&set(frame_avg.columns))
     frame_avg_out = frame_avg[columns_out].copy()
     
     util.add_gmst(frame_avg_out)
@@ -779,13 +789,19 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
 
 def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     if 'band' not in frame.columns:
-        frame['band'] = np.nan
+        frame['band'] = 0
      
+    if 'scan_id' not in frame.columns:
+        frame['scan_id'] = frame['scan_no_tot']
+
+    if 'snr' not in frame.columns:
+        frame['snr'] = frame['amp']/frame['sigma']
+
     #minimum set of columns that identifies a scan
     grouping0 = ('scan_id','expt_no','band','polarization','baseline')
-    groupingSc = list(set(['scan_id','expt_no','band','polarization','baseline','u','v','source','sbdelay',
+    groupingSc = list(set(['scan_id','expt_no','band','polarization','baseline','source','sbdelay',
                  'mbdelay','delay_rate','total_rate','total_mbdelay','total_sbresid','ref_elev','rem_elev'])&set(frame.columns))
-    
+    #print(groupingSc)
     frame.drop_duplicates(subset=list(grouping0)+['datetime'], keep='first', inplace=True)
     frame['vis']=frame['amp']*np.exp(1j*frame[phase_type]*np.pi/180.)
     frame['number']=0.
@@ -795,6 +811,13 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     'vis': np.mean,
     'snr': lambda x: np.sqrt(np.sum(x**2)),
     'number': len}
+
+    if 'u' in frame.columns:
+        aggregating['u'] = np.mean
+        columns_out0 += ['u']
+    if 'v' in frame.columns:
+        aggregating['v'] = np.mean
+        columns_out0 += ['v']
 
     if 'EB_sigma' in frame.columns:
         aggregating['EB_sigma'] = lambda x: np.mean(x)/np.sqrt(len(x))
@@ -807,7 +830,7 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     if tavg=='scan': #average for entire scan
         frame_avg = frame.groupby(groupingSc).agg(aggregating)
         
-    else: # average for 
+    else: # average for tcoh seconds
         frame['round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/float(tavg)),frame.datetime))
         grouping = groupingSc+['round_time']
         frame_avg = frame.groupby(grouping).agg(aggregating)
@@ -817,12 +840,20 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
 
     frame_avg = frame_avg.reset_index()
-    columns_out = columns_out0+list(grouping0)+list(set(['source','u','v','datetime','amp','phase','snr','sigma','number'])&set(frame_avg.columns))
+    columns_out = columns_out0+list(grouping0)+list(set(['source','datetime','amp','phase','snr','sigma','number'])&set(frame_avg.columns))
     frame_avg_out = frame_avg[columns_out].copy()
-    
-    util.add_gmst(frame_avg_out)
+    #'''
+    try:
+        util.add_gmst(frame_avg_out)
+    except ValueError:
+        pass
+
     frame_avg_out = add_mjd(frame_avg_out)
     frame_avg_out = add_fmjd(frame_avg_out)
+    #'''
+    if 'snr' not in frame_avg_out:
+        frame_avg_out['snr'] = frame_avg_out['amp']/frame_avg_out['sigma']
+
     return frame_avg_out
 
 def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
@@ -903,14 +934,15 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
     return frame_avg_out
 
 
-def prepare_ER3_vis(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Data/ReleaseE3/hops/ER3v1/', filen='alist.v6.2s',bands=['lo','hi'],reverse_pol=False):
+def prepare_ER3_vis(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Data/ReleaseE3/hops/ER3v1/', filen='alist.v6.2s',bands=['lo','hi'],reverse_pol=False,apply_fixes=False):
     
     bandL=[]
     if 'lo' in bands:
         print('loading lo band data...')
         lo_path = path+'lo/'+filen
         hops_lo = hops.read_alist(lo_path)
-        util.fix(hops_lo)
+        if apply_fixes==True:
+            util.fix(hops_lo)
         hops_lo = cl.add_band(hops_lo,'lo')
         bandL+=[hops_lo]
 
@@ -918,7 +950,8 @@ def prepare_ER3_vis(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Dat
         print('loading hi band data...')
         hi_path = path+'hi/'+filen
         hops_hi = hops.read_alist(hi_path)
-        util.fix(hops_hi)
+        if apply_fixes==True:
+            util.fix(hops_hi)
         hops_hi = cl.add_band(hops_hi,'hi')
         bandL+=[hops_hi]
 
@@ -961,7 +994,7 @@ def prepare_hops_raw(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Da
         print('loading lo band data...')
         lo_path = path+'lo/'+filen
         hops_lo = hops.read_alist(lo_path)
-        #util.fix(hops_lo)
+        util.fix(hops_lo)
         hops_lo = cl.add_band(hops_lo,'lo')
         bandL+=[hops_lo]
 
@@ -969,7 +1002,7 @@ def prepare_hops_raw(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Da
         print('loading hi band data...')
         hi_path = path+'hi/'+filen
         hops_hi = hops.read_alist(hi_path)
-        #util.fix(hops_hi)
+        util.fix(hops_hi)
         hops_hi = cl.add_band(hops_hi,'hi')
         bandL+=[hops_hi]
 
@@ -1103,4 +1136,93 @@ def add_fracpol(df):
     df.drop('uni_fracpol',axis=1,inplace=True)
    
     return df
+
+def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polarL=['RR','LL'],exptL='def',out_path='def',min_elem=200):
+    import os
+    if out_path=='def':
+        out_path='Closures_timeseries/'
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
+    if sourL=='def': sourL = list(df.source.unique())
+    if exptL=='def': exptL = [3597,3598,3599,3600,3601]
+
+    if 'band' not in df.columns:
+        df['band'] = ''
+    bandL = list(df.band.unique())
+
+    if 'CP' in ctypes:
+        if 'resid_phas' in df.columns:
+            print('Calculating bispectra...')
+            cp_df = cl.all_bispectra(df, phase_type='resid_phas')
+        elif 'phase' in df.columns:
+            print('Calculating bispectra...')
+            cp_df = cl.all_bispectra(df, phase_type='phase')
+        if 'mjd' not in cp_df.columns:
+            cp_df = add_mjd(cp_df)
+        triL = list(cp_df.triangle.unique())
+        cp_path = out_path+'CP/'
+        if not os.path.exists(cp_path):
+            os.makedirs(cp_path)
+        print('Saving closure phases...')
+        for sour in sourL:
+            for expt in exptL:
+                for band in bandL:
+                    for polar in polarL:
+                        cp_foo = cp_df
+                        for tri in triL:
+                            cp_foo2 = cp_foo[(cp_foo.source==sour)&(cp_foo.polarization==polar)&(cp_foo.expt_no==expt)&(cp_foo.band==band)&(cp_foo.triangle==tri)]
+                            if np.shape(cp_foo2)[0]>min_elem:
+                                namef = 'cp_'+tri+'_'+sour+'_'+str(expt)+'_'+polar+'_'+band+'.txt'
+                                print(namef)
+                                cp_foo3 = cp_foo2[['mjd','cphase','sigmaCP']]
+                                cp_foo3.to_csv(cp_path+namef,sep=' ',index=False, header=False)
+
+    if 'LCA' in ctypes:
+        print('Calculating log closure amplitudes...')
+        lca_df = cl.all_quadruples_log(df)
+        if 'mjd' not in lca_df.columns:
+            lca_df = add_mjd(lca_df)
+        quadL = list(lca_df.quadrangle.unique())
+        lca_path = out_path+'LCA/'
+        if not os.path.exists(lca_path):
+            os.makedirs(lca_path)
+        print('Saving log closure amplitudes...')
+        for sour in sourL:
+            for expt in exptL:
+                for band in bandL:
+                    for polar in polarL:  
+                        lca_foo = lca_df                         
+                        for quad in quadL:
+                            lca_foo2 = lca_foo[(lca_foo.source==sour)&(lca_foo.polarization==polar)&(lca_foo.expt_no==expt)&(lca_foo.band==band)&(lca_foo.quadrangle==quad)]
+                            if np.shape(lca_foo2)[0]>min_elem:
+                                namef = 'lca_'+str(quad[0])+'_'+str(quad[1])+'_'+str(quad[2])+'_'+str(quad[3])+'_'+sour+'_'+str(expt)+'_'+polar+'_'+band+'.txt'
+                                print(namef)
+                                lca_foo3 = lca_foo2[['mjd','logamp','sigma']]
+                                lca_foo3.to_csv(lca_path+namef,sep=' ',index=False, header=False)
+                            
+    
+    if 'CFP' in ctypes:
+        print('Calculating closure fractional polarizations...')
+        cfp_df = cl.get_closepols(df)
+        if 'mjd' not in cfp_df.columns:
+            cfp_df = add_mjd(cfp_df)
+        baseL = list(cfp_df.baseline.unique())
+        cfp_path = out_path+'CFP/'
+        if not os.path.exists(cfp_path):
+            os.makedirs(cfp_path)
+        print('Saving closure fractional polarizations...')
+        for sour in sourL:
+            for expt in exptL:
+                for band in bandL:
+                    cfp_foo = cfp_df       
+                    for base in baseL:
+                        cfp_foo2 = cfp_foo[(cfp_foo.source==sour)&(cfp_foo.expt_no==expt)&(cfp_foo.band==band)&(cfp_foo.baseline==base)]
+                        if np.shape(cfp_foo2)[0]>min_elem:
+                            namef = 'cfp_'+base+'_'+sour+'_'+str(expt)+'_'+band+'.txt'
+                            print(namef)
+                            cfp_foo3 = cfp_foo2[['mjd','fracpol','sigma']]
+                            cfp_foo3.to_csv(cfp_path+namef,sep=' ',index=False, header=False)
+                        
+
 

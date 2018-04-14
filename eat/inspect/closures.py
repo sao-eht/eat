@@ -27,6 +27,7 @@ def make_baselines_alphabetic(alist,what_phase='resid_phas'):
     return alist_out
 
 
+
 def list_all_triangles(alist):
     all_baselines = set(alist.baseline)
     all_stations = set(''.join( list(all_baselines)))
@@ -1626,5 +1627,25 @@ def save_lca(quad,folder,sourL='all'):
                         foo.to_csv(nameLoc,header=False,index=False)
                         
 
+def get_closepols(data):
+    
+    if 'sigma' not in data.columns:
+        data['sigma']=data['amp']/data['snr']
+    if 'mjd' not in data.columns:
+        data = ut.add_mjd(data)
+
+    data=data.groupby(['datetime','scan_id','band','baseline','expt_no']).filter(lambda x: len(x) == 4)
+    fooRL = data[(data.polarization=='RL')].sort_values(['datetime','band','baseline']).reset_index()
+    fooLR = data[(data.polarization=='LR')].sort_values(['datetime','band','baseline']).reset_index()
+    fooRR = data[(data.polarization=='RR')].sort_values(['datetime','band','baseline']).reset_index()
+    fooLL = data[(data.polarization=='LL')].sort_values(['datetime','band','baseline']).reset_index()
+    
+    fooRR['fracpol'] = np.sqrt(np.asarray(fooLR.amp)*np.asarray(fooRL.amp)/np.asarray(fooRR.amp)/np.asarray(fooLL.amp))
+    fooRR['sigma'] = 0.5*np.asarray(fooRL.amp)*np.asarray(fooLR.sigma)/np.asarray(fooRR.amp)/np.asarray(fooLL.amp)
+    + 0.5*np.asarray(fooRL.sigma)*np.asarray(fooLR.amp)/np.asarray(fooRR.amp)/np.asarray(fooLL.amp)
+    + 0.5*np.asarray(fooRL.amp)*np.asarray(fooLR.amp)/np.asarray(fooRR.amp)/(np.asarray(fooLL.amp)**2)*np.asarray(fooLL.sigma)
+    + 0.5*np.asarray(fooRL.amp)*np.asarray(fooLR.amp)/(np.asarray(fooRR.amp)**2)/np.asarray(fooLL.amp)*np.asarray(fooRR.sigma)
+    
+    return fooRR[['mjd','datetime','fracpol','sigma','baseline','scan_id','band','expt_no','source']].copy()
     
     
