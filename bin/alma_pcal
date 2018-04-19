@@ -50,7 +50,8 @@ def load(file):
     phase-cal.
     """
     a = util.noauto(hops.read_alist(file))
-    util.fix(a) # fix various polconvert errors
+    if not args.no_fix:
+        util.fix(a) # fix various polconvert errors
 
     # Apply row filtering
     a = a[a.snr > 50]
@@ -178,6 +179,7 @@ parser.add_argument("-c", "--controlcodes", default=False, action="store_true",
                     help="construct control codes rather than csv table")
 parser.add_argument("-g", "--graph",        default=False, action="store_true",
                     help="graphic output")
+parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
 if len(args.outfile) > 5:

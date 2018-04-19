@@ -19,12 +19,18 @@ from astropy.time import Time, TimeDelta
 #             'C': {1:'A',2:'X',3:'Z',4:'J',5:'S',6:'R',7:'L',8:'P'} }
 
 #2017 release E1B
-dictBase = { 'A': {1: 'A', 2: 'X', 3: 'Z', 4: 'L', 5: 'P', 6: 'J', 7: 'S', 8: 'R'},
+dictBase_ER1 = { 'A': {1: 'A', 2: 'X', 3: 'Z', 4: 'L', 5: 'P', 6: 'J', 7: 'S', 8: 'R'},
              'B': {1: 'A', 2: 'X', 3: 'Z', 4: 'J', 5: 'L', 6: 'P', 7: 'S', 8: 'R'},
              'C': {1: 'A', 2: 'X', 3: 'Z', 4: 'J', 5: 'L', 6: 'P', 7: 'S', 8: 'R'},
              'D': {1: 'A', 2: 'X', 3: 'Z', 4: 'J', 5: 'L', 6: 'P', 7: 'S', 8: 'R'},
              'E': {1: 'A', 2: 'X', 3: 'Z', 4: 'P', 5: 'L', 6: 'J', 7: 'S', 8: 'R'} }
+dictBase_ER3 = { 'A': {1: 'A', 2: 'X', 3: 'Z', 4: 'L', 5: 'P', 6: 'J', 7: 'S', 8: 'R'},
+             'B': {1: 'A', 2: 'X', 3: 'Z', 4: 'J', 5: 'L', 6: 'P', 7: 'S', 8: 'R'},
+             'C': {1: 'A', 2: 'X', 3: 'Z', 4: 'J', 5: 'L', 6: 'P', 7: 'S', 8: 'R'},
+             'D': {1: 'A', 2: 'X', 3: 'Z', 4: 'J', 5: 'L', 6: 'P', 7: 'S', 8: 'R', 9:'Y'},
+             'E': {1: 'A', 2: 'X', 3: 'P', 4: 'Z', 5: 'J', 6: 'L', 7: 'S', 8: 'Y', 9:'R'} }
 
+dictBase=dictBase_ER3
            
 AZ2Z = {'AZ': 'Z', 'PV': 'P', 'SM':'S', 'SR':'R','JC':'J', 'AA':'A','AP':'X', 'LM':'L'}
 SMT2Z = {'APEX': 'X', 'JCMT': 'J', 'LMT':'L', 'SMR':'R', 'SMA':'S', 'SMT':'Z', 'PV':'P'}
@@ -76,10 +82,6 @@ def uvfits2csvs(folder_path,folder_destin=''):
         folder_destin = folder_path
     if not os.path.exists(folder_destin):
         os.makedirs(folder_destin)
-    if not os.path.exists(folder_destin+'HI/'):
-        os.makedirs(folder_destin+'HI/')
-    if not os.path.exists(folder_destin+'LO/'):
-        os.makedirs(folder_destin+'LO/')
     for fileN in listFiles:
         try:
             pathFile = folder_path+fileN
@@ -97,18 +99,98 @@ def uvfits2csvs(folder_path,folder_destin=''):
             fileN_LL_csv = fileN[:-6]+'LL.csv'
             fileN_LR_csv = fileN[:-6]+'LR.csv'
             fileN_RL_csv = fileN[:-6]+'RL.csv'
+            print('preparing to saving files')
             if fileN.split('.')[0][-2:] in {'1l','lo','LO'}:
+                if not os.path.exists(folder_destin+'LO/'):
+                    os.makedirs(folder_destin+'LO/')
                 vistableRR.to_csv(folder_destin+'LO/'+fileN_RR_csv)
                 vistableLL.to_csv(folder_destin+'LO/'+fileN_LL_csv)
                 vistableLR.to_csv(folder_destin+'LO/'+fileN_LR_csv)
                 vistableRL.to_csv(folder_destin+'LO/'+fileN_RL_csv)
-            else:
+            elif fileN.split('.')[0][-2:] in {'2h','hi','HI'}:
+                if not os.path.exists(folder_destin+'HI/'):
+                    os.makedirs(folder_destin+'HI/')
                 vistableRR.to_csv(folder_destin+'HI/'+fileN_RR_csv)
                 vistableLL.to_csv(folder_destin+'HI/'+fileN_LL_csv)
                 vistableLR.to_csv(folder_destin+'HI/'+fileN_LR_csv)
                 vistableRL.to_csv(folder_destin+'HI/'+fileN_RL_csv)
+            else:
+                if not os.path.exists(folder_destin+'bandZ/'):
+                    os.makedirs(folder_destin+'bandZ/')
+                vistableRR.to_csv(folder_destin+'bandZ/'+fileN_RR_csv)
+                vistableLL.to_csv(folder_destin+'bandZ/'+fileN_LL_csv)
+                vistableLR.to_csv(folder_destin+'bandZ/'+fileN_LR_csv)
+                vistableRL.to_csv(folder_destin+'bandZ/'+fileN_RL_csv)
+
         except IOError:
+            print(IOError)
             continue
+
+def uvfits2csvs_NEW(folder_path,folder_destin='',polarL=['RR','LL','LR','RL']):
+    '''
+    takes folder folder_path of uvfits files and rewrites them as csv files
+    in folder_destination
+    uses Kazu's sparse imaging library codes
+    '''
+    listFiles = os.listdir(folder_path)
+    
+    if folder_destin=='':
+        folder_destin = folder_path
+    if not os.path.exists(folder_destin):
+        os.makedirs(folder_destin)
+    for fileN in listFiles:
+        try:
+            pathFile = folder_path+fileN
+            print(fileN)
+            uvfits = uvdata.UVFITS(pathFile)
+            uvfitsD ={}
+            vistableD={}
+            fileND={}
+            for polar in polarL:
+                uvfitsD[polar] = uvfits.select_stokes(polar)
+                vistableD[polar] = uvfitsD[polar].make_vistable()
+                fileND[polar] = fileN[:-6]+'.'+polar+'.csv'
+                print('preparing to saving files')
+                if fileND[polar].split('.')[0][-2:] in {'1l','lo','LO'}:
+                    if not os.path.exists(folder_destin+'LO/'):
+                        os.makedirs(folder_destin+'LO/')
+                    vistableD[polar].to_csv(folder_destin+'LO/'+fileND[polar])
+                elif fileND[polar].split('.')[0][-2:] in {'2h','hi','HI'}:
+                    if not os.path.exists(folder_destin+'HI/'):
+                        os.makedirs(folder_destin+'HI/')
+                    vistableD[polar].to_csv(folder_destin+'HI/'+fileND[polar])
+                else:
+                    if not os.path.exists(folder_destin+'bandZ/'):
+                        os.makedirs(folder_destin+'bandZ/')
+                    vistableD[polar].to_csv(folder_destin+'bandZ/'+fileND[polar])
+        except IOError:
+            print(IOError)
+            continue
+
+def uvfits2csvs_file(file_path,folder_destin='',polarL=['RR','LL','LR','RL']):
+    '''
+    takes file_path of uvfits files and rewrites them as csv files
+    in folder_destination
+    uses Kazu's sparse imaging library codes
+    '''
+
+    fileN = file_path.split('/')[-1]
+    try:
+        uvfits = uvdata.UVFITS(file_path)
+        uvfitsD ={}
+        vistableD={}
+        fileND={}
+        for polar in polarL:
+            uvfitsD[polar] = uvfits.select_stokes(polar)
+            vistableD[polar] = uvfitsD[polar].make_vistable()
+            rawname=''.join(fileN.split('.')[:-1])
+            if len(fileN.split('.')) ==1:
+                rawname = fileN
+            fileND[polar] = rawname+'.'+polar+'.csv'
+            vistableD[polar].to_csv(folder_destin+fileND[polar])
+    except IOError:
+        print(IOError)
+
 
 def make_scan_list(fpath):
     '''
@@ -160,7 +242,7 @@ def make_scan_list(fpath):
         foo['time_min']=time_min
         foo['time_max']=time_max
         foo['scan_no'] = foo.index
-        foo['scan_no'] = map(int,foo['scan_no'])
+        foo['scan_no'] = list(map(int,foo['scan_no']))
         foo['track'] = [track_loc]*foo.shape[0]
         foo['expt'] = [int(track2expt[track_loc])]*foo.shape[0]
         foo['antenas'] = antenas
@@ -179,9 +261,15 @@ def add_datetime(AIPS):
         h = int(AIPS['hour'][cou])
         m = int(AIPS['min'][cou])
         s = int(AIPS['sec'][cou])
+        us = int(AIPS['us'][cou])
         doy = int(AIPS['doy'][cou])
-        ddV.append(datetime.datetime(2017, 1,1,h,m,s) + datetime.timedelta(days=doy-1))
+        ddV.append(datetime.datetime(2017, 1,1,h,m,s,us) + datetime.timedelta(days=doy-1))
     AIPS['datetime'] = ddV
+    return AIPS
+
+def add_datetime_OPT(AIPS):   
+    h_m_s_doy = list(zip(AIPS['hour'].astype('int32'),AIPS['min'].astype('int32'),AIPS['sec'].astype('int32'),AIPS['us'].astype('int32'), AIPS['doy'].astype('int32') ))
+    AIPS['datetime'] = list(map(lambda x: datetime.datetime(2017,1,1,x[0],x[1],x[2],x[3]) + datetime.timedelta(days=int(x[4])-1) , h_m_s_doy ))
     return AIPS
 
 def add_baseline(AIPS):
@@ -192,6 +280,11 @@ def add_baseline(AIPS):
         foo.append(first+second)
         #print(float(cou)/float(APIS.shape[0]))
     AIPS['baseline']=foo
+    return AIPS
+
+def add_baseline_OPT(AIPS):
+    jd_st1_st2 = list(zip(AIPS['jd'],AIPS['st1'],AIPS['st2']))
+    AIPS['baseline'] = list(map(lambda x: dictBase[jd2track2017(x[0])][x[1]]+dictBase[jd2track2017(x[0])][x[2]] , jd_st1_st2 ))
     return AIPS
 
 def add_source_polar(AIPS,filename):
@@ -213,22 +306,31 @@ def add_track_expt(AIPS):
     AIPS['expt_no']=foo2
     return AIPS
 
+def add_track_expt_OPT(AIPS):
+    AIPS['track']=list(map(lambda x: jd2track2017(x), AIPS['jd'] ))
+    AIPS['expt_no']=list(map(lambda x: jd2expt2017(x), AIPS['jd'] ))
+    return AIPS
+
 def initialize_falist(path_file):
     filename = path_file.split('/')[-1]
     AIPS = pd.read_csv(path_file)
-    AIPS = add_baseline(AIPS)
-    AIPS = add_datetime(AIPS)
-    AIPS = add_track_expt(AIPS)
+    AIPS = add_baseline_OPT(AIPS)
+    AIPS = add_datetime_OPT(AIPS)
+    AIPS = add_track_expt_OPT(AIPS)
     AIPS['vis'] = AIPS['amp']*np.exp(1j*AIPS['phase']*np.pi/180)
     AIPS['std'] = AIPS['amp']
-    AIPS = AIPS.groupby(('expt_no','track','datetime','baseline')).agg({'vis': np.mean, 'std': np.std, 'sigma': lambda x: np.std(x)/len(x)})
+    AIPS = AIPS.groupby(('expt_no','track','datetime','baseline')).agg({'vis': np.mean, 'std': np.std, 'sigma': lambda x: np.std(x)/len(x),'u': np.mean, 'v': np.mean})
     AIPS['amp'] = np.abs(AIPS['vis'])
     AIPS['phase'] = np.angle(AIPS['vis'])*180/np.pi
     AIPS = add_source_polar(AIPS,filename)
     AIPS = AIPS.reset_index()
-    AIPS = AIPS[['datetime','baseline','source','amp','phase','sigma','std','polarization','track','expt_no']]
+    AIPS = AIPS[['datetime','baseline','source','amp','phase','sigma','std','polarization','track','expt_no','u','v']]
     AIPS = AIPS.sort_values('datetime').reset_index(drop=True)
     return AIPS
+
+def initialize_falist_channels(path_file):
+
+    return path_file
 
 def match_scans(scans,AIPS):
     bins_labels = [None]*(2*scans.shape[0]-1)
@@ -241,7 +343,7 @@ def match_scans(scans,AIPS):
     binsT[1::2] = list(map(lambda x: x + dtmax,list(scans.time_max))) 
     ordered_labels = pd.cut(AIPS.datetime, binsT,labels = bins_labels)
     AIPS['scan_no_tot'] = ordered_labels
-    AIPS = AIPS[map(lambda x: x >= 0, AIPS['scan_no_tot'])]
+    AIPS = AIPS[list(map(lambda x: x >= 0, AIPS['scan_no_tot']))]
     return AIPS
 
 def folder_into_falist(folder_path, Vex_path = 'VexFiles/', saveDF = ''):
@@ -261,18 +363,23 @@ def folder_into_falist(folder_path, Vex_path = 'VexFiles/', saveDF = ''):
         path_file = folder_path+fi
         print(fi+', file '+str(cou)+'/'+str(len(list_files)))
         print('initializing falist...')
-        try:
-            AIPS = initialize_falist(path_file)
-            print('matching scans... inputs found: '+str(AIPS.shape[0]))
-            AIPS = match_scans(scans,AIPS)
-            print('done! inputs processed: '+str(AIPS.shape[0]))
-            AIPS_OUT = pd.concat([AIPS_OUT,AIPS], ignore_index=True)
-        except:
-            continue
+        #try:
+        #print('tutaj')
+        AIPS = initialize_falist(path_file)
+        #print('tutaaj2')
+        print('matching scans... inputs found: '+str(AIPS.shape[0]))
+        AIPS = match_scans(scans,AIPS)
+        print('done! inputs processed: '+str(AIPS.shape[0]))
+        AIPS_OUT = pd.concat([AIPS_OUT,AIPS], ignore_index=True)
+        #except:
+        #    continue
         cou += 1
         if saveDF != '':
-            AIPS_OUT.to_pickle(saveDF)
+            AIPS_OUT.to_pickle(saveDF+'.pic')
     return AIPS_OUT
+
+
+
 
 def coh_average(AIPS, tcoh = 5.):
     AIPS['round_time'] = map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/tcoh),AIPS['datetime'])

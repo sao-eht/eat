@@ -30,6 +30,7 @@ import ctypes
 from argparse import Namespace
 import itertools
 from collections import OrderedDict
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from ..plots import util as putil
 from matplotlib.offsetbox import AnchoredText
@@ -239,7 +240,7 @@ def pop120(b=None, pol=None, fill=0):
             else:
                 data120[i,j,:] = fill
     # clear memory (until supported in mk4.py library)
-    dfio.clear_mk4corel(ctypes.byref(c))
+    # dfio.clear_mk4corel(ctypes.byref(c)) # now supported in mk4 library
     return data120
 
 # some HOPS channel parameter info
@@ -1065,7 +1066,7 @@ class ControlFile(object):
     # statements: list of [action, value]
     def open(self, cf):
         # action keyword match -- needs to match only beginning of keyword but be careful not to match anything else
-        action_kw = "adhoc_ dc_block delay_offs dr_ freqs est_pc gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
+        action_kw = "adhoc_file adhoc_phase dc_block delay_offs dr_ freqs est_pc gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
         pat_act = '\s*(.+?)\s*(\w*' + '|\w*'.join((kw[::-1] for kw in action_kw)) + ')'
         pat_blk = '(.*?)\s*(' + '.*|'.join(action_kw) + '.*)'
         if os.path.exists(cf):
@@ -1454,8 +1455,8 @@ def delayplot(df, site, offs={}, vlines=[]):
     mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_')))
     b = df[df.baseline.str.contains(site)].copy()
     flip(b, b.baseline.str[0] == site)
-    color = dict(zip(sorted(set(b.baseline)),
-           itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])))
+    color = dict(zip(sorted(set(b.baseline)), itertools.cycle(
+        plt.rcParams['axes.prop_cycle'].by_key()['color'] if mpl.__version__ >= '1.5' else plt.rcParams['axes.color_cycle'])))
     lines = []
     labels = []
     for (name, rows) in b.groupby(['baseline', 'polarization']):

@@ -307,7 +307,7 @@ def solve_amp_ratio(alist,no_sigmas=4,weightsA=True, weightsP=True):
     return amp_ratio_st, ret_phas, list_stations
 
 
-def solve_only_amp_ratio(alist):
+def solve_only_amp_ratio(alist,weights=True):
     if 'RR2LL_amp' not in alist.columns:
         alistR,alistL = generate_ratios(alist)
     else: alistR = alist
@@ -335,7 +335,9 @@ def solve_only_amp_ratio(alist):
         for couB in range(len(list_baselines)):
             bs = list_baselines[couB]
             if st in bs:
-                amp_matrix[couB,couS] = 1.*amp_weights[couB]
+                if weights==True:
+                    amp_matrix[couB,couS] = 1.*amp_weights[couB]
+                else: amp_matrix[couB,couS] = 1.
     #print(amp_matrix)
     try:
         #check out scipy linalg least squares
@@ -937,11 +939,13 @@ def plot_consistency_gain_ratios_fun(alist,degSMA=5):
         mjd_3C = np.asarray(fil[(fil.baseline==base)&(fil.source=='3C279')].mjd)
         
 
+        
+
         amp_loc = dicAm[base[0]]*dicAm[base[1]]
         #ax[0].plot(mjd,fooP,'*')
-        ax[0].errorbar(mjd,fooP,np.asarray(fooS)/np.asarray(fooA)*180/np.pi,fmt='bo',markersize=5,capsize=5,label='others')
-        ax[0].errorbar(mjd_3C,fooP_3C,np.asarray(fooS_3C)/np.asarray(fooA_3C)*180/np.pi,fmt='ko',markersize=5,capsize=5,label='3C279')
-        ax[0].errorbar(mjd_OJ,fooP_OJ,np.asarray(fooS_OJ)/np.asarray(fooA_OJ)*180/np.pi,fmt='go',markersize=5,capsize=5,label='OJ287')
+        ax[0].errorbar(mjd,fooP,0*np.asarray(fooS)/np.asarray(fooA)*180/np.pi,fmt='bo',markersize=5,capsize=5,label='others')
+        ax[0].errorbar(mjd_3C,fooP_3C,0*np.asarray(fooS_3C)/np.asarray(fooA_3C)*180/np.pi,fmt='ko',markersize=5,capsize=5,label='3C279')
+        ax[0].errorbar(mjd_OJ,fooP_OJ,0*np.asarray(fooS_OJ)/np.asarray(fooA_OJ)*180/np.pi,fmt='go',markersize=5,capsize=5,label='OJ287')
         
         #ph_vec_0 = dicPh[base[0]](mjd)
         #ph_vec_1 = dicPh[base[1]](mjd)
@@ -958,9 +962,9 @@ def plot_consistency_gain_ratios_fun(alist,degSMA=5):
         #ax[0].set_ylim((0,360))
 
         #ax[1].plot(mjd,fooA,'*')
-        ax[1].errorbar(mjd,fooA,fooS,fmt='bo',markersize=5,capsize=5)
-        ax[1].errorbar(mjd_3C,fooA_3C,fooS_3C,fmt='ko',markersize=5,capsize=5)
-        ax[1].errorbar(mjd_OJ,fooA_OJ,fooS_OJ,fmt='go',markersize=5,capsize=5)
+        ax[1].errorbar(mjd,fooA,0*fooS,fmt='bo',markersize=5,capsize=5)
+        ax[1].errorbar(mjd_3C,fooA_3C,0*fooS_3C,fmt='ko',markersize=5,capsize=5)
+        ax[1].errorbar(mjd_OJ,fooA_OJ,0*fooS_OJ,fmt='go',markersize=5,capsize=5)
         ax[1].plot(mjd,np.zeros(len(mjd))+amp_loc,'r--')
         ax[1].grid()
         ax[1].set_title(base+' amplitude')
@@ -1016,6 +1020,22 @@ def only_full_pol(alist,dt = 0):
         alist_out = alist.groupby(('baseline','band','round_time')).filter(lambda x: len(x)==4)
     else:
         alist_out = alist.groupby(('baseline','band','datetime')).filter(lambda x: len(x)==4)
+        #alist_gr = alist.groupby(('baseline','band','datetime'))
+        #grouped_df = alist_gr
+        #for key, item in alist_gr:
+        #    print(alist_gr.get_group(key))
+
+    return alist_out
+
+def only_with_2pol(alist,dt = 0):
+    '''
+    only keeps data where full polarizxation is available with given timestamp
+    '''
+    if dt > 0:
+        alist = cl.add_round_time(alist, dt)
+        alist_out = alist.groupby(('baseline','band','round_time')).filter(lambda x: len(x)>=2)
+    else:
+        alist_out = alist.groupby(('baseline','band','datetime')).filter(lambda x: len(x)>=2)
         #alist_gr = alist.groupby(('baseline','band','datetime'))
         #grouped_df = alist_gr
         #for key, item in alist_gr:
@@ -1698,18 +1718,19 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
     
     p = np.exp(1j*ph0)
     data_solve =prep_df_for_dterms(dataLoc)
-
-    V1 = np.asarray(data_solve.LRbyLL)
-    V2 = np.asarray(data_solve.LRbyRR)
-    V3 = np.asarray(data_solve.RLbyLL)
-    V4 = np.asarray(data_solve.RLbyRR)
-    G2 = np.asarray(data_solve.gr2)
-    G1 = np.asarray(data_solve.gr1)
-    f1 = np.asarray(data_solve.phasor_fra1)
-    f2 = np.asarray(data_solve.phasor_fra2)
-    Nscans = len(V1)
-
+    
     if use_gains=='both':
+
+        V1 = np.asarray(data_solve.LRbyLL)
+        V2 = np.asarray(data_solve.LRbyRR)
+        V3 = np.asarray(data_solve.RLbyLL)
+        V4 = np.asarray(data_solve.RLbyRR)
+        G2 = np.asarray(data_solve.gr2)
+        G1 = np.asarray(data_solve.gr1)
+        f1 = np.asarray(data_solve.phasor_fra1)
+        f2 = np.asarray(data_solve.phasor_fra2)
+        Nscans = len(V1)
+
         y0 = list(np.conjugate(V1))
         y1 = list(np.conjugate(V2))
         y2 = list(V3)
@@ -1747,6 +1768,12 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
 
     elif use_gains==1:
 
+        V2 = np.asarray(data_solve.LRbyRR)
+        V3 = np.asarray(data_solve.RLbyLL)
+        G1 = np.asarray(data_solve.gr1)
+        f1 = np.asarray(data_solve.phasor_fra1)
+        f2 = np.asarray(data_solve.phasor_fra2)
+        Nscans = len(V2)
         y1 = list(np.conjugate(V2))
         y2 = list(V3)
         Yvec = np.asarray(y1+y2)
@@ -1768,27 +1795,72 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
 
     elif use_gains==2:
 
-        y0 = list(np.conjugate(V1))
-        y3 = list(V4)
-        Yvec = np.asarray(y0+y3)
-        mat_sys = np.zeros((2*Nscans,5)) +0*1j
+        try:
+            V1 = np.asarray(data_solve.LRbyLL)
+        except AttributeError: pass #print('No LR by LL data')
+        try:
+            V4 = np.asarray(data_solve.RLbyRR)
+        except AttributeError: pass #print('No RL by RR data')
+        #print(data_solve.columns)
+        G2 = np.asarray(data_solve.gr2)
+        f1 = np.asarray(data_solve.phasor_fra1)
+        f2 = np.asarray(data_solve.phasor_fra2)
+        Nscans = np.shape(data_solve)[0]
+        y=[]
+        if 'V1' in locals():#V1 is LR/LL
+            y0 = list(np.conjugate(V1))
+            y=y+y0
+            print('y with V1 ',np.shape(y))
+        if 'V4' in locals():#V1 is RL/RR
+            y3 = list(V4)
+            y=y+y3
+            print('y with V4 ',np.shape(y))
+        #Yvec = np.asarray(y0+y3)
+        Yvec=y
+        mat_sys = np.zeros((len(y),3)) +0*1j
 
         #equations with LRbyLL
-        mat_sys[:Nscans,0] = np.conjugate(f2)*G2
-        mat_sys[:Nscans,1] = f1*np.conjugate(f2)*G2
-        mat_sys[:Nscans,2] = np.ones((Nscans))*G2
-        mat_sys[:Nscans,3] = np.zeros((Nscans))
-        mat_sys[:Nscans,4] = np.zeros((Nscans))
+        if 'V1' in locals():
+            mat_sys[:Nscans,0] = np.conjugate(f2)*G2
+            mat_sys[:Nscans,1] = f1*np.conjugate(f2)*G2
+            mat_sys[:Nscans,2] = np.ones((Nscans))*G2
         
         #equations with RLbyRR
-        mat_sys[Nscans:2*Nscans,0] = np.conjugate(f2)/np.conjugate(G2)
-        mat_sys[Nscans:2*Nscans,1] = np.zeros((Nscans))
-        mat_sys[Nscans:2*Nscans,2] = np.zeros((Nscans))
-        mat_sys[Nscans:2*Nscans,3] = f1*np.conjugate(f2)/np.conjugate(G2)
-        mat_sys[Nscans:2*Nscans,4] = np.ones((Nscans))/np.conjugate(G2)
+        if 'V4' in locals():#V1 is RL/RR
+            mat_sys[:Nscans,0] = np.conjugate(f2)/np.conjugate(G2)
+            mat_sys[:Nscans,1] = f1*np.conjugate(f2)/np.conjugate(G2)
+            mat_sys[:Nscans,2] = np.ones((Nscans))/np.conjugate(G2)
 
-    Dterms =  np.linalg.lstsq(mat_sys,Yvec)[0]
+    #solution with linear least squares
+    print('sizes ',[np.shape(mat_sys),np.shape(Yvec)])
+    if np.shape(mat_sys)[0]>3:
+        Dterms =  np.linalg.lstsq(mat_sys,Yvec)[0]
+    else: Dterms = [np.nan,np.nan,np.nan]
+    ####################################
+    #solution with least squares+loss
+    '''
+    from scipy.optimize import least_squares
+    def fun_min(x): return mat_sys.dot(x) - Yvec
+    def f_wrap(x): 
+        x_cpl = [x[0]+1j*x[1], x[2]+1j*x[3],x[4]+1j*x[5],x[6]+1j*x[7], x[8]+1j*x[9]]
+        x_cpl = np.asarray(x_cpl)
+        y = fun_min(x_cpl)
+        yr = np.real(y)
+        yi = np.imag(y)
+        y_out = np.asarray(list(yr)+list(yi))
+        return y_out
+
+    x0 = [0.1, 0.*1, 0., 0.*1, 0., 0.*1, 0., 0.*1, 0.,0.*1]
+    res = least_squares(f_wrap,x0, loss='huber')
+    x = res.x
+    Dterms = np.asarray([x[0]+1j*x[1], x[2]+1j*x[3],x[4]+1j*x[5],x[6]+1j*x[7], x[8]+1j*x[9]])
+    '''
+    ####################################
+
     ApproxVal = mat_sys.dot(Dterms)
+    Dterms_no_leakage = np.zeros(np.shape(Dterms))
+    Dterms_no_leakage[0] = Dterms[0]
+    ApproxVal_no_leakage = mat_sys.dot(Dterms_no_leakage)
     '''
     to_minimize = lambda x: np.sum(np.abs((mat_sys.dot(x) - Yvec))**2)
     Dterms2 = so.minimize(to_minimize,Dterms)
@@ -1805,17 +1877,18 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
         plt.grid(which='both')
         plt.show()
     '''
+
     if return_raw==False:
         if use_m==False:
             D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
         else:
             p = Dterms[0]/m
-            D_out[0]=[p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
-        return D_out, ApproxVal
+            D_out=[p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
+        return D_out, ApproxVal, ApproxVal_no_leakage
     else:
         #print('Raw Dterms')
         #this returns [(m p), (D1L* p), (D2R p), (D1R p), (D2L* p)]
-        return Dterms, ApproxVal
+        return Dterms, ApproxVal, ApproxVal_no_leakage
 
 
 def solve_single_ratio(dataLoc, which_ratio,ph0=0,use_m=False,m=0, return_raw = True):
@@ -1864,6 +1937,7 @@ def solve_single_ratio(dataLoc, which_ratio,ph0=0,use_m=False,m=0, return_raw = 
             D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
         else:
             p = Dterms[0]/m
+            print('returning with fracpol', [Dterms[0],m])
             D_out[0]=[p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
         return D_out, ApproxVal
     else:
@@ -1871,9 +1945,9 @@ def solve_single_ratio(dataLoc, which_ratio,ph0=0,use_m=False,m=0, return_raw = 
         #this returns [(m p), (D1L* p), (D2R p), (D1R p), (D2L* p)]
         return Dterms, ApproxVal
 
-def inspect_dterms_quality(dataLoc,use_gains='both'):
+def inspect_dterms_quality(dataLoc,use_m=False,m=0,use_gains='both',return_raw = True):
     data_solve =prep_df_for_dterms(dataLoc)
-    DT,App = solve_Dterms(dataLoc,return_raw=True,use_gains=use_gains)
+    DT,App, App0 = solve_Dterms(dataLoc,return_raw=True,use_gains=use_gains)
     
     '''
     DT=np.zeros(5)
@@ -1896,16 +1970,28 @@ def inspect_dterms_quality(dataLoc,use_gains='both'):
         rhs2 = App[Nscans:2*Nscans]
         rhs3 = App[2*Nscans:3*Nscans]
         rhs4 = App[3*Nscans:4*Nscans]
+        rhs1_0 = App0[:Nscans]
+        rhs2_0 = App0[Nscans:2*Nscans]
+        rhs3_0 = App0[2*Nscans:3*Nscans]
+        rhs4_0 = App0[3*Nscans:4*Nscans]
     elif use_gains==1:
         rhs2 = App[:Nscans]
         rhs3 = App[Nscans:2*Nscans]
         rhs1 = np.zeros(Nscans)
         rhs4 = np.zeros(Nscans)
+        rhs2_0 = App0[:Nscans]
+        rhs3_0 = App0[Nscans:2*Nscans]
+        rhs1_0 = np.zeros(Nscans)
+        rhs4_0 = np.zeros(Nscans)
     elif use_gains==2:
         rhs1 = App[:Nscans]
         rhs4 = App[Nscans:2*Nscans]
         rhs2 = np.zeros(Nscans)
         rhs3 = np.zeros(Nscans)
+        rhs1_0 = App0[:Nscans]
+        rhs4_0 = App0[Nscans:2*Nscans]
+        rhs2_0 = np.zeros(Nscans)
+        rhs3_0 = np.zeros(Nscans)
 
     fig, ax = plt.subplots(2,2,figsize=(10,10))
 
@@ -1913,8 +1999,9 @@ def inspect_dterms_quality(dataLoc,use_gains='both'):
     ax[0,0].axhline(0,color='k',linestyle='--')
     ax[0,0].plot(np.real(lhs1),np.imag(lhs1),'kd',label='data',markersize=12)
     ax[0,0].plot(np.real(rhs1),np.imag(rhs1),'ro',label='fit')
+    ax[0,0].plot(np.real(rhs1_0),np.imag(rhs1_0),'o',label='fit 0 leakage',markerfacecolor='None',markeredgecolor='b',markeredgewidth=1)
     ax[0,0].grid()
-    ax[0,0].legend()
+    ax[0,0].legend(frameon=True,framealpha = 1.,edgecolor='k')
     ax[0,0].axis('equal')
     ax[0,0].set_title('(LR/LL)*')
     ax[0,0].set_ylabel('Im')
@@ -1924,22 +2011,24 @@ def inspect_dterms_quality(dataLoc,use_gains='both'):
     ax[0,1].axhline(0,color='k',linestyle='--')
     ax[0,1].plot(np.real(lhs2),np.imag(lhs2),'kd',label='data',markersize=12)
     ax[0,1].plot(np.real(rhs2),np.imag(rhs2),'ro',label='fit')
+    ax[0,1].plot(np.real(rhs2_0),np.imag(rhs2_0),'o',label='fit 0 leakage',markerfacecolor='None',markeredgecolor='b',markeredgewidth=1)
     ax[0,1].grid()
     ax[0,1].axis('equal')
     ax[0,1].set_title('(LR/RR)*')
     ax[0,1].set_ylabel('Im')
-    ax[0,1].legend()
+    ax[0,1].legend(frameon=True,framealpha = 1.,edgecolor='k')
     ax[0,1].set_xlabel('Re')
 
     ax[1,0].axvline(0,color='k',linestyle='--')
     ax[1,0].axhline(0,color='k',linestyle='--')
     ax[1,0].plot(np.real(lhs3),np.imag(lhs3),'kd',label='data',markersize=12)
     ax[1,0].plot(np.real(rhs3),np.imag(rhs3),'ro',label='fit')
+    ax[1,0].plot(np.real(rhs3_0),np.imag(rhs3_0),'o',label='fit 0 leakage',markerfacecolor='None',markeredgecolor='b',markeredgewidth=1)
     ax[1,0].grid()
     ax[1,0].axis('equal')
     ax[1,0].set_title('RL/LL')
     ax[1,0].set_ylabel('Im')
-    ax[1,0].legend()
+    ax[1,0].legend(frameon=True,framealpha = 1.,edgecolor='k')
     ax[1,0].set_xlabel('Re')
 
 
@@ -1947,12 +2036,15 @@ def inspect_dterms_quality(dataLoc,use_gains='both'):
     ax[1,1].axhline(0,color='k',linestyle='--')
     ax[1,1].plot(np.real(lhs4),np.imag(lhs4),'kd',label='data',markersize=12)
     ax[1,1].plot(np.real(rhs4),np.imag(rhs4),'ro',label='fit')
+    ax[1,1].plot(np.real(rhs4_0),np.imag(rhs4_0),'o',label='fit 0 leakage',markerfacecolor='None',markeredgecolor='b',markeredgewidth=1)
     ax[1,1].grid()
     ax[1,1].axis('equal')
     ax[1,1].set_title('RL/RR')
     ax[1,1].set_ylabel('Im')
     ax[1,1].set_xlabel('Re')
-    ax[1,1].legend()
+    ax[1,1].legend(frameon=True,framealpha = 1.,edgecolor='k')
+    #leg = legend.get_frame()
+    #leg.set_facecolor('white')
     ax[0,0].grid()
     ax[0,1].grid()
     ax[1,0].grid()

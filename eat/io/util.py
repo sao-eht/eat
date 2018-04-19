@@ -175,7 +175,7 @@ def fix(df):
     idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zrzzzz')
     df.loc[idx,'snr'] /= np.sqrt(2.0)
     df.loc[idx,'amp'] /= np.sqrt(2.0)
-    # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd')
+    # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd') er3hiv2:('0036EJ', '00GYUV', 'zzsivx', 'zzzznu')
     idx1 = df.baseline.str.contains('A') & (df.polarization == 'LR') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
     idx2 = df.baseline.str.contains('A') & (df.polarization == 'RL') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
     df.loc[idx1,'polarization'] = 'RL'

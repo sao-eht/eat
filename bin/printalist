@@ -135,7 +135,7 @@ if args.expression is not None:
     a = a[[eval(expr, row._asdict()) for row in a.itertuples()]]
 
 if args.sort_by is not None:
-    a = a.sort_values(args.sort_by)
+    a = a.sort_values(['expt_no', 'scan_id', 'baseline', 'polarization'] if args.sort_by == [] else args.sort_by)
 
 fmt.update(additional_fmt)
 fmt.pop('source', None) # let source autoformat because HOPS %32s is really long

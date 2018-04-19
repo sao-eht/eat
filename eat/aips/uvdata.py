@@ -296,13 +296,34 @@ class UVFITS():
         hour = np.zeros(Ndata, dtype=np.int32)
         minute = np.zeros(Ndata, dtype=np.int32)
         sec = np.zeros(Ndata, dtype=np.int32)
+        us = np.zeros(Ndata, dtype=np.int32)
         for idata in np.arange(Ndata):
             time = yday[idata].split(":")
+            #print((self.data["jd"]))
+            #print(time)
             year[idata] = np.int32(time[0])
             doy[idata] = np.int32(time[1])
             hour[idata] = np.int32(time[2])
             minute[idata] = np.int32(time[3])
             sec[idata] = np.int32(np.float64(time[4]))
+            #Maciek's edit for importing us 
+            #us[idata] = np.round((np.float64(time[4])-np.int32(np.float64(time[4])))*5)*0.2
+            us[idata] = np.int32(np.round(5*(np.float64(time[4])-np.int32(np.float64(time[4]))))*0.2*1e6)
+            
+            if us[idata]==1000000:
+                us[idata]=0
+                sec[idata]=sec[idata]+1
+                if sec[idata]==60:
+                    sec[idata]=0
+                    minute[idata]=minute[idata]+1
+                    if minute[idata]==60:
+                        minute[idata]=0
+                        hour[idata]=hour[idata]+1
+                        if hour[idata]==24:
+                            hour[idata]=0
+                            doy[idata]=doy[idata]+1
+
+            #print(sec[idata],us[idata],time[4])
 
         for idec, ira, iif, ich, istokes in itertools.product(np.arange(Ndec),
                                                               np.arange(Nra),
@@ -318,6 +339,8 @@ class UVFITS():
             tmpdata["hour"] = np.int32(hour)
             tmpdata["min"] = np.int32(minute)
             tmpdata["sec"] = np.int32(sec)
+            tmpdata["us"] = np.int32(us)
+            
 
             # Frequecny
             tmpdata["freq"] = np.zeros(Ndata, dtype=np.float32)
