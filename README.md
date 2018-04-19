@@ -9,6 +9,7 @@
 * pandas
 * astropy
 * HOPS (for mk4 access, optional)
+* seaborn (for some data inspection plots, optional)
 
 ### Installation
 
