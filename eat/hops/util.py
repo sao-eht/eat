@@ -87,7 +87,7 @@ sys_par = 2e-6 # 2 ps on fringe delay
 sys_cross = 20e-6 # 20 ps on cross hand delay
 
 # restart of backend system
-restarts_2017 = {'X':map(util.tt2dt, ['101-010200'])}
+restarts_2017 = {'X':map(util.tt2dt, ['101-004000'])}
 
 def getpolarization(f):
     b = mk4.mk4fringe(f)
@@ -247,7 +247,8 @@ def pop120(b=None, pol=None, fill=0):
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
 # i.e. they subtract the delay, rate under multiplication
-def params(b=None, pol=None, quiet=None):
+# cf: path to control file, can pull some apriori calibration information from control file
+def params(b=None, pol=None, quiet=None, cf=None):
     """extract many basic parameters from fringe file for easy access
 
     The parameters attempt to follow metadata stored in fringe files.
@@ -354,13 +355,43 @@ def params(b=None, pol=None, quiet=None):
     frot[230] = np.exp(-1j * delay * dfvec[230] * 2*np.pi)
     frot[120] = np.exp(-1j * delay * dfvec[120] * 2*np.pi) # assuming nlags120 = nlags230/2
     frot[212] = np.exp(-1j * delay * dfvec[212] * 2*np.pi) # note type_212 is already rotated in data
-    return Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags, days=days,
+    p = Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags, days=days,
         code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot, frt=frt, frtoff=frtoff,
         baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
         scan_name=b.t200.contents.scan_name, scantime=scantime, timetag=util.dt2tt(scantime),
         scantag=util.dt2tt(scantime + datetime.timedelta(seconds=b.t200.contents.start_offset)),
         expt_no=b.t200.contents.expt_no, startidx=startidx, stopidx=stopidx, apfilter=apfilter)
+    if cf is not None:
+        cf = ControlFile(cf)
+        cf_ref = cf.filter(station=p.baseline[0], baseline=p.baseline,
+                 source=p.source, scan=p.scantag, dropmissing=True)
+        cf_rem = cf.filter(station=p.baseline[1], baseline=p.baseline,
+                 source=p.source, scan=p.scantag, dropmissing=True)
+        p.cf_ref = cf_ref.actions()
+        p.cf_rem = cf_rem.actions()
+        # precorrections
+        df_sbd = p.foffset[120] - np.mean(p.foffset[120], axis=1)[:,None]
+        default = ' 0 ' * (1+nchan)
+        sbd_ref = np.array(map(float, p.cf_ref.get('delay_offs', default).split()[1:])) + \
+            np.array(map(float, p.cf_ref.get('delay_offs_%s' % p.pol[0].lower(), default).split()[1:]))
+        sbd_rem = np.array(map(float, p.cf_rem.get('delay_offs', default).split()[1:])) + \
+            np.array(map(float, p.cf_rem.get('delay_offs_%s' % p.pol[1].lower(), default).split()[1:]))
+        df_mbd = p.dfvec[120].mean(axis=1)[:,None]
+        mbd_ref = np.array(map(float, p.cf_ref.get('pc_delay', '0.').split())) + \
+            np.array(map(float, p.cf_ref.get('pc_delay_%s' % p.pol[0].lower(), '0.').split()))
+        mbd_rem = np.array(map(float, p.cf_rem.get('pc_delay', 'a 0.').split()[1:])) + \
+            np.array(map(float, p.cf_rem.get('pc_delay_%s' % p.pol[1].lower(), '0.').split()))
+        pc_ref = np.array(map(float, p.cf_ref.get('pc_phases', default).split()[1:])) + \
+            np.array(map(float, p.cf_ref.get('pc_phases_%s' % p.pol[0].lower(), default).split()[1:]))
+        pc_rem = np.array(map(float, p.cf_rem.get('pc_phases', default).split()[1:])) + \
+            np.array(map(float, p.cf_rem.get('pc_phases_%s' % p.pol[1].lower(), default).split()[1:]))
+        # do not understand this sign convention
+        sbd_rot = np.exp(1j * 1e-3*(sbd_rem - sbd_ref)[:,None] * df_sbd * 2*np.pi)
+        mbd_rot = np.exp(1j * 1e-3*(mbd_rem - mbd_ref)[:,None] * df_mbd * 2*np.pi)
+        pc_rot = np.exp(1j * (pc_rem - pc_ref)*np.pi/180.)[:,None]
+        p.pre_rot = sbd_rot * mbd_rot * pc_rot
+    return p
 
 # some unstructured channel info for quick printing
 def chaninfo(b=None):
@@ -554,9 +585,10 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # df: decimation factor in time if timeseires==True
 # centerphase: subtract out mean phase for fewer wraps
 # do_adhoc: adhoc phase correct before time-average
+# cf: take precorrections from control file
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
              timeseries=False, centerphase=False, snrweight=True, kind=120, pol=None, grid=True,
-             do_adhoc=True):
+             do_adhoc=True, cf=None):
     if type(bs) is str:
         bs = getfringefile(bs, filelist=True, pol=pol)
     if not hasattr(bs, '__len__'):
@@ -566,7 +598,7 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
     vs = None
     for b in bs:
         b = getfringefile(b, pol=pol)
-        p = params(b) # channel and fringe parameters
+        p = params(b, cf=cf) # channel and fringe parameters
         if b.t208.contents.snr < snrthr:
             print("snr %.2f, skipping" % b.t208.contents.snr)
             continue
@@ -577,6 +609,8 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
             v = pop230(b)   # visib array (nchan, nap, nspec/2)
         elif kind==120:
             v = pop120(b)[:,p.startidx:p.stopidx,:]   # visib array (nchan, nap, nspec/2)
+            if cf is not None:
+                v = v * p.pre_rot[:,None,:]
         nrow = bool(timeseries) + np.int(np.ceil(p.nchan / ncol))
         delay = p.delay if delay is None else delay
         rate = p.rate if rate is None else rate
@@ -1745,7 +1779,7 @@ def fixsqrt2(df):
     df.loc[idx,'snr'] /= np.sqrt(2.0)
     df.loc[idx,'amp'] /= np.sqrt(2.0)
 
-def uvplot(df, source=None, color=None):
+def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5):
     import pandas as pd
     import seaborn as sns
     from ..plots import util as pu
@@ -1756,15 +1790,15 @@ def uvplot(df, source=None, color=None):
         df = df.copy()
     util.add_id(df)
     def constrained(df):
-        goodbls = fringegroups(df[df.snr > 6.5].baseline, baselines=True)
+        goodbls = fringegroups(df[df.snr > threshold].baseline, baselines=True)
         return df[df.baseline.isin(goodbls)]
     def notconstrained(df):
-        goodbls = fringegroups(df[df.snr > 6.5].baseline, baselines=True)
+        goodbls = fringegroups(df[df.snr > threshold].baseline, baselines=True)
         return df[~df.baseline.isin(goodbls)]
     nondetections = pd.concat((notconstrained(rows) for (name, rows) in df.groupby('scan_id')), ignore_index=True)
     measurements = pd.concat((constrained(rows) for (name, rows) in df.groupby('scan_id')), ignore_index=True)
-    detections = measurements[measurements.snr >= 6.5]
-    upperlimits = measurements[measurements.snr < 6.5]
+    detections = measurements[measurements.snr >= threshold]
+    upperlimits = measurements[measurements.snr < threshold]
     if color is None:
         bls = sorted(set(df.baseline))
         color = dict(zip(bls, sns.color_palette(sns.hls_palette(len(bls), l=.6, s=.6))))
@@ -1800,3 +1834,19 @@ def uvplot(df, source=None, color=None):
     leg.set_zorder(300)
     pu.wide(6, 6)
 
+def uvsnrplot(df, source=None, color=None, kind='baseline'):
+    import pandas as pd
+    import seaborn as sns
+    from ..plots import util as pu
+    from matplotlib.legend import Legend
+    if source is not None:
+        df = df[df.source == source].copy()
+    else:
+        df = df.copy()
+    util.add_id(df)
+    def constrained(df):
+        goodbls = fringegroups(df[df.snr > 6.5].baseline, baselines=True)
+        return df[df.baseline.isin(goodbls)]
+    def notconstrained(df):
+        goodbls = fringegroups(df[df.snr > 6.5].baseline, baselines=True)
+        return df[~df.baseline.isin(goodbls)]
