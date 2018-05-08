@@ -22,7 +22,7 @@ parser.add_argument('-d', '--datadir', help='use fringe files from this data dir
 parser.add_argument('-o', '--outdir', help='output directory for adhoc files (one per scan)', default=None)
 parser.add_argument('-q', '--quiet', help='do not print cfcodes to stdout (they are saved in adhoc_codes)', action='store_true', default=False)
 parser.add_argument('-c', '--cohtime', help='coherence timescale to use for deciding INTTIME', default=None, type=float)
-parser.add_argument('-t', '--threshold', help='SNR threshold for detection', default=6.5, type=float)
+parser.add_argument('-t', '--threshold', help='SNR threshold for detection', default=7.0, type=float)
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
