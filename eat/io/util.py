@@ -171,6 +171,11 @@ def noauto(df):
 # a number of polconvert fixes based on rootcode (correlation proc time)
 # optionally undo fix
 def fix(df):
+    # merge source with two different names
+    idx = (df.source == '1921-293')
+    df.loc[idx,'source'] = 'J1924-2914'
+    if 'baseline' not in df.columns:
+        return
     # sqrt2 fix er2lo:('zplptp', 'zrmvon') er2hi:('zplscn', 'zrmvoi')
     idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zrzzzz')
     df.loc[idx,'snr'] /= np.sqrt(2.0)

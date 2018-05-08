@@ -4,6 +4,8 @@ plotting utilities
 import numpy as np
 import matplotlib.pyplot as plt
 
+colors=['k','mediumblue','red','darkgreen','lime','magenta', 'blueviolet','orange','yellow','cyan','olivedrab','salmon','saddlebrown','dodgerblue','tomato','tan']
+
 # plot as separated segments
 # dx: distance at which to break up data
 # *args, **kwargs sent to plt.plot()
