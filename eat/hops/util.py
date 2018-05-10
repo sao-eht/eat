@@ -1215,7 +1215,7 @@ def wavg(x, sigma=1., col=None, w=None, robust=10.):
         imin = np.argmin(merr)
         (merrmin, sigthr) = (merr[imin], sigsort[imin]) # at lowest median error
         median = np.median(x[sigma <= sigthr])
-        igood = np.abs((x-median)/np.sqrt(merrmin**2 + ssq)) < robust
+        igood = np.array(np.abs((x-median)/np.sqrt(merrmin**2 + ssq)) < robust)
         (x, sigma, ssq) = (x[igood], sigma[igood], ssq[igood])
         noutliers = np.sum(~igood)
     if w is None:
