@@ -87,7 +87,7 @@ sys_par = 2e-6 # 2 ps on fringe delay
 sys_cross = 20e-6 # 20 ps on cross hand delay
 
 # restart of backend system
-restarts_2017 = {'X':map(util.tt2dt, ['101-004000'])}
+restarts_2017 = {'X':map(util.tt2dt, ['101-003000'])}
 
 def getpolarization(f):
     b = mk4.mk4fringe(f)
@@ -693,15 +693,25 @@ def vecplot(vs, dtvec, dfvec, delay, rate, ref_freq, dt=1, df=1):
     vtot = np.sum(vrot) / len(vrot.ravel())
     plt.plot([0,0], [vtot.re, vtot.im], 'r.-', lw=2, ms=4, alpha=1.0)
 
-def timeseries(bs, dt=1, pol=None):
+def timeseries(bs, dt=1, pol=None, kind=212, cf=None, delay=None, rate=None):
     if not hasattr(bs, '__iter__'):
         bs = [bs,]
     nrow = len(bs)
     for (i, b) in enumerate(bs):
         b = getfringefile(b, pol=pol)
-        p = params(b)
+        p = params(b, cf=cf)
         plt.subplot(nrow, 1, 1+i)
-        v = pop212(b).mean(axis=1) # stack over channels
+        if kind == 212:
+            v = pop212(b).mean(axis=1) # stack over channels
+        elif kind == 120:
+            v = pop120(b)[:,p.startidx:p.stopidx,:]   # visib array (nchan, nap, nspec/2)
+            if cf is not None:
+                v = v * p.pre_rot[:,None,:]
+            delay = p.delay if delay is None else delay
+            rate = p.rate if rate is None else rate
+            trot = np.exp(-1j * rate * p.dtvec * 2*np.pi*p.ref_freq)
+            frot = np.exp(-1j * delay * p.dfvec[kind] * 2*np.pi)
+            v = (v * trot[None,:,None] * frot[:,None,:]).sum(axis=(0,2))
         nt = len(v)
         dt = min(dt, nt)
         nt = nt - np.fmod(nt, dt) # fit time segments after decimation
