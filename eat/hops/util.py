@@ -115,7 +115,7 @@ def getfringefile(b=None, filelist=False, pol=None, quiet=False):
             files = list(itertools.chain(*(getfringefile(bi, filelist=True, quiet=quiet) for bi in b)))
         if(len(files) == 0 and not quiet):
             raise(Exception("cannot find file: %s or %s" % (b, '/'.join(last[:-len(tok)] + tok))))
-        files = [f for f in files if '..' not in f] # filter out correlator files
+        files = [f for f in files if f[-8:-6] != '..'] # filter out correlator files
         if pol is not None: # filter by polarization
             files = [f for f in files if getpolarization(f) in set([pol] if type(pol) is str else pol)]
         if(len(files) == 0 and not quiet):
