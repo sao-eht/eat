@@ -649,7 +649,6 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         if grid:
             plt.grid()
         ax2.add_artist(AnchoredText(p.code[n], loc=1, frameon=False, borderpad=0))
-    plt.subplots_adjust(wspace=0, hspace=0)
     ax1.set_yticklabels([])
     ax1.set_xticklabels([])
     ax1.set_xlim(-0.5, -0.5+len(spec))
@@ -678,6 +677,9 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         plt.setp(plt.gcf(), figwidth=8, figheight=8.*nrow/ncol)
     else:
         plt.setp(plt.gcf(), figwidth=figsize[0], figheight=figsize[1])
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.suptitle('%s (%s) %d/%s/%s [%.1f-%.1f MHz]' % (p.baseline, p.pol, p.expt_no, p.scan_name, p.source, p.fedge[0], p.fedge[-1]+p.bw[-1]),
+        y=plt.gcf().subplotpars.top, va='bottom')
 
 # rotate vs based on delay and rate and plot a 2D vector plot of complex visib
 def vecplot(vs, dtvec, dfvec, delay, rate, ref_freq, dt=1, df=1):
