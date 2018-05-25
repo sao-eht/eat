@@ -586,9 +586,10 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # centerphase: subtract out mean phase for fewer wraps
 # do_adhoc: adhoc phase correct before time-average
 # cf: take precorrections from control file
+# channels: (A, B) to only show channels[A:B]
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
              timeseries=False, centerphase=False, snrweight=True, kind=120, pol=None, grid=True,
-             do_adhoc=True, cf=None):
+             do_adhoc=True, cf=None, channels=(None,None)):
     if type(bs) is str:
         bs = getfringefile(bs, filelist=True, pol=pol)
     if not hasattr(bs, '__len__'):
@@ -611,7 +612,9 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
             v = pop120(b)[:,p.startidx:p.stopidx,:]   # visib array (nchan, nap, nspec/2)
             if cf is not None:
                 v = v * p.pre_rot[:,None,:]
-        nrow = bool(timeseries) + np.int(np.ceil(p.nchan / ncol))
+        showchan = np.arange(p.nchan)[slice(*channels)]
+        nshow = showchan[-1] - showchan[0] + 1
+        nrow = bool(timeseries) + np.int(np.ceil(nshow / ncol))
         delay = p.delay if delay is None else delay
         rate = p.rate if rate is None else rate
         trot = np.exp(-1j * rate * p.dtvec * 2*np.pi*p.ref_freq)
@@ -631,11 +634,11 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
             vs = (0 if vs is None else vs) + vrot.sum(axis=1)[:,None]
     if vs is None: # no files read (snr too low)
         return
-    for n in range(p.nchan):
+    for n in showchan:
         spec = vs[n].sum(axis=0) # sum over time
         spec = spec.reshape((-1, df)).sum(axis=1) # re-bin over frequencies
         ax1 = locals().get('ax1')
-        ax1 = plt.subplot(nrow, ncol, 1+n, sharey=ax1, sharex=ax1)
+        ax1 = plt.subplot(nrow, ncol, 1+n-showchan[0], sharey=ax1, sharex=ax1)
         amp = np.abs(spec)
         phase = np.angle(spec)
         plt.plot(amp, 'b.-')
@@ -733,8 +736,8 @@ def timeseries(bs, dt=1, pol=None, kind=212, cf=None, delay=None, rate=None):
         putil.rmgaps(1e6, 2.0)
         plt.xlim(t[0] - dt*p.ap/2., t[-1] + dt*p.ap/2.)
         plt.xlabel('time [s]')
-        plt.gca().add_artist(AnchoredText(p.baseline + ' (' + p.pol + ')', loc=1, frameon=False, borderpad=0))
-        plt.gca().add_artist(AnchoredText(p.timetag + ' (' + p.source + ')', loc=2, frameon=False, borderpad=0))
+        plt.gca().add_artist(AnchoredText(p.baseline + ' (' + p.pol + ')', loc=3, frameon=False, borderpad=0))
+        plt.gca().add_artist(AnchoredText(p.timetag + ' (' + p.source + ')', loc=4, frameon=False, borderpad=0))
     plt.setp(plt.gcf(), figwidth=8, figheight=2+nrow)
     plt.tight_layout()
     plt.subplots_adjust(hspace=0)
