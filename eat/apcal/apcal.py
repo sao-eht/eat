@@ -734,13 +734,14 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
             
             for ant in antL:
                 for sour in sourL:
-                    
+
                     condB = (Tsys_full['band']==band)
                     condS = (Tsys_full['source']==sour)
                     condA = (Tsys_full['antena']==ant)
                     condE = (Tsys_full['track']==expt2track[expt])
                     condPositive = (Tsys_full['Tsys_st_L']>0)&(Tsys_full['Tsys_st_R']>0)
                     Tsys_local = Tsys_full.loc[condB&condS&condA&condE&condPositive]
+                    
                     Tsys_local.loc[:,'sefd_L'] = np.sqrt(Tsys_local['Tsys_st_L']/dict_dpfu[(ant,expt2track[expt],band,'L')])
                     Tsys_local.loc[:,'sefd_R'] = np.sqrt(Tsys_local['Tsys_st_R']/dict_dpfu[(ant,expt2track[expt],band,'R')])
                     if ant=='P':
@@ -758,11 +759,26 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
                         SEFDS = Tsys_local.loc[:,['mjd','sefd_R','foo_Imag_1','sefd_L','foo_Imag_2']]
                         SEFDS = SEFDS.sort_values('mjd')
                         NameF = dir_expt+'/'+sour+'_'+Z2AZ[ant]+'.txt'
+                        ###APPLY AD HOC FIXES
+                        SEFDS = ad_hoc_fixes(SEFDS,ant,sour)
+                        #CUT out too low SEFDs
+                        SEFDS = SEFDS[(SEFDS['sefd_R']>1.)|(SEFDS['sefd_L']>1.)]
+                        #####################
                         if SEFDS.shape[0]>0:
                             SEFDS.to_csv(NameF,sep=' ',index=False, header=False)
                         print(sour+'_'+Z2AZ[ant]+'_'+str(int(expt))+'_'+band+' ok')
                     except ValueError:
                         print(sour+'_'+Z2AZ[ant]+'_'+str(int(expt))+'_'+band+' crap, not ok')
+
+def ad_hoc_fixes(df,ant,sour):
+    fix_T = [[57854.5,57854.6],[57850.0,57856.2]]
+    if (ant=='A')&(sour in ['SGRA','J1924-2914','J1733-1304']):
+        for fixt in fix_T:
+            cond=(df['mjd']>fixt[0])&(df['mjd']<fixt[1])&(df['sefd_R']<7.)
+            df.loc[cond,'sefd_R'] *= np.sqrt(10.)
+            df.loc[cond,'sefd_L'] *= np.sqrt(10.)
+    return df
+    
 
 def generate_and_save_sefd_data_ALMA(Tsys_full, dict_dpfu, sourL=sourL, antL=antL0, exptL=exptL0,pathSave = 'SEFDs'):
     if not os.path.exists(pathSave):
