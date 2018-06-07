@@ -23,7 +23,7 @@ sys_par = 2e-6 # 2 ps on fringe delay
 sys_cross = 20e-6 # 20 ps on cross hand delay
 
 # special segments list of restarts in days since year
-restarts = {'X':map(util.tt2dt, ['101-010200'])} # need to check once M87 scans are available
+restarts = {'X':map(util.tt2dt, ['101-003000'])} # just before M87 scan
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist txt file')

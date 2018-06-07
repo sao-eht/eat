@@ -82,7 +82,10 @@ if not args.no_fix:
 
 if args.baseline_sites:
     bs = set(args.baseline_sites)
-    a = a[a.baseline.str[0].isin(bs) & a.baseline.str[1].isin(bs)]
+    if 'baseline' in a.columns:
+        a = a[a.baseline.str[0].isin(bs) & a.baseline.str[1].isin(bs)]
+    elif 'triangle' in a.columns:
+        a = a[a.triangle.str[0].isin(bs) & a.triangle.str[1].isin(bs) & a.triangle.str[2].isin(bs)]
 
 if args.columns is None:
     columns = defaultcol or a.columns
@@ -119,7 +122,7 @@ if 'timetag' in a and 'hour' not in a:
 if args.filter is not None:
     if len(args.filter) % 2 != 0:
         sys.exit("one (python expr) or 2N (key==val requirements) filter elements required")
-    keep = reduce(np.bitwise_and, ((a[key] == val for key, val in
+    keep = reduce(np.bitwise_and, ((a[key] == np.array(val, dtype=a[key].dtype)[()] for key, val in
         zip(args.filter[::2], args.filter[1::2]))))
     a = a[keep]
 
@@ -135,7 +138,10 @@ if args.expression is not None:
     a = a[[eval(expr, row._asdict()) for row in a.itertuples()]]
 
 if args.sort_by is not None:
-    a = a.sort_values(['expt_no', 'scan_id', 'baseline', 'polarization'] if args.sort_by == [] else args.sort_by)
+    if type(args.sort_by) is list: # sort columns are defined
+        a = a.sort_values(args.sort_by)
+    else:
+        a = a.sort_values([col for col in ['expt_no', 'scan_id', 'timetag', 'triangle', 'baseline', 'polarization'] if col in a.columns])
 
 fmt.update(additional_fmt)
 fmt.pop('source', None) # let source autoformat because HOPS %32s is really long
