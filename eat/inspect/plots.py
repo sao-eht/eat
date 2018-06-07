@@ -6,14 +6,15 @@ from eat.hops import util as hu
 import matplotlib.pyplot as plt
 from eat.inspect import utils as ut
 
-
-
-dict_night = {3597: '04/04/2017',3598: '04/05/2017',3599: '04/06/2017', 3600: '04/09/2017',3601: '04/10/2017'}
+dict_night = {3597: '04/04/17',3598: '04/05/17',3599: '04/06/17', 3600: '04/09/17',3601: '04/10/17'}
+dict_night_color = {'04/04/17': 'b','04/05/17': 'r','04/06/17': 'g', '04/09/17': 'm','04/10/17': 'k'}
 SMT2Z = {'ALMA': 'A', 'APEX': 'X', 'JCMT': 'J', 'LMT':'L', 'SMR':'R', 'SMA':'S', 'SMT':'Z', 'PV':'P','SPT':'Y'}
 Z2SMT = {v: k for k, v in SMT2Z.items()}
 baseL = ['AL','AZ','AP','AS','AX','ZL','LP','LS','ZP','ZS','PS','AY','LY','PY','SY','ZY']
 markers=["o", "d","v","^",'s']
 markers_od = ["o", "d","o","d",'o']
+colors=['k','mediumblue','red','darkgreen','lime','magenta','blueviolet','orange','yellow','cyan','olivedrab','salmon','saddlebrown','dodgerblue','tomato','tan']
+
 
 def plt_all_triangles_CP_CPdiff(brr,bll,sour,snr_cut=0.,saveF=False,add_text=''):
     fmtL = ['bo','ro','go','co','mo','ko','b^','r^','g^','c^','m^','k^','bv','rv','gv','cv','mv','kv']    
@@ -171,7 +172,7 @@ def err_nights_time_amp(data,sour='3C279',base='AL',band='lo',polar='RR',errscal
     
     plt.grid()
     plt.xlabel(time_type+' [h]',fontsize=14)
-    plt.ylabel('amplitude [Jy]',fontsize=14)
+    plt.ylabel('corr amplitude',fontsize=14)
     #plt.ylabel('correlation amplitude',fontsize=14)
     #plt.title(sour+', '+Z2SMT[base[0]]+'-'+Z2SMT[base[1]]+', '+band+' band'+', '+polar,fontsize=13)
     plt.title(Z2SMT[base[0]]+'-'+Z2SMT[base[1]]+', '+band+' band'+', '+polar,fontsize=13)
@@ -184,7 +185,7 @@ def err_nights_time_amp(data,sour='3C279',base='AL',band='lo',polar='RR',errscal
 
 def err_nights_time_cphase(data,sour='3C279',triangle='ALX',band='lo',polar=['RR'],shift=0,errscale=1,
 savefig=False,time_type='gmst',phase_type='cphase_fix_amp',error_type='sigmaCP',snr_treshold=1,conj=False,
-ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0):
+ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange=''):
     fonts=16
     if 'Night' not in data.columns:
         data['Night'] =list(map(lambda x: dict_night[x],data.expt_no))
@@ -261,6 +262,9 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0):
 
             gtime = np.mod(np.asarray(fooNi.gmst)+tshift,24)-tshift
             ax.errorbar(gtime,cphaseLoc,errscale*fooNi[error_type],fmt=fmtloc,capsize=5,label=LocNight,markersize=ms)
+            
+            if timerange!='':
+                xtime = timerange
             if show_both_pol==True:
                 fooNi2 = foo2[(foo2.Night==LocNight)&(foo2.snr>snr_treshold)]
                 cphaseLoc = np.asarray(fooNi2.cphase)
@@ -278,6 +282,11 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0):
             ax.axis([x1,x2,y1,y2])
         else:
             ax.axis([x1,x2]+y_range)
+        [x1,x2,y1,y2]=ax.axis()
+        if timerange=='':
+            pass
+        else:
+            ax.axis(timerange+[y1,y2])
         ax.axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
         ax.set_xlabel('GMST [h]',fontsize=fonts)
         ax.set_ylabel('closure phase [deg]',fontsize=fonts)
@@ -301,7 +310,7 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0):
 
 baseL = ['AL','AZ','AP','AS','AX','ZL','LP','LS','ZP','ZS','PS','AY','LY','PY','SY','ZY']  
 #Fourth TYPE OF PLOT: u-v coverage by baseline
-def plot_uv_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','RR'],data=[],savefig=False,custom_title='',snrCut=2.):
+def plot_uv_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','RR'],data=[],savefig=False,custom_title='',snrCut=2.,redundant=False):
     
     data=data[data.snr>snrCut]
     data2=data[data.snr>snrCut]
@@ -322,7 +331,11 @@ def plot_uv_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL'
     #fooRR['ratio_RL2RR'] = np.asarray(fooRL.amp)/np.asarray(fooRR.amp)
     #sns.lmplot(x='mu',y='mv',data=fooRR,hue='expt_no',fit_reg=False,size = 5,aspect = 1)
     Nb = len(set(fooRR.baseline.unique())&set(baseL))
-    baseL = ['AX','AZ','AP','AS','AL','AY','ZL','LP','LS','ZP','ZS','PS','LY','PY','SY','ZY']
+    if redundant==False:
+        baseL = ['AX','AZ','AP','AS','AL','AY','ZL','LP','LS','ZP','ZS','PS','LY','PY','SY','ZY']
+    else:
+        baseL = list(fooRR.baseline.unique())
+        baseL = [x for x in baseL if (('X' in x)|('J' in  x))&(x!='AX')]
     #baseL = ['AX','AZ','AP','AS','AL','AY','LZ','LP','LS','PZ','SZ','PS','LY','PY','SY','YZ']  
     colors=['k','mediumblue','red','darkgreen','lime','magenta','blueviolet','orange','yellow','cyan','olivedrab','salmon','saddlebrown','dodgerblue','tomato','tan']
     current_palette=dict(zip(baseL,colors))
@@ -372,11 +385,8 @@ def plot_uv_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL'
         plt.savefig(tit+'.pdf')
     plt.show()
     
-
-  
 baseL = ['AL','AZ','AP','AS','AX','ZL','LP','LS','ZP','ZS','PS','AY','LY','PY','SY','ZY']
 def plot_uv_snr(sour = '3C279',exptL=[3597,3598,3599,3600,3601],baseL = baseL,bandL=['lo','hi'],data=[],polar='both',savefig=False,snrCut=2.,snrMax=1010.,snrMin=0):
-   
     data2 = data[data.snr>snrCut].copy()
     
     data2['u'] = -data['u']
@@ -411,7 +421,6 @@ def plot_uv_snr(sour = '3C279',exptL=[3597,3598,3599,3600,3601],baseL = baseL,ba
         plt.scatter(fooRR.u,fooRR.v,c=colors,cmap='jet',s=80,alpha=0.75)
     else:
         plt.scatter(fooLL.u,fooLL.v,c=colors,cmap='jet',s=80,alpha=0.75)
-
     #sns.lmplot(x='u',y='v',data=fooRR,hue='baseline',fit_reg=False,size = 6,aspect=1.25)
     plt.axvline(0,linestyle='--',color= (0.25, 0.25, 0.25))
     plt.axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
@@ -461,6 +470,89 @@ def plot_uv_snr(sour = '3C279',exptL=[3597,3598,3599,3600,3601],baseL = baseL,ba
         plt.savefig(tit+'.pdf')
     plt.show()
 
+def plot_uv_amp(sour = '3C279',exptL=[3597,3598,3599,3600,3601],baseL = baseL,bandL=['lo','hi'],data=[],polar='both',savefig=False,snrCut=2.,snrMax=1010.,snrMin=0):
+    data2 = data[data.snr>snrCut].copy()
+    
+    data2['u'] = -data['u']
+    data2['v'] = -data['v']
+    
+    dataF = pd.concat([data,data2],ignore_index=True)
+    dataF = dataF[dataF.snr>snrCut]
+    fooRR = dataF[(dataF.source==sour)&list(map(lambda x: x in baseL,dataF.baseline))&list(map(lambda x: x in bandL,dataF.band))&list(map(lambda x: x in exptL,dataF.expt_no))&(dataF.polarization=='RR')]
+    fooLL = dataF[(dataF.source==sour)&list(map(lambda x: x in baseL,dataF.baseline))&list(map(lambda x: x in bandL,dataF.band))&list(map(lambda x: x in exptL,dataF.expt_no))&(dataF.polarization=='LL')]
+    cminRR = np.min(fooRR.amp)
+    cmaxRR = np.max(fooRR.amp)
+    cminLL = np.min(fooLL.amp)
+    cmaxLL = np.max(fooLL.amp)
+    cmin_both = 0.5*(cminRR+cminLL)
+    cmax_both = 0.5*(cmaxRR+cmaxLL)
+    cmax = np.log10(snrMax)
+    if polar=='both':
+        cmin = np.maximum(np.log10(cmin_both),np.log10(snrCut))
+        if snrMin > 0 : cmin = np.log10(snrMin)
+        colors= np.maximum(cmin,np.minimum(cmax,np.log10((np.asarray(fooLL.amp)+np.asarray(fooRR.amp))/2)))
+    elif polar=='LL':
+        cmin=np.maximum(np.log10(cminLL),np.log10(snrCut))
+        if snrMin > 0 : cmin = np.log10(snrMin)
+        colors= np.maximum(cmin,np.minimum(cmax,np.log10((np.asarray(fooLL.amp)+np.asarray(fooLL.amp))/2)))
+    elif polar=='RR':
+        cmin=np.maximum(np.log10(cminRR),np.log10(snrCut))
+        if snrMin > 0 : cmin = np.log10(snrMin)
+        colors= np.maximum(cmin,np.minimum(cmax,np.log10((np.asarray(fooRR.amp)+np.asarray(fooRR.amp))/2)))
+
+    plt.figure(figsize=(10,10))
+    if polar=='RR':
+        plt.scatter(fooRR.u,fooRR.v,c=colors,cmap='jet',s=80,alpha=0.75)
+    else:
+        plt.scatter(fooLL.u,fooLL.v,c=colors,cmap='jet',s=80,alpha=0.75)
+    #sns.lmplot(x='u',y='v',data=fooRR,hue='baseline',fit_reg=False,size = 6,aspect=1.25)
+    plt.axvline(0,linestyle='--',color= (0.25, 0.25, 0.25))
+    plt.axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
+    plt.grid()
+    plt.xlabel('u [M$\lambda$]',fontsize=16)
+    plt.ylabel('v [M$\lambda$]',fontsize=16)
+    plt.title(sour,fontsize=16)
+    plt.grid()
+    cb = plt.colorbar(fraction=0.035, pad=0.04,label='$\log_{10}$(snr)')
+    plt.axes().set_aspect('equal')
+    plt.axis([-9000,9000,-9000,9000])
+    cb.set_label(label='SNR',size=16)
+    #print(cmin)
+
+    cb.set_clim(cmin,cmax)
+    ticks_all = np.asarray([0.699,1,1.301,1.69897,2,2.301,2.69897,3,3.3005,3.69897])
+    desc_all = np.asarray([5,10,20,50,100,200,500,1000,2000,5000])
+    ticks = ticks_all[(ticks_all>cmin)&(ticks_all<cmax)]
+    desc = desc_all[(ticks_all>cmin)&(ticks_all<cmax)]
+    #print(ticks_all)
+    #print(desc_all)
+    cb.set_ticks(ticks, update_ticks=True)
+    cb.set_ticklabels(desc, update_ticks=True)
+    #cb.set_ticks([1.69897,2,2.301,2.69897,3,3.301], update_ticks=True)
+    #cb.set_ticklabels([50,100,200,500,1000,2000], update_ticks=True)
+    
+
+
+    t= np.linspace(0,2*np.pi,256)
+    uas = np.pi/180/60/60/1e6
+    w0 = 1/(50*uas)/1e6
+    w1 = 1/(25*uas)/1e6
+
+    plt.axis([-9000,9000,-9000,9000])
+    
+   
+    plt.plot(w0*np.sin(t),w0*np.cos(t),'--',color= (0.5, 0.5, 0.5))
+    plt.plot(w1*np.sin(t),w1*np.cos(t),'--',color= (0.5, 0.5, 0.5))
+    
+    r1 = 7400; a1 = np.pi*0.3
+    r2=3300; a2=np.pi*0.35
+    plt.text(r1*np.cos(a1),r1*np.sin(a1), '25 $\mu$as', fontsize=14,rotation=-42)
+    plt.text(r2*np.cos(a2),r2*np.sin(a2), '50 $\mu$as', fontsize=14,rotation=-42)
+      
+    if savefig==True:
+        tit = 'uv_snr_'+sour
+        plt.savefig(tit+'.pdf')
+    plt.show()
 
 
 baseL = ['AL','AZ','AP','AS','AX','ZL','LP','LS','ZP','ZS','PS','AY','LY','PY','SY','ZY']
@@ -624,13 +716,32 @@ def errplot_fracpol_gmst(sour = '3C279',base = 'AS',band='lo',polar='RR',data=[]
 
 #baseL = ['AL','AZ','AP','AS','AX','ZL','LP','LS','ZP','ZS','PS','AY','LY','PY','SY','ZY']  
 #Fourth TYPE OF PLOT: u-v coverage by baseline
-def plot_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','RR'],data=[],savefig=False,custom_title=''):
+def plot_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','RR'],data=[],savefig=False,custom_title='',y_range='',red=False,onlyred=False,loglog=False,alphabet_bsl=False,
+alpha=0.25):
     #sns.set_context("talk")
     if 'baselength' not in data.columns:
-        data = ut.add_baselenth(data)
-    baseL0 = ['AX','AZ','AP','AS','AL','AY','LZ','LP','LS','PZ','SZ','PS','LY','PY','SY','ZY']
+        data = ut.add_baselength(data)
+    #baseL0 = ['AX','AZ','AP','AS','AL','AY','LZ','LP','LS','PZ','SZ','PS','LY','PY','SY','ZY']
+    redundant = ['JS','XL','XZ','XP','XS','JL','ZJ','AJ','XJ','JP','XY','JY']
+    baseL0 = ['AX','AZ','AP','AS','AL','AY','ZL','LP','LS','ZP','ZS','PS','LY','PY','SY','ZY']
+    if alphabet_bsl==True:
+        redundant=[''.join(sorted(x)) for x in redundant]
+        baseL0=[''.join(sorted(x)) for x in baseL0]
+    #print(red==True)
+    if red==True:
+        baseL0=baseL0+redundant
+        if onlyred==True:
+            baseL0=redundant
+
+        #print('baseL0 ', baseL0)
     dataF = data
+    #print(dataF.baseline.unique())
+    #print('Size to plot0:',np.shape(dataF))
+    #fooRR = dataF[(dataF.source==sour)&list(map(lambda x: x in polarL,dataF.polarization))&list(map(lambda x: x in bandL,dataF.band))]
     fooRR = dataF[(dataF.source==sour)&list(map(lambda x: x in baseL0,dataF.baseline))&list(map(lambda x: x in bandL,dataF.band))&list(map(lambda x: x in polarL,dataF.polarization))]
+    
+    #print('Size to plot:',np.shape(fooRR))
+    #print(fooRR.baseline.unique())
     #print(fooRR)
     #fooRR['ratio_RL2RR'] = np.asarray(fooRL.amp)/np.asarray(fooRR.amp)
     #sns.lmplot(x='mu',y='mv',data=fooRR,hue='expt_no',fit_reg=False,size = 5,aspect = 1)
@@ -639,11 +750,20 @@ def plot_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','R
     Nb = len(set(fooRR.baseline.unique())&set(baseL0))
     #print(set(fooRR.baseline.unique()))
     #print(set(fooRR.baseline.unique())&set(baseL0))
-    #baseL = ['AX','AZ','AP','AS','AL','AY','ZL','LP','LS','ZP','ZS','PS','LY','PY','SY','ZY']
-    baseL = ['AX','AZ','AP','AS','AL','AY','LZ','LP','LS','PZ','SZ','PS','LY','PY','SY','ZY']
-
-
+    baseL = ['AX','AZ','AP','AS','AL','AY','ZL','LP','LS','ZP','ZS','PS','LY','PY','SY','ZY']
+    if alphabet_bsl==True:
+        baseL=[''.join(sorted(x)) for x in baseL]
+    #baseL = ['AX','AZ','AP','AS','AL','AY','LZ','LP','LS','PZ','SZ','PS','LY','PY','SY','ZY']
     colors=['k','mediumblue','red','darkgreen','lime','magenta','blueviolet','orange','yellow','cyan','olivedrab','salmon','saddlebrown','dodgerblue','tomato','tan']
+
+    #print(baseL0)
+
+    if red==True:
+        baseL=baseL+redundant
+        colors=colors+['darkgray']*len(redundant)
+        if onlyred==True:
+            baseL=redundant
+
     current_palette=dict(zip(baseL,colors))
     #current_palette={'AX':'k','AZ':'b'}
     #current_palette = sns.color_palette("Dark2", Nb)
@@ -652,7 +772,8 @@ def plot_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','R
     markers = markers[:Nb]
 
     #
-    g = sns.lmplot(x='baselength',y='amp',data=fooRR,hue='baseline',fit_reg=False,size = 6,aspect=2,scatter_kws={"s": 30,'alpha':0.25},markers=markers,palette=current_palette)
+    g = sns.lmplot(x='baselength',y='amp',data=fooRR,hue='baseline',fit_reg=False,size = 6,aspect=2,scatter_kws={"s": 30,'alpha':alpha},markers=markers,palette=current_palette)
+    plt.grid()
     #sns.lmplot(x='baselength',y='amp',data=fooRR,hue='baseline',fit_reg=False,size = 6,aspect=2,scatter_kws={"s": 30,'alpha':0.25},markers=markers,palette=current_palette)
     plt.axvline(0,linestyle='--',color= (0.5, 0.5, 0.5))
     plt.axhline(0,linestyle='--',color= (0.5, 0.5, 0.5))
@@ -665,11 +786,290 @@ def plot_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','R
         lh.set_alpha(1)
         lh._sizes = [50] 
     
-    plt.grid()
+    
     #plt.axis([0,9000,0,100])
-    plt.axis([0,9e9,0,8.5])
+    if y_range=='':
+        plt.axis([-1.e9,9e9,-0.02,8.5])
+    else:
+        plt.axis([-1e8,9e9]+y_range)
     plt.gcf().subplots_adjust(left=0.3,top=0.95)
     if savefig==True:
         tit = 'uvdist_amp_'+sour
+        plt.savefig(tit+'.pdf')
+    plt.grid()
+    plt.grid()
+    if loglog==True:
+        plt.grid()
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.axis([4.e8,1e10,1e-3,1e1])
+        plt.grid()
+    plt.grid()
+    plt.grid()
+    plt.show()
+
+
+
+
+baseL = ['AL','AZ','AP','AS','AX','ZL','LP','LS','ZP','ZS','PS','AY','LY','PY','SY','ZY']
+def plot_uv_ampcal_ALMA(sour = '3C279',exptL=[3597,3598,3599,3600,3601],baseL = baseL,bandL=['lo','hi'],data=[],polar='both',savefig=False,ampCut=0.,snrMax=1010.,snrMin=0):
+   
+    data2 = data[data.snr>snrCut].copy()
+    
+    data2['u'] = -data['u']
+    data2['v'] = -data['v']
+    
+    dataF = pd.concat([data,data2],ignore_index=True)
+    dataF = dataF[dataF.snr>snrCut]
+    fooRR = dataF[(dataF.source==sour)&list(map(lambda x: x in baseL,dataF.baseline))&list(map(lambda x: x in bandL,dataF.band))&list(map(lambda x: x in exptL,dataF.expt_no))&(dataF.polarization=='RR')]
+    fooLL = dataF[(dataF.source==sour)&list(map(lambda x: x in baseL,dataF.baseline))&list(map(lambda x: x in bandL,dataF.band))&list(map(lambda x: x in exptL,dataF.expt_no))&(dataF.polarization=='LL')]
+    
+    cminRR = np.min(fooRR.amp)
+    cmaxRR = np.max(fooRR.amp)
+    cminLL = np.min(fooLL.amp)
+    cmaxLL = np.max(fooLL.amp)
+    cmin_both = 0.5*(cminRR+cminLL)
+    cmax_both = 0.5*(cmaxRR+cmaxLL)
+    cmax = np.log10(snrMax)
+    if polar=='both':
+        cmin = np.maximum(np.log10(cmin_both),np.log10(snrCut))
+        if snrMin > 0 : cmin = np.log10(snrMin)
+        colors= np.maximum(cmin,np.minimum(cmax,np.log10((np.asarray(fooLL.amp)+np.asarray(fooRR.amp))/2)))
+    elif polar=='LL':
+        cmin=np.maximum(np.log10(cminLL),np.log10(snrCut))
+        if snrMin > 0 : cmin = np.log10(snrMin)
+        colors= np.maximum(cmin,np.minimum(cmax,np.log10((np.asarray(fooLL.amp)+np.asarray(fooLL.amp))/2)))
+    elif polar=='RR':
+        cmin=np.maximum(np.log10(cminRR),np.log10(snrCut))
+        if snrMin > 0 : cmin = np.log10(snrMin)
+        colors= np.maximum(cmin,np.minimum(cmax,np.log10((np.asarray(fooRR.amp)+np.asarray(fooRR.amp))/2)))
+
+
+
+    fooRRA = fooRR[fooRR.baseline.str.contains('A')]
+    fooLLA = fooLL[fooLL.baseline.str.contains('A')]
+
+    plt.figure(figsize=(10,10))
+    if polar=='RR':
+        plt.scatter(fooRR.u,fooRR.v,c=colors,cmap='jet',s=80,alpha=0.75)
+        #plt.scatter(fooRRA.u,fooRRA.v,c=colors,cmap='jet',s=160,alpha=0.75)
+    else:
+        plt.scatter(fooLLA.u,fooLLA.v,edgecolors='k', linewidths=3., facecolors='none',s=120,alpha=1.)
+    
+        plt.scatter(fooLL.u,fooLL.v,c=colors,cmap='jet',s=80,alpha=0.75)
+        #plt.scatter(fooLLA.u,fooLLA.v,c=colors,cmap='jet',s=160,alpha=0.75)
+        
+
+    #sns.lmplot(x='u',y='v',data=fooRR,hue='baseline',fit_reg=False,size = 6,aspect=1.25)
+    plt.axvline(0,linestyle='--',color= (0.25, 0.25, 0.25))
+    plt.axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
+    plt.grid()
+    plt.xlabel('u [M$\lambda$]',fontsize=16)
+    plt.ylabel('v [M$\lambda$]',fontsize=16)
+    plt.title(sour,fontsize=16)
+    plt.grid()
+    cb = plt.colorbar(fraction=0.035, pad=0.04,label='$\log_{10}$(snr)')
+    plt.axes().set_aspect('equal')
+    plt.axis([-9000,9000,-9000,9000])
+    cb.set_label(label='SNR',size=16)
+    #print(cmin)
+
+    cb.set_clim(cmin,cmax)
+    ticks_all = np.asarray([0.699,1,1.301,1.69897,2,2.301,2.69897,3,3.3005,3.69897])
+    desc_all = np.asarray([5,10,20,50,100,200,500,1000,2000,5000])
+    ticks = ticks_all[(ticks_all>cmin)&(ticks_all<cmax)]
+    desc = desc_all[(ticks_all>cmin)&(ticks_all<cmax)]
+    #print(ticks_all)
+    #print(desc_all)
+    cb.set_ticks(ticks, update_ticks=True)
+    cb.set_ticklabels(desc, update_ticks=True)
+    #cb.set_ticks([1.69897,2,2.301,2.69897,3,3.301], update_ticks=True)
+    #cb.set_ticklabels([50,100,200,500,1000,2000], update_ticks=True)
+    
+
+
+    t= np.linspace(0,2*np.pi,256)
+    uas = np.pi/180/60/60/1e6
+    w0 = 1/(50*uas)/1e6
+    w1 = 1/(25*uas)/1e6
+
+    plt.axis([-9000,9000,-9000,9000])
+    
+   
+    plt.plot(w0*np.sin(t),w0*np.cos(t),'--',color= (0.5, 0.5, 0.5))
+    plt.plot(w1*np.sin(t),w1*np.cos(t),'--',color= (0.5, 0.5, 0.5))
+    
+    r1 = 7400; a1 = np.pi*0.3
+    r2=3300; a2=np.pi*0.35
+    plt.text(r1*np.cos(a1),r1*np.sin(a1), '25 $\mu$as', fontsize=14,rotation=-42)
+    plt.text(r2*np.cos(a2),r2*np.sin(a2), '50 $\mu$as', fontsize=14,rotation=-42)
+    plt.show()
+
+
+def err_nights_time_cphase_2x2(data,sour='3C279',triangle='ALX',shift=0,errscale=1,
+savefig=False,time_type='gmst',phase_type='cphase_fix_amp',error_type='sigmaCP',snr_treshold=1,conj=False,
+ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange='',line0 = False):
+    fonts=16
+    if 'Night' not in data.columns:
+        data['Night'] =list(map(lambda x: dict_night[x],data.expt_no))
+    if time_type=='gmst':
+        util.add_gmst(data)
+    elif time_type=='fmjd':
+        data = ut.add_mjd(data)
+        data = ut.add_fmjd(data)
+
+    if line==True:   
+        markers=["bo-", "rd-","go-","md-","co-","cd-"]
+    else:
+        markers=["bo", "rd","go","md","co","cd"]
+    
+    exptL = [3597,3598,3599,3600,3601]
+    
+    if sour=='any':
+        fooG = data[(data.triangle==triangle)&(data.snr>snr_treshold)]
+    else:
+        fooG = data[(data.source==sour)&(data.triangle==triangle)&(data.snr>snr_treshold)]
+
+    fig, ax = plt.subplots(2,2,sharex=True,sharey=True,figsize=(14,10))
+    Nights = sorted(list(fooG.Night.unique()))
+    Ni = len(Nights)
+
+    bands=['lo','hi']
+    pols=['LL','RR']
+    for couB in [0,1]:
+        for couP in [0,1]:
+            if line0==True:
+                ax[couB,couP].axhline(0,color='k',linestyle='--',label='_nolegend_')
+
+            for cou in range(Ni):
+
+                LocNight = Nights[cou]
+                fooNi = fooG[(fooG.Night==LocNight)&(fooG.band==bands[couB])&(fooG.polarization==pols[couP])]
+                fmtloc = markers[cou]
+                #cphaseLoc = np.asarray(fooNi[phase_type])[:,1]
+                cphaseLoc = np.asarray(fooNi[phase_type])
+                #print([np.shape(cphaseLoc),np.shape(fooNi.gmst),np.shape(fooNi.sigmaCP)])
+                if conj==True:
+                    cphaseLoc= -cphaseLoc
+                cphaseLoc = np.mod(cphaseLoc + shift,360) - shift
+
+                gtime = np.mod(np.asarray(fooNi.gmst)+tshift,24)-tshift
+                try:
+                    ax[couB,couP].errorbar(gtime,cphaseLoc,errscale*fooNi[error_type],fmt=fmtloc,capsize=5,markersize=ms,mfc=dict_night_color[LocNight],ecolor=dict_night_color[LocNight],markeredgecolor=dict_night_color[LocNight],label=LocNight)
+
+                except IndexError: pass
+            
+            [x1,x2,y1,y2]=ax[couB,couP].axis()
+            if y_range==[]:
+                ax[couB,couP].axis([x1,x2,y1,y2])
+            else:
+                ax[couB,couP].axis([x1,x2]+y_range)
+
+                
+    ax[1,1].set_xlabel('gmst time [h]')
+    ax[1,0].set_xlabel('gmst time [h]')
+    ax[1,0].set_ylabel('closure phase [deg]')
+    ax[0,0].set_ylabel('closure phase [deg]')
+    ax[0,0].set_title(sour+', '+triangle+', band: LO, polarization: LL')
+    ax[0,1].set_title(sour+', '+triangle+', band: LO, polarization: RR')
+    ax[1,0].set_title(sour+', '+triangle+', band: HI, polarization: LL')
+    ax[1,1].set_title(sour+', '+triangle+', band: HI, polarization: RR')
+    
+    #ax[0,0].legend()
+
+    from matplotlib.patches import Patch
+    from matplotlib.lines import Line2D
+
+    legend_elements = [Line2D([0], [0], marker='o', color='b', label='04/04/17',markerfacecolor='b', markersize=8),
+    Line2D([0], [0], marker='o', color='r', label='04/05/17',markerfacecolor='r', markersize=8),
+    Line2D([0], [0], marker='o', color='g', label='04/06/17',markerfacecolor='g', markersize=8),
+    Line2D([0], [0], marker='o', color='m', label='04/09/17',markerfacecolor='m', markersize=8),
+    Line2D([0], [0], marker='o', color='k', label='04/10/17',markerfacecolor='k', markersize=8)]
+    #ax[0,1].legend()
+    #ax[1,0].legend()
+    ax[0,0].legend(handles=legend_elements,frameon=True,framealpha=0.5)
+    if savefig==True:
+        tit= sour+'_'+Z2SMT[triangle[0]]+'_'+Z2SMT[triangle[1]]+'_'+Z2SMT[triangle[2]]+'_'+band+'_'+polar[couP]+custom_title
+        plt.savefig(tit+'.pdf')
+    plt.tight_layout()
+    plt.show()
+
+
+def err_cphase_band_pol(data,expt=3601,sour='3C279',triangle='ALX',shift=0,errscale=1,
+savefig=False,time_type='gmst',phase_type='cphase_fix_amp',error_type='sigmaCP',snr_treshold=1,conj=False,
+ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange=''):
+    fonts=16
+    if 'Night' not in data.columns:
+        data['Night'] =list(map(lambda x: dict_night[x],data.expt_no))
+    if time_type=='gmst':
+        util.add_gmst(data)
+    elif time_type=='fmjd':
+        data = ut.add_mjd(data)
+        data = ut.add_fmjd(data)
+
+    if line==True:   
+        markers=["bo-", "rd-","go-","md-","co-","cd-"]
+    else:
+        markers=["bo", "rd","go","md","co","cd"]
+
+    if sour=='any':
+        fooG = data[(data.expt_no==expt)&(data.triangle==triangle)&(data.snr>snr_treshold)]
+    else:
+        fooG = data[(data.expt_no==expt)&(data.source==sour)&(data.triangle==triangle)&(data.snr>snr_treshold)]
+
+    fig, ax = plt.subplots(1,figsize=(10,6))
+    foo=fooG
+    bandL = ['lo','lo','hi','hi']
+    polL = ['LL','RR','LL','RR']
+
+    for cou in range(4):
+        band=bandL[cou]
+        pol=polL[cou]
+        fooNi = foo[(foo.band==band)&(foo.polarization==polL[cou])]
+        fmtloc = markers[cou]
+        #cphaseLoc = np.asarray(fooNi[phase_type])[:,1]
+        cphaseLoc = np.asarray(fooNi[phase_type])
+        #print([np.shape(cphaseLoc),np.shape(fooNi.gmst),np.shape(fooNi.sigmaCP)])
+        if conj==True:
+            cphaseLoc= -cphaseLoc
+        cphaseLoc = np.mod(cphaseLoc + shift,360) - shift
+
+        gtime = np.mod(np.asarray(fooNi.gmst)+tshift,24)-tshift
+        ax.errorbar(gtime,cphaseLoc,errscale*fooNi[error_type],fmt=fmtloc,capsize=5,label=band+' '+pol,markersize=ms)
+        
+        if timerange!='':
+            xtime = timerange
+        try:
+            ax.legend()
+        except IndexError:
+            pass
+    plt.grid()
+    [x1,x2,y1,y2]=ax.axis()
+    if y_range==[]:
+        ax.axis([x1,x2,y1,y2])
+    else:
+        ax.axis([x1,x2]+y_range)
+    [x1,x2,y1,y2]=ax.axis()
+    if timerange=='':
+        pass
+    else:
+        ax.axis(timerange+[y1,y2])
+    ax.axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
+    ax.set_xlabel('GMST [h]',fontsize=fonts)
+    ax.set_ylabel('closure phase [deg]',fontsize=fonts)
+    #ax.set_title(sour+', '+Z2SMT[triangle[0]]+'-'+Z2SMT[triangle[1]]+'-'+Z2SMT[triangle[2]]+', '+band+' band'+', '+polar[couP],fontsize=13)
+    ax.set_title(sour+', '+dict_night[expt]+', '+Z2SMT[triangle[0]]+'-'+Z2SMT[triangle[1]]+'-'+Z2SMT[triangle[2]],fontsize=fonts)
+    plt.tick_params(axis='both', labelsize=fonts-1)
+    plt.grid()
+    try:     
+        #ax.legend(fontsize=fonts-1,bbox_to_anchor=(1.0, 1.0))
+        ax.legend(fontsize=fonts-1)
+
+
+    except IndexError:
+        pass
+    plt.tight_layout()
+    if savefig==True:
+        tit= sour+'_'+Z2SMT[triangle[0]]+'_'+Z2SMT[triangle[1]]+'_'+Z2SMT[triangle[2]]+'_'+band+'_'+polar[couP]+custom_title
         plt.savefig(tit+'.pdf')
     plt.show()

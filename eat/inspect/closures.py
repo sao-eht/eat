@@ -37,8 +37,8 @@ def list_all_triangles(alist):
     return foo
 
 def list_all_quadrangles(alist):
-    all_baselines = set(''.join( list(set(alist.baseline))))
-    foo = list(itertools.combinations(all_baselines, 4))
+    all_stations = set(''.join( list(set(alist.baseline))))
+    foo = list(itertools.combinations(all_stations, 4))
     foo = [set(x) for x in foo if ('R' not in set(x))|('S' not in set(x))]
     foo = [''.join(sorted(x)) for x in foo] 
     return foo
@@ -138,6 +138,23 @@ def quadrangles2baselines(quad,alist):
             foo_base.append(baselinesbo)
     return foo_base
 
+def quadrangle2str(quad):
+    quad = list(quad)
+    A = quad[0][0]
+    B = quad[0][1]
+    if A in quad[2]:
+        C = quad[2].replace(A,'')
+        D = quad[3].replace(B,'')
+    elif A in quad[3]:
+        C = quad[3].replace(A,'')
+        D = quad[2].replace(B,'')
+    return quad[0]+C+D
+
+def str2quadrangle(quad_str):
+    return [quad_str[:2],quad_str[2:4], quad_str[0]+quad_str[2],quad_str[1]+quad_str[3]]
+  
+
+
 def baselines2triangles(basel):
     tri = [''.join(sorted(list(set(''.join(x))))) for x in basel]
     return tri
@@ -152,13 +169,17 @@ def all_bispectra(alist,phase_type='resid_phas'):
     else:
         print('Wrong name for the phase column!')
 
-def all_bispectra_polar(alist,polar,phase_type='resid_phas'):
+def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.):
+    if 'snr' not in alist.columns:
+        alist.loc[:,'snr'] = alist.loc[:,'amp']/alist.loc[:,'sigma']
+    alist.drop(list(alist[alist.snr<snr_cut].index.values),inplace=True)
     alist = alist[alist['polarization']==polar]
     alist = alist.loc[:,~alist.columns.duplicated()]
     if 'scan_id' not in alist.columns:
         alist.loc[:,'scan_id'] = alist.loc[:,'scan_no_tot']
     if 'band' not in alist.columns:
         alist.loc[:,'band'] = np.nan
+    
     alist['amps']=alist['amp']
     alist['snrs']=alist['snr']
     if 'fracpol' in alist.columns:
@@ -290,12 +311,117 @@ def all_quadruples_log(alist):
     quad = pd.concat([quad_LL,quad_RR],ignore_index=True)
     return quad
 
+def debias_A_sig(A,sigma):
+    '''
+    given vector of Rice-distributed amplitudes A and 
+    associated thermal errors sigma, get A0
+    '''
+    A = np.asarray(A)
+    sigma=np.asarray(sigma)
+    import scipy.optimize as so
+    rho = A/sigma
+    fun = lambda x: np.mean(np.log(rho)) - (np.log(x) - 0.5* ss.expi(-x**2/2.))
+    x1 = 0.057967 #min real snr
+    x2 = 30. #max real snr
+    #print(fun(x1),fun(x2))
+    rho0 = so.brentq(fun,x1,x2)
+    A0 = rho0*np.mean(sigma)
+    return A0
 
+#def all_quads(alist,tavg='scan',debias=True):
+
+
+def all_quadruples_new(alist,ctype='camp',debias='no'):
+    '''
+    ctype = 'camp' or 'logcamp'
+    debias = 'no'/whatever , 'amp', 'camp'
+    '''
+    alist = alist[(alist['polarization']=='LL')|(alist['polarization']=='RR')]
+    
+    if 'band' not in alist.columns:
+        alist.loc[:,'band'] = 'unknown'
+    if 'scan_id' not in alist.columns:
+        alist.loc[:,'scan_id'] = alist.loc[:,'scan_no_tot']
+    if 'sigma' not in alist.columns:
+        alist['sigma'] = alist['amp']/alist['snr']
+    quaL = list_all_quadrangles(alist)
+    quad_baseL = sorted(quadrangles2baselines(quaL,alist))
+    quad_out = pd.DataFrame({})
+    alist['amps'] = alist['amp']
+    if debias=='camp':
+        alist['snr'] = get_snr(alist['snr'])
+    alist['snrs'] = alist['snr']
+    alist['snr1'] = alist['snr']
+    alist['snr2'] = alist['snr']
+    alist['snr3'] = alist['snr']
+    alist['snr4'] = alist['snr']
+
+    if debias=='amp':
+        alist['amp'] = np.sqrt(np.maximum(0, alist['amp']**2 - alist['sigma']**2))
+
+    #select quadrangle
+    for cou in range(len(quad_baseL)):
+        Quad = quad_baseL[cou]
+        condB0 = (alist['baseline']==Quad[0])
+        condB1 = (alist['baseline']==Quad[1])
+        condB2 = (alist['baseline']==Quad[2])
+        condB3 = (alist['baseline']==Quad[3])
+        condB = condB0|condB1|condB2|condB3
+        alist_Quad = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline','polarization','amp','snr','gmst','band','amps','snrs','snr1','snr2','snr3','snr4','sigma']]
+        print(Quad, np.shape(alist_Quad)[0])
+        #throw away times without full quadrangle
+        tlist = alist_Quad.groupby(('polarization','band','datetime')).filter(lambda x: len(x) == 4)
+        tlist['snr1'] = tlist['snr1']*(tlist['baseline']==Quad[0])
+        tlist['snr2'] = tlist['snr2']*(tlist['baseline']==Quad[1])
+        tlist['snr3'] = tlist['snr3']*(tlist['baseline']==Quad[2])
+        tlist['snr4'] = tlist['snr4']*(tlist['baseline']==Quad[3])
+    
+        # prepare amplitudes (last two go into denominator)
+        tlist['camp'] = 0
+        power=[1,1,-1,-1]
+        for cou2 in range(4):
+            tlist.loc[(tlist.loc[:,'baseline']==Quad[cou2]),'camp'] = (tlist.loc[(tlist.loc[:,'baseline']==Quad[cou2]),'amp'])**power[cou2]
+
+        grouping =  ['expt_no','band','polarization','source','scan_id','datetime']
+        aggregate = {'amps': lambda x: tuple(x), 'snrs': lambda x: tuple(x), 'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
+        'snr1': np.sum, 'snr2': np.sum,'snr3': np.sum, 'snr4': np.sum}
+
+        if ctype=='camp':
+            tlist['sigmaCA'] = tlist['sigma']/tlist['amp'] # 1/snr
+            aggregate['camp'] = np.prod
+            
+        elif ctype=='logcamp':
+            tlist['sigmaCA'] = tlist['sigma']/tlist['amp'] # 1/snr
+            aggregate['camp'] = lambda x: np.sum(np.log(x))
+    
+        #actual formation of camp
+        #print(tlist.columns)
+        quadlist = tlist.groupby(grouping).agg(aggregate)
+
+        #if camp we need to multiply sigmaCA by CA
+        if ctype=='camp':
+            quadlist['sigmaCA'] = quadlist['sigmaCA']*quadlist['camp']
+
+        # debiasing in logcamp
+        if debias=='camp':
+           
+            if ctype=='camp':
+                quadlist['camp'] = quadlist['camp']*np.exp( - log_debias(quadlist['snr1']) - log_debias(quadlist['snr2']) + log_debias(quadlist['snr3']) + log_debias(quadlist['snr4']) )
+            elif ctype=='logcamp':
+                quadlist['camp'] = quadlist['camp'] - log_debias(quadlist['snr1']) - log_debias(quadlist['snr2']) + log_debias(quadlist['snr3']) + log_debias(quadlist['snr4'])
+        
+        #print(quadlist.columns)
+        quadlist = quadlist.reset_index()
+        quadlist['quadrangle'] = quadrangle2str(Quad)
+        quad_out = pd.concat([quad_out, quadlist],ignore_index=True)
+
+    quad_out = quad_out.reset_index(drop=True)
+    return quad_out
 
 def all_quadruples_polar_log(alist,polar):
     alist = alist[alist['polarization']==polar]
     if 'band' not in alist.columns:
-        alist.loc[:,'band'] = ['unknown']*np.shape(alist)[0]
+        alist.loc[:,'band'] = 'unknown'
     if 'scan_id' not in alist.columns:
         alist.loc[:,'scan_id'] = alist.loc[:,'scan_no_tot']
     quaL = list_all_quadrangles(alist)
@@ -353,7 +479,7 @@ def all_quadruples_polar_log(alist,polar):
         ##bsp.loc[:,'snr'] = 1./bsp.loc[:,'sigma']
         
         quadlist['quadrangle'] = [quad_baseL[cou]]*np.shape(quadlist)[0]
-        quadlist.loc[:,'polarization'] = [polar]*np.shape(quadlist)[0]
+        quadlist.loc[:,'polarization'] = polar
         #bsp.loc[:,'signature'] = [signat]*np.shape(bsp)[0]
         ##bsp.loc[:,'cphase'] = np.angle(bsp.loc[:,'bisp'])*180./np.pi
         #quadlist.loc[:,'logamp'] = np.log(quadlist.loc[:,'amp'])
@@ -366,18 +492,18 @@ def all_quadruples_polar_log(alist,polar):
     quad_out['quadrangle'] = list(map(tuple,quad_out.quadrangle))
     return quad_out
 
-def only_trivial_quadrangles(quad, whichB='all'):
+def only_trivial_quadrangles_str(quad, whichB='all'):
     
     if whichB =='AX':
-        condQuad= list(map(lambda x: ('AX' not in x)&('A' in ''.join(x))&('X' in ''.join(x)), quad.quadrangle))
+        condQuad= list(map(lambda x: ((x[0]=='A')&(x[3]=='X'))|((x[0]=='X')&(x[3]=='A'))|((x[1]=='A')&(x[2]=='X'))|((x[1]=='X')&(x[2]=='A')) ,quad.quadrangle))
     elif whichB =='JS':
-        condQuad= list(map(lambda x: ('JS' not in x)&('J' in ''.join(x))&('S' in ''.join(x)), quad.quadrangle))
+        condQuad=list(map(lambda x: ((x[0]=='J')&(x[3]=='S'))|((x[0]=='S')&(x[3]=='J'))|((x[1]=='J')&(x[2]=='S'))|((x[1]=='S')&(x[2]=='J')) ,quad.quadrangle))
     elif whichB =='JR':
-        condQuad= list(map(lambda x: ('JR' not in x)&('J' in ''.join(x))&('R' in ''.join(x)), quad.quadrangle))
+        condQuad= list(map(lambda x: ((x[0]=='J')&(x[3]=='R'))|((x[0]=='R')&(x[3]=='J'))|((x[1]=='J')&(x[2]=='R'))|((x[1]=='R')&(x[2]=='J')) ,quad.quadrangle))
     else:
-        condAX= list(map(lambda x: ('AX' not in x)&('A' in ''.join(x))&('X' in ''.join(x)), quad.quadrangle))
-        condJS= list(map(lambda x: ('JS' not in x)&('J' in ''.join(x))&('S' in ''.join(x)), quad.quadrangle))
-        condJR= list(map(lambda x: ('JR' not in x)&('J' in ''.join(x))&('R' in ''.join(x)), quad.quadrangle))
+        condAX= list(map(lambda x: ((x[0]=='A')&(x[3]=='X'))|((x[0]=='X')&(x[3]=='A'))|((x[1]=='A')&(x[2]=='X'))|((x[1]=='X')&(x[2]=='A')) ,quad.quadrangle))
+        condJS= list(map(lambda x: ((x[0]=='J')&(x[3]=='S'))|((x[0]=='S')&(x[3]=='J'))|((x[1]=='J')&(x[2]=='S'))|((x[1]=='S')&(x[2]=='J')) ,quad.quadrangle))
+        condJR= list(map(lambda x: ((x[0]=='J')&(x[3]=='R'))|((x[0]=='R')&(x[3]=='J'))|((x[1]=='J')&(x[2]=='R'))|((x[1]=='R')&(x[2]=='J')) ,quad.quadrangle))
         condQuad = np.asarray(condAX)+np.asarray(condJS)+np.asarray(condJR)
     quad = quad[condQuad]
     return quad
@@ -1476,8 +1602,6 @@ def DataTriangle3(alist,Tri,signat,pol):
     return bsp
 
 
-
-
 def DataQuadrangle3(alist,Quad,pol, debias=1):
 
     condP = (alist['polarization']==pol)
@@ -1648,4 +1772,151 @@ def get_closepols(data):
     
     return fooRR[['mjd','datetime','fracpol','sigma','baseline','scan_id','band','expt_no','source']].copy()
     
+
+def get_snr_help(Esnr):
+    """estimates snr given a single biased snr measurement
+    """
+    if Esnr**2 >= 1.0: 
+        #return np.sqrt(Esnr**2 - 1.0)
+        fun = lambda x: x
+        return np.sqrt(Esnr**2 - 1.0)
+
+    else:
+        return 0.0
+
+def get_snr(Esnr):
+    """"applies get_snr_help on vector
+    """
+    if type(Esnr) == float or type(Esnr)==np.float64 or type(Esnr)==int:
+        return get_snr_help(Esnr)
+    else:
+        return np.asarray(list(map(get_snr_help,Esnr)))
+
+import scipy.special as ss
     
+def log_debias(snr0):
+    if type(snr0) == float or type(snr0)==np.float64 or type(snr0)==int:
+        return -ss.expi(-snr0**2/2.)/2.
+    else:
+        snr0 = np.asarray(snr0)
+        snr0[snr0<=0]=10000
+        ld = -ss.expi(-snr0**2/2.)/2.
+        ld[ld!=ld] = 0
+        return ld
+
+
+def debias_A_in_log(A,sigma):
+    '''
+    given vector of Rice-distributed amplitudes A and 
+    associated thermal errors sigma, get A0
+    '''
+    if type(A) == float or type(A)==np.float64 or type(A)==int:
+        A= [A]
+    if type(sigma) == float or type(sigma)==np.float64 or type(sigma)==int:
+        sigma=[sigma]
+    A = np.asarray(A)
+    sigma=np.asarray(sigma)
+    import scipy.optimize as so
+    rho = A/sigma
+    fun = lambda x: np.mean(np.log(rho)) - (np.log(x) - 0.5* ss.expi(-x**2/2.))
+    x1 = 0.057967 #min real snr
+    x2 = 30. #max real snr
+    #print(fun(x1),fun(x2))
+    rho0 = so.brentq(fun,x1,x2)
+    A0 = rho0*np.mean(sigma)
+    return A0
+
+def debias_A_in_lin(A,sigma):
+    if type(A) == float or type(A)==np.float64 or type(A)==int:
+        A= [A]
+    if type(sigma) == float or type(sigma)==np.float64 or type(sigma)==int:
+        sigma=[sigma]
+    amp = np.asarray(A)
+    sigma=np.asarray(sigma)
+    A02 = np.sum(amp**2 - ( 2. -1./len(amp) )*sigma**2)/len(amp)
+    A02 = np.maximum(A02,0.)
+    amp_out = np.sqrt(A02)
+    return amp_out
+
+
+
+def all_quadruples_ultimate(alist0,tavg='scan',ctype='camp',debias=True):
+    '''
+    ctype = 'camp' or 'logcamp'
+    debias = True/False
+    '''
+
+    #0. PREPARE DATAFRAME
+    alist0 = alist0[(alist0['polarization']=='LL')|(alist0['polarization']=='RR')]
+    
+    if 'band' not in alist0.columns:
+        alist0.loc[:,'band'] = 'unknown'
+    if 'scan_id' not in alist0.columns:
+        alist0.loc[:,'scan_id'] = alist0.loc[:,'scan_no_tot']
+    if 'sigma' not in alist0.columns:
+        alist0['sigma'] = alist0['amp']/alist0['snr']
+    if 'phase' not in alist0.columns:
+        alist0['phase'] = alist0['resid_phas']
+
+    #1. AVERAGE WITH DEBIASING
+    #print(debias)
+    alist = ut.incoh_avg_vis(alist0.copy(),tavg=tavg,columns_out0=[],phase_type='phase',debias=debias, robust=False)
+
+    #2. CONSTRUCT CLOSURES
+    quaL = list_all_quadrangles(alist)
+    quad_baseL = sorted(quadrangles2baselines(quaL,alist))
+    quad_out = pd.DataFrame({})
+
+    #select quadrangle
+    for cou in range(len(quad_baseL)):
+        Quad = quad_baseL[cou]
+        condB0 = (alist['baseline']==Quad[0])
+        condB1 = (alist['baseline']==Quad[1])
+        condB2 = (alist['baseline']==Quad[2])
+        condB3 = (alist['baseline']==Quad[3])
+        condB = condB0|condB1|condB2|condB3
+        alist_Quad = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline','polarization','amp','snr','gmst','band','sigma']]
+        print(Quad, np.shape(alist_Quad)[0])
+        #throw away times without full quadrangle
+        tlist = alist_Quad.groupby(('polarization','band','datetime')).filter(lambda x: len(x) == 4)
+    
+        # prepare amplitudes (last two go into denominator)
+        tlist['camp'] = 0
+        power=[1,1,-1,-1]
+        for cou2 in range(4):
+            tlist.loc[(tlist.loc[:,'baseline']==Quad[cou2]),'camp'] = (tlist.loc[(tlist.loc[:,'baseline']==Quad[cou2]),'amp'])**power[cou2]
+
+        grouping =  ['expt_no','band','polarization','source','scan_id','datetime']
+        aggregate = {'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),'snr': np.min}
+
+        if ctype=='camp':
+            tlist['sigmaCA'] = tlist['sigma']/tlist['amp'] # 1/snr
+            aggregate['camp'] = np.prod
+            
+        elif ctype=='logcamp':
+            tlist['sigmaCA'] = tlist['sigma']/tlist['amp'] # 1/snr
+            aggregate['camp'] = lambda x: np.sum(np.log(x))
+    
+        #actual formation of camp
+        #print(tlist.columns)
+        quadlist = tlist.groupby(grouping).agg(aggregate)
+
+        #if camp we need to multiply sigmaCA by CA
+        if ctype=='camp':
+            quadlist['sigmaCA'] = quadlist['sigmaCA']*quadlist['camp']
+        '''
+        # debiasing in logcamp
+        if debias=='camp':
+           
+            if ctype=='camp':
+                quadlist['camp'] = quadlist['camp']*np.exp( - log_debias(quadlist['snr1']) - log_debias(quadlist['snr2']) + log_debias(quadlist['snr3']) + log_debias(quadlist['snr4']) )
+            elif ctype=='logcamp':
+                quadlist['camp'] = quadlist['camp'] - log_debias(quadlist['snr1']) - log_debias(quadlist['snr2']) + log_debias(quadlist['snr3']) + log_debias(quadlist['snr4'])
+        '''
+        #print(quadlist.columns)
+        quadlist = quadlist.reset_index()
+        quadlist['quadrangle'] = quadrangle2str(Quad)
+        quad_out = pd.concat([quad_out, quadlist],ignore_index=True)
+
+    quad_out = quad_out.reset_index(drop=True)
+    return quad_out

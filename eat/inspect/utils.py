@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from eat.io import hops, util
 from eat.hops import util as hu
 from eat.aips import aips2alist as a2a
-from eat.inspect import closures as cl
+#from eat.inspect import closures as cl
 import statsmodels.stats.stattools as sss
 import statsmodels.robust.scale as srs
 from sklearn.cluster import KMeans
@@ -155,14 +155,15 @@ def unbiased_amp_boot(amp):
     return a0
 
 def unbiased_std(amp):
-    amp2 = np.asarray(amp, dtype=np.float32)**2
+    amp = np.asarray(amp, dtype=np.float32)
+    amp2 = amp**2
     m = np.mean(amp2)
     s = np.std(amp2)
     delta = m**2 - s**2
     if delta >= 0:
         s0 = np.sqrt((m -np.sqrt(delta))/2.)
     else:
-        s0 = 0.*np.sqrt(m/2.)
+        s0 = np.std(amp)/np.sqrt(2-np.pi/2)
     return s0
 
 def unbiased_snr(amp):
@@ -324,7 +325,12 @@ def bootstrap(data, num_samples, statistic, alpha=0.05):
 
 def bootstrap2(data, num_samples, statistic, alpha=0.05):
     """Returns bootstrap estimate of 100.0*(1-alpha) CI for statistic."""
-
+    if alpha=='1s':
+        alpha=0.3173
+    elif alpha=='2s':
+        alpha=0.0455
+    elif alpha=='3s':
+        alpha=0.0027
     stat = np.zeros(num_samples)
     data = np.asarray(data)
     n = len(data)
@@ -524,14 +530,14 @@ def coh_avg_vis_thermal(alist, tcoh='scan'):
     
     if tcoh=='scan':
         alist_loc = alist_loc.groupby(('expt_no','source','band','scan_id','polarization','baseline')).agg({'datetime': 'min','u': 'mean', 'v': 'mean', 'vis': np.mean, 
-            'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x), 'snr': lambda x : np.sqrt(np.sum(x**2)) })
+            'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x) })
     else:
         alist_loc['round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/tcoh),alist_loc['datetime']))
         alist_loc = alist_loc.groupby(('expt_no','source','band','scan_id','polarization','baseline','round_time')).agg({'datetime': 'min','u': 'mean', 'v': 'mean', 'vis': np.mean,
-            'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x), 'snr': lambda x : np.sqrt(np.sum(x**2))  })
+            'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x) })
         #alist_loc = alist_loc.groupby(('expt_no','source','band','scan_id','polarization','baseline','round_time')).agg({ 'vis': np.mean })
 
-
+    #alist_loc['snr'] = alist
     alist_loc['phase'] = np.angle(np.asarray(alist_loc['vis']))*180/np.pi
     alist_loc['amp'] = np.abs(np.asarray(alist_loc['vis']))
     
@@ -728,9 +734,40 @@ def match_frames(frame1, frame2, what_is_same, dt = 0):
     
     return frame1, frame2
 
-def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
+
+def match_multiple_frames(frames, what_is_same, dt = 0):
+
+    if dt > 0:
+        for frame in frames:
+            frame['round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/dt),frame['datetime']))
+        what_is_same += ['round_time']
+    
+    frames_common = {}
+    for frame in frames:
+        frame['all_ind'] = list(zip(*[frame[x] for x in what_is_same]))   
+        if frames_common != {}:
+            frames_common = frames_common&set(frame['all_ind'])
+        else:
+            frames_common = set(frame['all_ind'])
+
+    frames_out = []
+    for frame in frames:
+        frame = frame[list(map(lambda x: x in frames_common, frame.all_ind))]
+        frame = frame.sort_values('all_ind').reset_index(drop=True)
+        frame.drop('all_ind', axis=1,inplace=True)
+        frames_out.append(frame.copy())
+    return frames_out
+
+def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas',debias=True, robust=False):
+    frame = frame.loc[:,~frame.columns.duplicated()]
     if 'band' not in frame.columns:
         frame['band'] = np.nan
+    #print('incoh_avg anana',frame.columns)
+    if 'sigma' not in frame.columns:
+        frame['sigma'] = np.asarray(frame['amp'])/np.asarray(frame['snr'])
+
+    if 'scan_id' not in frame.columns:
+        frame['scan_id'] = frame['scan_no_tot']
      
     #minimum set of columns that identifies a scan
     grouping0 = ('scan_id','expt_no','band','polarization','baseline')
@@ -744,16 +781,19 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     if 'phase' not in frame.columns:
         frame['phase'] = frame[phase_type]
 
-    columns_out0 += ['amp_db']
-    frame['amp_db']= list( (np.asarray(frame['amp'])**2)*(1.-2./np.asarray(frame['snr'])**2) )
+    #columns_out0 += ['amp_db']
+    #frame['amp_db']= list( (np.asarray(frame['amp'])**2)*(1.-2./np.asarray(frame['snr'])**2) )
 
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
     'datetime':min,
-    'amp_db': lambda x: np.sqrt(np.mean(x)),
-    'amp': np.mean,
+    #'amp_db': lambda x: np.sqrt(np.mean(x)),
+    'amp': lambda vec: incoh_avg_amp_vector(vec,debias=debias,robust=robust),
+    'amp_ndb': lambda vec: incoh_avg_amp_vector(vec,debias=False,robust=robust),
     'phase': lambda x: circular_mean(x*np.pi/180),
     'number': len,
-    'snr': lambda x: np.sqrt(np.sum(x**2))}
+    #'snr': lambda x: np.sqrt(np.sum(x**2))
+    'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x)
+    }
 
     if 'u' in frame.columns:
         aggregating['u'] = np.mean
@@ -761,30 +801,69 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     if 'v' in frame.columns:
         aggregating['v'] = np.mean
         columns_out0 += ['v']
-        
+
+    #ACTUAL AVERAGING
+    frame['amp_ndb'] = list(zip(frame['amp'],frame['sigma'])) 
+    frame['amp'] = list(zip(frame['amp'],frame['sigma']))   
     if tavg=='scan': #average for entire scan
         frame_avg = frame.groupby(groupingSc).agg(aggregating)
         
     else: # average for 
-        frame['round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/float(tavg)),frame.datetime))
+        date0 = datetime.datetime(2017,4,4)
+        frame['round_time'] = list(map(lambda x: np.round((x- date0).total_seconds()/float(tavg)),frame.datetime))
         grouping = groupingSc+['round_time']
         frame_avg = frame.groupby(grouping).agg(aggregating)
+        frame_avg = frame_avg.reset_index()
+        frame_avg['datetime'] =  list(map(lambda x: date0 + datetime.timedelta(seconds= int(dt*x)), frame_avg['round_time']))
+    
+    frame_avg['snr'] = frame_avg['amp']/frame_avg['sigma']
 
     #frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
     #frame_avg['phase']=frame_avg['vis'].apply(lambda x: np.angle(x)*180./np.pi)
-    if 'snr' in frame_avg.columns:
-        #print(list(frame_avg['snr']))
-        #print(frame_avg['snr'])
-        frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
+    #if 'snr' in frame_avg.columns:
+    #print(list(frame_avg['snr']))
+    #print(frame_avg['snr'])
+    #frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
 
     frame_avg = frame_avg.reset_index()
-    columns_out = columns_out0+list(grouping0)+list(set(['source','datetime','amp','phase','snr','sigma','number'])&set(frame_avg.columns))
+    columns_out = columns_out0+list(grouping0)+list(set(['source','datetime','amp','amp_ndb','phase','snr','sigma','number'])&set(frame_avg.columns))
     frame_avg_out = frame_avg[columns_out].copy()
     
-    util.add_gmst(frame_avg_out)
-    frame_avg_out = add_mjd(frame_avg_out)
-    frame_avg_out = add_fmjd(frame_avg_out)
+    #util.add_gmst(frame_avg_out)
+    #frame_avg_out = add_mjd(frame_avg_out)
+    #frame_avg_out = add_fmjd(frame_avg_out)
+    frame_avg_out = frame_avg_out.loc[:,~frame_avg_out.columns.duplicated()]
     return frame_avg_out
+
+
+def incoh_avg_amp_vector(vec,debias=True,robust=False):
+    #print(debias)
+    #print(len(vec))
+    #print('printing amp',vec)
+    amp = np.asarray([x[0] for x in vec])
+    sig = np.asarray([x[1] for x in vec])
+    #print(len(amp),len(sig))
+    amp0=amp; sig0=sig
+    amp=amp0[(amp0==amp0)&(sig0==sig0)]
+    sig=sig0[(amp0==amp0)&(sig0==sig0)]
+
+    if debias==True:
+        if robust==False:
+            A02 = np.sum(amp**2 - ( 2. -1./len(amp) )*sig**2)/len(amp)
+            A02 = np.maximum(A02,0.)
+            amp_out = np.sqrt(A02)
+            #eq 9.86 Thompson 
+        else:
+            A02 = np.median(amp**2) - ( 2. -1./len(amp) )*np.median(sig**2) 
+            A02 = np.maximum(A02,0.)
+            amp_out = np.sqrt(A02)
+    else:
+        if robust==False:
+            amp_out = np.sqrt(np.sum(amp**2/len(amp)))
+        else:
+            amp_out  = np.median(amp)
+
+    return amp_out
 
 
 def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
@@ -793,9 +872,12 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
      
     if 'scan_id' not in frame.columns:
         frame['scan_id'] = frame['scan_no_tot']
+    
+    if 'sigma' not in frame.columns:
+        frame['sigma'] = frame['amp']/frame['snr']
 
-    if 'snr' not in frame.columns:
-        frame['snr'] = frame['amp']/frame['sigma']
+    #if 'snr' not in frame.columns:
+    #    frame['snr'] = frame['amp']/frame['sigma']
 
     #minimum set of columns that identifies a scan
     grouping0 = ('scan_id','expt_no','band','polarization','baseline')
@@ -809,7 +891,8 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
     'datetime': min,
     'vis': np.mean,
-    'snr': lambda x: np.sqrt(np.sum(x**2)),
+    #'snr': lambda x: np.sqrt(np.sum(x**2)),
+    'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
     'number': len}
 
     if 'u' in frame.columns:
@@ -834,10 +917,17 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
         frame['round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/float(tavg)),frame.datetime))
         grouping = groupingSc+['round_time']
         frame_avg = frame.groupby(grouping).agg(aggregating)
-
+        #frame.drop('datetime',axis=1,inplace=True)
+        frame_avg = frame_avg.reset_index()
+        #print(frame_avg.columns)
+        frame_avg['datetime'] =  list(map(lambda x: datetime.datetime(2017,4,4) + datetime.timedelta(seconds= int(tavg*x)), frame_avg['round_time']))
+        
+        #frame['datetime']= 0
     frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
     frame_avg['phase']=frame_avg['vis'].apply(lambda x: np.angle(x)*180./np.pi)
-    frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
+    frame['snr'] = frame['amp']/frame['sigma']
+
+    #frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
 
     frame_avg = frame_avg.reset_index()
     columns_out = columns_out0+list(grouping0)+list(set(['source','datetime','amp','phase','snr','sigma','number'])&set(frame_avg.columns))
@@ -859,6 +949,10 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
 def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
     if 'band' not in frame.columns:
         frame['band'] = np.nan
+    if 'sigma' not in frame.columns:
+        frame['sigma'] = frame['amp']/frame['snr']
+    if 'snr' not in frame.columns:
+        frame['snr'] = frame['amp']/frame['sigma']
      
     #minimum set of columns that identifies a scan
     grouping0 = ('scan_id','expt_no','band','polarization','triangle')
@@ -874,7 +968,8 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
     'datetime': min,
     'bsp': np.mean,
-    'snr': lambda x: np.sqrt(np.sum(x**2)),
+    #'snr': lambda x: np.sqrt(np.sum(x**2)),
+    'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
     'number': len,
     'cphase_fix_amp': circular_mean}
     
@@ -885,10 +980,20 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
         x2 = np.asarray([float(y[2]) for y in x if y[2]==y[2] ])
         return(np.mean(x0[x0==x0]),np.mean(x1[x1==x1]),np.mean(x2[x2==x2]))
 
+    def agg_snr_3tup(x):  
+        x0 = np.asarray([float(y[0]) for y in x if y[0]==y[0] ])
+        x1 = np.asarray([float(y[1]) for y in x if y[1]==y[1] ])
+        x2 = np.asarray([float(y[2]) for y in x if y[2]==y[2] ])
+        return(np.sqrt(np.sum(x0[x0==x0]**2)),np.sqrt(np.sum(x1[x1==x1]**2)),np.sqrt(np.sum(x2[x2==x2]**2)))
+
+
     if 'EB_sigma' in columns_out0:
-        aggregating['EB_sigma'] = lambda x: bootstrap2(x,int(1e2),lambda y: wrapped_std(y))[0]
+        #aggregating['EB_sigma'] = lambda x: bootstrap2(x,int(1e3),lambda y: wrapped_std(y))[0]
+        aggregating['EB_sigma'] = lambda x: bootstrap_circ_mean(x,int(1e3))[1]
+        aggregating['EB_cphase'] = lambda x: bootstrap_circ_mean(x,int(1e3))[0]
         frame['EB_sigma'] =  frame['cphase']
-        columns_out0 += ['EB_sigma']
+        frame['EB_cphase'] =  frame['cphase']
+        columns_out0 += ['EB_cphase','EB_sigma']
 
     if 'median_cp' not in frame.columns:
         frame['median_cp']=frame['cphase']
@@ -908,6 +1013,10 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
         aggregating['amps'] = agg_mean_3tup
         columns_out0 += ['amps']
 
+    if 'snrs' in frame.columns:
+        aggregating['snrs'] = agg_snr_3tup
+        columns_out0 += ['snrs']
+
     #AVERAGING-------------------------------    
     if tavg=='scan': #average for entire scan
         frame_avg = frame.groupby(groupingSc).agg(aggregating)
@@ -919,7 +1028,8 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
 
     frame_avg['amp'] = frame_avg['bsp'].apply(np.abs)
     frame_avg['cphase']=frame_avg['bsp'].apply(lambda x: np.angle(x)*180./np.pi) #deg
-    frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
+    #frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
+    frame_avg['snr']=frame_avg['amp']/frame_avg['sigma']
     frame_avg['sigmaCP'] = 1./frame_avg['snr']*180./np.pi #deg
     columns_out0 += ['cphase_fix_amp']
     frame_avg = frame_avg.reset_index()
@@ -930,7 +1040,6 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
     frame_avg_out = add_mjd(frame_avg_out)
     frame_avg_out = add_fmjd(frame_avg_out)
     frame_avg_out['rel_err'] = np.asarray(frame_avg_out['cphase'])/np.asarray(frame_avg_out['sigmaCP'])
-
     return frame_avg_out
 
 
@@ -994,7 +1103,7 @@ def prepare_hops_raw(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Da
         print('loading lo band data...')
         lo_path = path+'lo/'+filen
         hops_lo = hops.read_alist(lo_path)
-        util.fix(hops_lo)
+        #util.fix(hops_lo)
         hops_lo = cl.add_band(hops_lo,'lo')
         bandL+=[hops_lo]
 
@@ -1002,7 +1111,7 @@ def prepare_hops_raw(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Da
         print('loading hi band data...')
         hi_path = path+'hi/'+filen
         hops_hi = hops.read_alist(hi_path)
-        util.fix(hops_hi)
+        #util.fix(hops_hi)
         hops_hi = cl.add_band(hops_hi,'hi')
         bandL+=[hops_hi]
 
@@ -1107,8 +1216,11 @@ def add_EB_scan_variability(df):
     df.drop('unique_sc',axis=1,inplace=True)
     return df
 
-def add_fracpol(df):
-    grouping = ['expt_no','scan_id','band','baseline','datetime']
+def add_fracpol(df,scan_avg=False):
+    if scan_avg==False:
+        grouping = ['expt_no','scan_id','band','baseline','datetime']
+    else:
+        grouping = ['expt_no','scan_id','band','baseline']
     
     pivpol = pd.pivot_table(df,values='amp',index=grouping,columns='polarization').reset_index()
     pivpol['polars'] = list(zip(pivpol.LL,pivpol.RR,pivpol.LR,pivpol.RL))
@@ -1128,14 +1240,209 @@ def add_fracpol(df):
             fracpol=np.nan
         return fracpol
     pivpol['fracpol'] = list(map(calc_fracpol,pivpol['polars']))
-    pivpol['uni_fracpol'] = list(zip(pivpol.expt_no,pivpol.scan_id,pivpol.band,pivpol.baseline,pivpol.datetime))
-    df['uni_fracpol'] = list(zip(df.expt_no,df.scan_id,df.band,df.baseline,df.datetime))
+    if scan_avg==False:
+        pivpol['uni_fracpol'] = list(zip(pivpol.expt_no,pivpol.scan_id,pivpol.band,pivpol.baseline,pivpol.datetime))
+        df['uni_fracpol'] = list(zip(df.expt_no,df.scan_id,df.band,df.baseline,df.datetime))
+    else:
+        pivpol['uni_fracpol'] = list(zip(pivpol.expt_no,pivpol.scan_id,pivpol.band,pivpol.baseline))
+        df['uni_fracpol'] = list(zip(df.expt_no,df.scan_id,df.band,df.baseline))
 
     dict_fracpol=dict(zip(pivpol.uni_fracpol,pivpol.fracpol))
     df['fracpol'] = list(map(lambda x: dict_fracpol[x], df.uni_fracpol))
     df.drop('uni_fracpol',axis=1,inplace=True)
    
     return df
+
+def add_fracpol_to_scan_cphase(bsp,vis):
+    '''
+    take scan averaged cphases and add fracpol from scan averaged vis
+    '''
+    if 'fracpol' not in vis.columns:
+        vis = add_fracpol(vis,scan_avg=True)
+    
+    frac_b = []
+   
+    for index, row in bsp.iterrows():
+        tr = row['triangle']
+        sc = row['scan_id']
+        ex = row['expt_no']
+        ba = row['band']
+        base1 = [tr[0],tr[1]]
+        base2 = [tr[1],tr[2]]
+        base3 = [tr[2],tr[0]]
+
+        foo_b1 = vis[(vis.scan_id==sc)&(vis.expt_no==ex)&(vis.band==ba)&vis.baseline.str.contains(base1[0])&vis.baseline.str.contains(base1[1])].fracpol
+        foo_b2 = vis[(vis.scan_id==sc)&(vis.expt_no==ex)&(vis.band==ba)&vis.baseline.str.contains(base2[0])&vis.baseline.str.contains(base2[1])].fracpol
+        foo_b3 = vis[(vis.scan_id==sc)&(vis.expt_no==ex)&(vis.band==ba)&vis.baseline.str.contains(base3[0])&vis.baseline.str.contains(base3[1])].fracpol
+    
+        foo=()
+        if len(foo_b1)>0:
+            foo += (np.asarray(foo_b1)[0] ,)
+        else: foo+= (np.nan,)
+        if len(foo_b2)>0:
+            foo += (np.asarray(foo_b2)[0] ,)
+        else: foo+= (np.nan,)
+        if len(foo_b3)>0:
+            foo += (np.asarray(foo_b3)[0] ,)
+        else: foo+= (np.nan,)
+        
+        #print(frac_b)
+        #print(row.triangle,foo)
+        frac_b += [foo]
+        #print(frac_b)
+
+    bsp['fracpol_sc'] = frac_b
+
+    return bsp
+
+
+
+def add_snrs_to_scan_cphase(bsp,vis):
+    '''
+    take scan averaged cphases and add fracpol from scan averaged vis
+    '''
+    if 'fracpol' not in vis.columns:
+        vis = add_fracpol(vis,scan_avg=True)
+    
+    frac_b = []
+   
+    for index, row in bsp.iterrows():
+        tr = row['triangle']
+        sc = row['scan_id']
+        ex = row['expt_no']
+        ba = row['band']
+        po = row['polarization']
+        base1 = [tr[0],tr[1]]
+        base2 = [tr[1],tr[2]]
+        base3 = [tr[2],tr[0]]
+
+        foo_b1 = vis[(vis.scan_id==sc)&(vis.expt_no==ex)&(vis.band==ba)&(vis.polarization==po)&vis.baseline.str.contains(base1[0])&vis.baseline.str.contains(base1[1])].snr
+        foo_b2 = vis[(vis.scan_id==sc)&(vis.expt_no==ex)&(vis.band==ba)&(vis.polarization==po)&vis.baseline.str.contains(base2[0])&vis.baseline.str.contains(base2[1])].snr
+        foo_b3 = vis[(vis.scan_id==sc)&(vis.expt_no==ex)&(vis.band==ba)&(vis.polarization==po)&vis.baseline.str.contains(base3[0])&vis.baseline.str.contains(base3[1])].snr
+    
+        foo=()
+        if len(foo_b1)>0:
+            foo += (np.asarray(foo_b1)[0] ,)
+        else: foo+= (np.nan,)
+        if len(foo_b2)>0:
+            foo += (np.asarray(foo_b2)[0] ,)
+        else: foo+= (np.nan,)
+        if len(foo_b3)>0:
+            foo += (np.asarray(foo_b3)[0] ,)
+        else: foo+= (np.nan,)
+        
+        #print(frac_b)
+        #print(row.triangle,foo)
+        frac_b += [foo]
+        #print(frac_b)
+
+    bsp['snr_st1'] = [x[0] for x in frac_b]
+    bsp['snr_st2'] = [x[1] for x in frac_b]
+    bsp['snr_st3'] = [x[2] for x in frac_b]
+
+    return bsp
+
+
+def snr_threshold_scan_vis(data,vis,snr_cut=5.):
+    '''
+    removes data that doesn't correspond to detection in scan-averaged visibilities (vis)
+    '''
+    #only leave low snr parallel hands
+    vis.drop(list(vis[vis.snr>snr_cut].index.values),inplace=True)
+    vis.drop(list(vis[vis.polarization.str[0]!=vis.polarization.str[1]].index.values),inplace=True)
+    #print('vis ',np.shape(vis))
+    #print('data ',np.shape(data))
+    scans_to_remove = list(zip(vis.scan_id,vis.band,vis.baseline))
+    scans_to_remove0 = list(zip(vis.scan_id,vis.band))
+    scans_to_removeB = list(vis.baseline)
+    scans_to_removeC = list(zip(scans_to_remove0,scans_to_removeB))
+    
+    if 'baseline' in data.columns:
+        tester = list(zip(data.scan_id,data.band,data.baseline))
+        data['tester'] = list(map(lambda x: x in scans_to_remove, tester ))
+    elif 'triangle' in data.columns:
+        tester = list(zip(zip(data.scan_id,data.band),data.triangle))
+        data['tester'] = list(map(lambda x: (x[0] in scans_to_remove0)&(int(x[1][0] in scans_to_removeB)+int(x[1][1] in scans_to_removeB)+int(x[1][2] in scans_to_removeB)==2), tester ))
+    #print(scans_to_remove)
+    data['tester'] = list(map(lambda x: x in scans_to_remove, tester ))
+    data.drop(list(data[data.tester==True].index.values),inplace=True)
+    data.drop('tester', axis=1,inplace=True)
+
+    return data
+
+
+def avg_camp(frame,tavg='scan',debias='no'):
+
+    if 'band' not in frame.columns:
+        frame['band'] = np.nan
+
+    if 'scan_id' not in frame.columns:
+        frame['scan_id'] = frame['scan_no_tot']
+     
+
+    #print(frame.columns)
+    #minimum set of columns that identifies a scan
+    grouping0 = ('scan_id','expt_no','band','polarization','quadrangle')
+    groupingSc = list(set(['scan_id','expt_no','band','polarization','quadrangle','source'])&set(frame.columns))
+    
+    frame.drop_duplicates(subset=list(grouping0)+['datetime'], keep='first', inplace=True)
+    frame['number']=0.
+
+    #columns_out0 += ['amp_db']
+    #frame['amp_db']= list( (np.asarray(frame['amp'])**2)*(1.-2./np.asarray(frame['snr'])**2) )
+
+    aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
+    'datetime':min,
+    #'amp_db': lambda x: np.sqrt(np.mean(x)),
+    'camp': np.mean,
+    'number': len,
+    #'snr': lambda x: np.sqrt(np.sum(x**2))
+    'sigmaCA': lambda x: np.sqrt(np.sum(x**2))/len(x)
+    }
+    #if debias==True:
+
+
+    if 'u' in frame.columns:
+        aggregating['u'] = np.mean
+        columns_out0 += ['u']
+    if 'v' in frame.columns:
+        aggregating['v'] = np.mean
+        columns_out0 += ['v']
+
+    #ACTUAL AVERAGING
+  
+    if tavg=='scan': #average for entire scan
+        frame_avg = frame.groupby(groupingSc).agg(aggregating)
+        
+    else: # average for 
+        date0 = datetime.datetime(2017,4,4)
+        frame['round_time'] = list(map(lambda x: np.round((x- date0).total_seconds()/float(tavg)),frame.datetime))
+        grouping = groupingSc+['round_time']
+        frame_avg = frame.groupby(grouping).agg(aggregating)
+        frame_avg = frame_avg.reset_index()
+        frame_avg['datetime'] =  list(map(lambda x: date0 + datetime.timedelta(seconds= int(dt*x)), frame_avg['round_time']))
+    
+    frame_avg['snr'] = frame_avg['camp']/frame_avg['sigmaCA']
+
+    frame_avg = frame_avg.reset_index()
+
+    #frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
+    #frame_avg['phase']=frame_avg['vis'].apply(lambda x: np.angle(x)*180./np.pi)
+    #if 'snr' in frame_avg.columns:
+    #print(list(frame_avg['snr']))
+    #print(frame_avg['snr'])
+    #frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
+
+    #print(frame_avg.columns)
+    columns_out = list(grouping0)+list(set(['source','datetime','camp','phase','snr','sigmaCA','number'])&set(frame_avg.columns))
+    frame_avg_out = frame_avg[columns_out].copy()
+    
+    util.add_gmst(frame_avg_out)
+    frame_avg_out = add_mjd(frame_avg_out)
+    frame_avg_out = add_fmjd(frame_avg_out)
+    return frame_avg_out
+
+
 
 def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polarL=['RR','LL'],exptL='def',out_path='def',min_elem=200):
     import os
@@ -1226,3 +1533,30 @@ def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polar
                         
 
 
+
+
+def bootstrap_circ_mean(data, num_samples=int(1e4), alpha='1s'):
+    """Returns bootstrap estimate of 100.0*(1-alpha) CI for statistic."""
+    statistic = circular_mean
+    if alpha=='1s':
+        alpha=0.3173
+    elif alpha=='2s':
+        alpha=0.0455
+    elif alpha=='3s':
+        alpha=0.0027
+    stat = np.zeros(num_samples)
+    data = np.asarray(data)
+    n = len(data)
+    idx = npr.randint(0, n, (num_samples, n))
+    samples = data[idx]
+    for cou in range(num_samples):
+        stat[cou] = statistic(samples[cou,:])
+    
+    stat = np.asarray(stat)
+    m_stat = circular_mean(stat) #deg
+
+    stat = np.exp(1j*(np.pi/180.)*np.asarray(stat))*np.exp(-1j*(np.pi/180.)*m_stat)
+    ang = sorted(np.angle(stat)*180./np.pi)
+    boot_mean = np.median(ang) + m_stat
+    boot_sig = 0.5*(ang[int((1-alpha/2.0)*num_samples)] - ang[int((alpha/2.0)*num_samples)])
+    return boot_mean, boot_sig
