@@ -98,8 +98,8 @@ def make_scan_list_EHT2017(fpath):
         foo['expt'] = [int(track2expt[track_loc])]*foo.shape[0]
         foo['antenas'] = antenas
         foo['duration'] = duration
-        scans = pd.concat([scans,foo], ignore_index=True)
-    scans = scans.reindex_axis(['mjd_floor','expt','track','scan_no','source','time_min','time_max','duration','antenas'],axis=1)
+        scans = pd.concat([scans,foo], ignore_index=True,sort=True)
+    scans = scans.reindex(['mjd_floor','expt','track','scan_no','source','time_min','time_max','duration','antenas'],axis=1)
     scans = scans.sort_values('time_max')
     scans = scans.reset_index(drop=True)
     scans['scan_no_tot'] = scans.index
@@ -155,7 +155,10 @@ def obsdata_2_df(obs):
     df['fmjd'] = df['time']/24.
     df['mjd'] = obs.mjd + df['fmjd']
     telescopes = list(zip(df['t1'],df['t2']))
-    telescopes = [(x[0].decode('unicode_escape'),x[1].decode('unicode_escape') ) for x in telescopes]
+    try:
+        telescopes = [(x[0].decode('unicode_escape'),x[1].decode('unicode_escape') ) for x in telescopes]
+    except AttributeError:
+        telescopes = [(x[0],x[1] ) for x in telescopes]
     df['baseline'] = [x[0]+'-'+x[1] for x in telescopes]
     df['jd'] = Time(df['mjd'], format='mjd').jd
     df['source'] = sour
@@ -172,7 +175,7 @@ def add_vis_df(self,polarization='unknown',band='unknown',round_s=1.):
     self.vis_df = df
 
     
-def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='',band='unknown',round_s=0.1):
+def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='',band='unknown',round_s=0.1,only_parallel=False):
     """generate DataFrame from uvfits file
     Args:
         pathf: path to uvfits file to import
@@ -196,17 +199,21 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol=''
     if force_singlepol=='':
         obsRR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='R')
         obsLL = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='L')
-        obsRL = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='RL')
-        obsLR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='LR')
         dfRR = obsdata_2_df(obsRR)
         dfLL = obsdata_2_df(obsLL)
-        dfRL = obsdata_2_df(obsRL)
-        dfLR = obsdata_2_df(obsLR)
         dfRR['polarization'] = 'RR'
         dfLL['polarization'] = 'LL'
-        dfRL['polarization'] = 'RL'
-        dfLR['polarization'] = 'LR'
-        df = pd.concat([dfRR,dfLL,dfLR,dfRL],ignore_index=True)
+        df = pd.concat([dfRR,dfLL],ignore_index=True)
+
+        if only_parallel==False:
+            obsRL = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='RL')
+            obsLR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='LR')
+            dfRL = obsdata_2_df(obsRL)
+            dfLR = obsdata_2_df(obsLR)
+            dfRL['polarization'] = 'RL'
+            dfLR['polarization'] = 'LR'
+            df = pd.concat([df,dfLR,dfRL],ignore_index=True)
+
         df['band'] = band   
     else: 
         obs = eh.io.load.load_obs_uvfits(pathf,  force_singlepol=force_singlepol)
@@ -221,7 +228,11 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol=''
     df['datetime'] = Time(df['mjd'], format='mjd').datetime
     df['datetime'] =list(map(lambda x: round_time(x,round_s=round_s),df['datetime']))
     df['expt_no'] = list(map(jd_2_expt,df['jd']))
-    df['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0].decode('unicode_escape')]+stations_2lett_1lett[x[1].decode('unicode_escape')],zip(df['t1'],df['t2'])))
+    try:
+        df['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0].decode('unicode_escape')]+stations_2lett_1lett[x[1].decode('unicode_escape')],zip(df['t1'],df['t2'])))
+    except AttributeError:
+        df['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0]]+stations_2lett_1lett[x[1]],zip(df['t1'],df['t2'])))
+
     is_alphabetic = list(map(lambda x: float(x== ''.join(sorted([x[0],x[1]]))),df['baseline']))
     df['baseline'] = list(map(lambda x: ''.join(sorted([x[0],x[1]])),df['baseline']))
     df['amp'] = list(map(np.abs,df['vis']))
