@@ -220,6 +220,19 @@ def circular_median(theta):
         mt = np.arctan2(S,C)*180./np.pi
         return mt
 
+
+def circular_weighted_median(theta,weights=[]):
+    import weightedstats as ws
+    theta = np.asarray(theta, dtype=np.float32)*np.pi/180.
+    theta = theta[theta==theta]
+    if len(theta)==0:
+        return None
+    else:
+        C = ws.weighted_median(np.cos(theta),weights)
+        S = ws.weighted_median(np.sin(theta),weights)
+        mt = np.arctan2(S,C)*180./np.pi
+        return mt
+
 def do_quart(theta):
     theta = np.asarray(theta, dtype=np.float32)
     q1 = np.percentile(theta,25)
@@ -909,6 +922,11 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     if 'fracpol' in frame.columns:
         aggregating['fracpol'] = lambda x: np.mean(x)
         columns_out0 += ['fracpol']
+
+    if 'std_by_mean' in frame.columns:
+        #if it is there, we assume that it's filled with amplitudes
+        aggregating['std_by_mean'] = lambda x: np.std(x)/np.mean(x)
+        columns_out0 += ['std_by_mean']
         
     if tavg=='scan': #average for entire scan
         frame_avg = frame.groupby(groupingSc).agg(aggregating)
@@ -944,6 +962,7 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     if 'snr' not in frame_avg_out:
         frame_avg_out['snr'] = frame_avg_out['amp']/frame_avg_out['sigma']
 
+    frame_avg_out = frame_avg_out.loc[:,~frame_avg_out.columns.duplicated()]
     return frame_avg_out
 
 def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
@@ -1263,6 +1282,7 @@ def add_fracpol_to_scan_cphase(bsp,vis):
     frac_b = []
    
     for index, row in bsp.iterrows():
+        #print(row['scan_id'])
         tr = row['triangle']
         sc = row['scan_id']
         ex = row['expt_no']
@@ -1285,6 +1305,8 @@ def add_fracpol_to_scan_cphase(bsp,vis):
         if len(foo_b3)>0:
             foo += (np.asarray(foo_b3)[0] ,)
         else: foo+= (np.nan,)
+        
+        #print(tr+', '+sc+', '+str(ex)+', '+ba+': '+str(foo))
         
         #print(frac_b)
         #print(row.triangle,foo)
@@ -1560,3 +1582,11 @@ def bootstrap_circ_mean(data, num_samples=int(1e4), alpha='1s'):
     boot_mean = np.median(ang) + m_stat
     boot_sig = 0.5*(ang[int((1-alpha/2.0)*num_samples)] - ang[int((alpha/2.0)*num_samples)])
     return boot_mean, boot_sig
+
+
+
+def filter_nondetections(vis_short,vis_scan):
+    '''
+    Filter out the visibilities corresponding to non-detections based on
+    data in scan-avg
+    '''
