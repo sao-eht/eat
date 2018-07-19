@@ -949,6 +949,8 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
 
     frame_avg = frame_avg.reset_index()
     columns_out = columns_out0+list(grouping0)+list(set(['source','datetime','amp','phase','snr','sigma','number'])&set(frame_avg.columns))
+    print('columns_out0:', columns_out0)
+    print('grouping0:', list(grouping0))
     frame_avg_out = frame_avg[columns_out].copy()
     #'''
     try:
