@@ -40,6 +40,7 @@ import re
 import os
 
 # convenient reduces columns to print
+showcol = "timetag scan_id source baseline polarization amp resid_phas snr mbdelay delay_rate".split()
 showcol_v5 = "datetime timetag scan_id source baseline band polarization amp snr phase_deg delay_rate".split()
 # parity columns which should be flipped if baseline is flipped
 flipcol_v5 = "phase_deg sbdelay mbdelay delay_rate u v ecphase delay_rate total_phas total_rate total_mbdelay total_sbresid".split()
@@ -587,9 +588,10 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # do_adhoc: adhoc phase correct before time-average
 # cf: take precorrections from control file
 # channels: (A, B) to only show channels[A:B]
+# ret: if True, return spectrum no plot
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
              timeseries=False, centerphase=False, snrweight=True, kind=120, pol=None, grid=True,
-             do_adhoc=True, cf=None, channels=(None,None)):
+             do_adhoc=True, cf=None, channels=(None,None), ret=False):
     if type(bs) is str:
         bs = getfringefile(bs, filelist=True, pol=pol)
     if not hasattr(bs, '__len__'):
@@ -634,6 +636,10 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
             vs = (0 if vs is None else vs) + vrot.sum(axis=1)[:,None]
     if vs is None: # no files read (snr too low)
         return
+    if ret:
+        spec = vs.sum(axis=1) # sum over time
+        # return (p.fedge[:,None] + p.foffset[120], spec)
+        return (p, spec)
     for n in showchan:
         spec = vs[n].sum(axis=0) # sum over time
         spec = spec.reshape((-1, df)).sum(axis=1) # re-bin over frequencies
@@ -1738,7 +1744,7 @@ def align(bs, snrs=None, tint=5.):
 # tcoh: coherence timescale for setting useful number of DOF to fit (5 per tcoh)
 # full: return useful DOF per baseline instead of site with the best total
 def pickref(df, nosma=True, threshold=6., tcoh=6., full=False):
-    df = df[~df.baseline.isin({'SR', 'RS'}) & ~df.baseline.isin({'EB', 'BE'})].copy()
+    df = df[~df.baseline.isin({'SR', 'RS'}) & ~df.baseline.isin({'EB', 'BE'}) & (df.baseline.str[0] != df.baseline.str[1])].copy()
     # some arbitrary logistic function to minimize false detections
     df['ssq'] = df.snr**2 * (2./np.pi)*np.arctan(df.snr**4 / threshold**4)
     sites = set(''.join(df.baseline))
@@ -1749,12 +1755,13 @@ def pickref(df, nosma=True, threshold=6., tcoh=6., full=False):
     merged['dof'] = (merged.ssq + 1e-6) / snrdof**2
     merged['usefuldof'] = (dofmax * np.log(1. + merged.dof / dofmax))
     # don't let S or J be ref if they are both present (due to wrong sideband contamination)
-    if nosma and ('J' in sites and 'S' in sites):
-        sites.remove('J')
-        sites.remove('S')
+    if nosma:
+        sites.discard('J')
+        sites.discard('S')
+        sites.discard('R')
     score = {site: merged[merged.baseline.str.contains(site)].usefuldof.sum() for site in sites}
     ref = max(score, key=score.get) if len(score) > 0 else None
-    return merged if full else ref
+    return (merged, score, ref) if full else ref
 
 # take set of fringe detection baselines and return sites representing connected arrays
 # baselines: if True, return all connected baselines instead of groups of sites
