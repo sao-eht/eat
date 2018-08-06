@@ -22,6 +22,14 @@ def get_info(observation='EHT2017',path_vex='VEX/'):
         if path_vex!='':
             scans = make_scan_list_EHT2017(path_vex)  
         else: scans = {}
+
+    if observation=='EHT2017_Dan_Mel':
+
+        stations_2lett_1lett = {'ALMA': 'A', 'APEX': 'X', 'JCMT': 'J', 'LMT':'L', 'SMR':'R','SMAP':'S', 'SMA':'S', 'SMT':'Z', 'SMTO':'Z', 'PV':'P', 'PICOVEL':'P','SPT':'Y'}
+        jd_expt = jd2expt2017
+        if path_vex!='':
+            scans = make_scan_list_EHT2017(path_vex)  
+        else: scans = {}
     return stations_2lett_1lett, jd_expt, scans
 
 def jd2expt2017(jd):
@@ -196,7 +204,21 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol=''
     if force_singlepol=='RR':
         force_singlepol='R'
 
-    if force_singlepol=='':
+    if force_singlepol=='no':
+        print('reading data without singlepol, make sure that this is a netcal file')
+        filen = pathf.split('/')[-1]
+        obsXX = eh.io.load.load_obs_uvfits(pathf)
+        dfXX = obsdata_2_df(obsXX)
+        if 'RR' in filen:
+            dfXX['polarization'] = 'RR'    
+        elif 'LL' in filen:
+            dfXX['polarization'] = 'LL' 
+        else:
+            dfXX['polarization'] = 'WTF' 
+        df = dfXX.copy()
+        df['band'] = band
+
+    elif force_singlepol=='':
         obsRR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='R')
         obsLL = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='L')
         dfRR = obsdata_2_df(obsRR)
