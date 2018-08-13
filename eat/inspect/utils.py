@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from eat.io import hops, util
 from eat.hops import util as hu
 from eat.aips import aips2alist as a2a
+from eat.inspect import closures as cl
 #from eat.inspect import closures as cl
 import statsmodels.stats.stattools as sss
 import statsmodels.robust.scale as srs
@@ -802,7 +803,7 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas',debi
     #'amp_db': lambda x: np.sqrt(np.mean(x)),
     'amp': lambda vec: incoh_avg_amp_vector(vec,debias=debias,robust=robust),
     'amp_ndb': lambda vec: incoh_avg_amp_vector(vec,debias=False,robust=robust),
-    'phase': lambda x: circular_mean(x*np.pi/180),
+    'phase': circular_mean,
     'number': len,
     #'snr': lambda x: np.sqrt(np.sum(x**2))
     'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x)
@@ -1508,6 +1509,7 @@ def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polar
                                 namef = 'cp_'+tri+'_'+sour+'_'+str(expt)+'_'+polar+'_'+band+'.txt'
                                 print(namef)
                                 cp_foo3 = cp_foo2[['mjd','cphase','sigmaCP']]
+                                print(cp_path+namef)
                                 cp_foo3.to_csv(cp_path+namef,sep=' ',index=False, header=False)
 
     if 'LCA' in ctypes:
@@ -1593,3 +1595,9 @@ def filter_nondetections(vis_short,vis_scan):
     Filter out the visibilities corresponding to non-detections based on
     data in scan-avg
     '''
+
+def rename_baselines(frame,stations_2lett_1lett):
+    t1 = list(map(lambda x: x.split('-')[0],frame.baseline))
+    t2 = list(map(lambda x: x.split('-')[1],frame.baseline))
+    frame['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0].decode('unicode_escape')]+stations_2lett_1lett[x[1].decode('unicode_escape')],zip(t1,t2)))
+    return frame
