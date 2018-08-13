@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from eat.io import hops, util
 from eat.hops import util as hu
 from eat.aips import aips2alist as a2a
-from eat.inspect import closures as cl
+#from eat.inspect import closures as cl
 #from eat.inspect import closures as cl
 import statsmodels.stats.stattools as sss
 import statsmodels.robust.scale as srs
@@ -1067,7 +1067,7 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
 
 
 def prepare_ER3_vis(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Data/ReleaseE3/hops/ER3v1/', filen='alist.v6.2s',bands=['lo','hi'],reverse_pol=False,apply_fixes=False):
-    
+    from eat.inspect import closures as cl
     bandL=[]
     if 'lo' in bands:
         print('loading lo band data...')
@@ -1120,7 +1120,7 @@ def prepare_ER3_vis(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Dat
 
 
 def prepare_hops_raw(path='/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Data/ReleaseE3/hops/ER3v1/', filen='alist.v6.2s',bands=['lo','hi'],reverse_pol=False):
-    
+    from eat.inspect import closures as cl
     bandL=[]
     if 'lo' in bands:
         print('loading lo band data...')
@@ -1471,6 +1471,7 @@ def avg_camp(frame,tavg='scan',debias='no'):
 
 
 def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polarL=['RR','LL'],exptL='def',out_path='def',min_elem=200):
+    from eat.inspect import closures as cl
     import os
     if out_path=='def':
         out_path='Closures_timeseries/'
