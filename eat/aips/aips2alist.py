@@ -7,7 +7,6 @@ Maciek Wielgus, maciek.wielgus@gmail.com
 
 import pandas as pd
 import time, datetime, os, glob
-from eat.aips import vex, uvdata
 import numpy as np
 import numpy.random as npr
 import sys
@@ -76,6 +75,7 @@ def uvfits2csvs(folder_path,folder_destin=''):
     in folder_destination
     uses Kazu's sparse imaging library codes
     '''
+    from eat.aips import vex, uvdata
     listFiles = os.listdir(folder_path)
     
     if folder_destin=='':
@@ -132,6 +132,7 @@ def uvfits2csvs_NEW(folder_path,folder_destin='',polarL=['RR','LL','LR','RL']):
     in folder_destination
     uses Kazu's sparse imaging library codes
     '''
+    from eat.aips import vex, uvdata
     listFiles = os.listdir(folder_path)
     
     if folder_destin=='':
@@ -173,7 +174,7 @@ def uvfits2csvs_file(file_path,folder_destin='',polarL=['RR','LL','LR','RL']):
     in folder_destination
     uses Kazu's sparse imaging library codes
     '''
-
+    from eat.aips import vex, uvdata
     fileN = file_path.split('/')[-1]
     try:
         uvfits = uvdata.UVFITS(file_path)
@@ -197,6 +198,7 @@ def make_scan_list(fpath):
     generates data frame with information about scans based on vex files
     uses vex parser written by Hotaka
     '''
+    from eat.aips import vex, uvdata
     list_files = os.listdir(fpath)
     scans = pd.DataFrame({'source' : []})
 
