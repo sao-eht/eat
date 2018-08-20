@@ -1801,7 +1801,7 @@ def fixsqrt2(df):
     df.loc[idx,'snr'] /= np.sqrt(2.0)
     df.loc[idx,'amp'] /= np.sqrt(2.0)
 
-def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5):
+def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5, flip=True):
     import pandas as pd
     import seaborn as sns
     from ..plots import util as pu
@@ -1839,6 +1839,8 @@ def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5):
     plt.gca().add_artist(cir)
     plt.gca().set_aspect(1.0)
     plt.xlim(-10, 10)
+    if flip:
+        plt.xlim(plt.xlim()[::-1])
     plt.ylim(-9, 9)
     plt.xticks([-8, -6, -4, -2, 0, 2, 4, 6, 8])
     plt.plot(0, 0, 'k.')
