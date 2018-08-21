@@ -1128,6 +1128,7 @@ class ControlFile(object):
             cf = open(cf).read()
         cf = re.sub('\*.*', '', cf) # strip comments, assume DOTALL is not set
         cf = re.sub('\s+', ' ', cf).strip() # simplify whitespace
+        cf = re.sub('^if\s+', '', cf) # remove any leading if statement for first block
         blocks = re.split('\s+if\s+', cf) # isolate if statement blocks
 
         # separate out actions using reverse findall search
@@ -1191,7 +1192,7 @@ class ControlFile(object):
         return dict(av for block in self.cfblocks for actionlist in block[1:] for av in actionlist)
 
     # initialize a control file object from file or string
-    def __init__(self, cf):
+    def __init__(self, cf=[]):
         if type(cf) == str:
             self.cfblocks = self.open(cf)
         else:
