@@ -975,7 +975,7 @@ ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerang
             tmin = np.min(gtime)
             ax[couB,couP].set_xlim([tmin-0.1,tmax+0.1])
 
-            if timertange!='':
+            if timerange!='':
                 ax[couB,couP].set_xlim(timerange)
 
                 
