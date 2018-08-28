@@ -1,0 +1,53 @@
+#!/usr/bin/env python
+
+# hack control file to handle HOPS baseline-dependent channel labels
+# 2018-08-21 Lindy Blackburn
+
+import re
+import os
+import pwd
+import sys
+import argparse
+import datetime
+from eat.hops import util as hu
+
+# logging
+statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(), ' '.join(sys.argv))
+
+parser = argparse.ArgumentParser()
+parser.add_argument('filename', help='fourfit control file')
+parser.add_argument('-b', '--band', help='lo or hi (will do nothing if hi)', default='lo')
+args = parser.parse_args()
+
+cf = hu.ControlFile(args.filename)
+
+if args.band == 'lo':
+    newcf = []
+    for blk in cf.cfblocks:
+        if blk[0] == 'station J' or blk[0] == 'station R': # assume this is tuned on 31 channel data
+            newcf.append(blk)
+        elif re.match('station \w', blk[0]): # assume this is tuned on 32 channel data
+            # station A and baseline ?J or station A and baseline J? or station A and baseline R? or station A and baseline ?R
+            cond31 = ' or '.join((blk[0] + ' and baseline ' + ref + blk[0][-1] for ref in ('JR')))
+            # if station A and not baseline ?J and not baseline J? and not baseline R? and not baseline ?R
+            # precedence (not, and, or)
+            cond32 = ' and not '.join([blk[0]] + ['baseline ' + ref + blk[0][-1] for ref in ('JR')])
+            act31 = []
+            for act in blk[1]:
+                tok = act[1].split()
+                if tok[0] == 'abcdefghijklmnopqrstuvwxyzABCDEF':
+                    act31.append([act[0], ' '.join([tok[0][:-1]] + tok[2:])])
+                else:
+                    act31.append(act)
+            newcf.append([cond31, act31])
+            newcf.append([cond32, blk[1]])
+    cf.cfblocks = newcf
+elif args.band == 'hi':
+    None
+else:
+    raise Exception('unknown band')
+
+print('* ' + statline + '\n')
+print(str(cf))
+
+

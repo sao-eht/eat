@@ -116,5 +116,7 @@ a = util.noauto(hops.read_alist(args.filename))
 if not args.no_fix:
     util.fix(a) # fix various polconvert errors
 
-adhocref(a, outdir=args.outdir, timeoffset=-1.)
+# adhocref(a, outdir=args.outdir, timeoffset=-1.)
+# the original timeoffset was used to address a fourfit indexing bug, which is fixed in current build
+adhocref(a, outdir=args.outdir, timeoffset=0.)
 

@@ -51,6 +51,8 @@ parser.add_argument('-nh', '--no-header', help="don't print column header", acti
 parser.add_argument('-ni', '--no-index', help="don't print index (row number)", action="store_true")
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 parser.add_argument('-bs', '--baseline-sites', help='only use baseline formed from sites (no spaces)', default=None)
+parser.add_argument('-pp', '--parallel-products', help='only show parallel hand polarization products', action="store_true")
+parser.add_argument('-cp', '--cross-products', help='only show cross hand polarization products', action="store_true")
 args = parser.parse_args()
 
 # which kind of file are we looking at (may not close file until garbage collect?)
@@ -97,6 +99,10 @@ if args.remove_columns is not None:
     for c in args.remove_columns:
         columns.remove(c)
 
+if args.parallel_products:
+    a = a[a.polarization.isin({'RR', 'LL', 'XX', 'YY'})]
+if args.cross_products: # not going to handle mixed pol
+    a = a[a.polarization.isin({'RL', 'LR', 'XY', 'YX'})]
 if args.no_auto:
     a = a[a.baseline.map(lambda x: x[0] != x[1])]
 to_string_kwargs = dict()
