@@ -727,7 +727,7 @@ def Koay_inv_snr(A):
     return sol
     
 
-def match_frames(frame1, frame2, what_is_same, dt = 0):
+def match_frames(frame1, frame2, what_is_same, dt = 0, uniquely=True):
 
     if dt > 0:
         frame1['round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/dt),frame1['datetime']))
@@ -741,6 +741,10 @@ def match_frames(frame1, frame2, what_is_same, dt = 0):
     frame1 = frame1[list(map(lambda x: x in frames_common, frame1.all_ind))]
     frame2 = frame2[list(map(lambda x: x in frames_common, frame2.all_ind))]
 
+    if uniquely:
+        frame1.drop_duplicates(subset=['all_ind'], keep='first', inplace=True)
+        frame2.drop_duplicates(subset=['all_ind'], keep='first', inplace=True)
+
     frame1 = frame1.sort_values('all_ind').reset_index(drop=True)
     frame2 = frame2.sort_values('all_ind').reset_index(drop=True)
     frame1.drop('all_ind', axis=1,inplace=True)
@@ -749,7 +753,7 @@ def match_frames(frame1, frame2, what_is_same, dt = 0):
     return frame1, frame2
 
 
-def match_multiple_frames(frames, what_is_same, dt = 0):
+def match_multiple_frames(frames, what_is_same, dt = 0,uniquely=True):
 
     if dt > 0:
         for frame in frames:
@@ -767,6 +771,9 @@ def match_multiple_frames(frames, what_is_same, dt = 0):
     frames_out = []
     for frame in frames:
         frame = frame[list(map(lambda x: x in frames_common, frame.all_ind))]
+        if uniquely:
+            frame.drop_duplicates(subset=['all_ind'], keep='first', inplace=True)
+
         frame = frame.sort_values('all_ind').reset_index(drop=True)
         frame.drop('all_ind', axis=1,inplace=True)
         frames_out.append(frame.copy())

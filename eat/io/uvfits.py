@@ -117,6 +117,7 @@ def match_scans(scans,data):
     '''
     matches data with scans
     '''
+    #data =data0.copy()
     bins_labels = [None]*(2*scans.shape[0]-1)
     bins_labels[1::2] = map(lambda x: -x-1,list(scans['scan_no_tot'])[:-1])
     bins_labels[::2] = list(scans['scan_no_tot'])
