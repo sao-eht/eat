@@ -1065,6 +1065,13 @@ ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerang
             else:
                 ax[couB,couP].axis([x1,x2]+y_range)
 
+            tmax = np.max(np.mod(np.asarray(fooG.gmst)+tshift,24)-tshift)
+            tmin = np.min(np.mod(np.asarray(fooG.gmst)+tshift,24)-tshift)
+            ax[couB,couP].set_xlim([tmin-0.1,tmax+0.1])
+
+            if timerange!='':
+                ax[couB,couP].set_xlim(timerange)
+
                 
     ax[1,1].set_xlabel('gmst time [h]')
     ax[1,0].set_xlabel('gmst time [h]')
@@ -1154,6 +1161,7 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange
         pass
     else:
         ax.axis(timerange+[y1,y2])
+
     ax.axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
     ax.set_xlabel('GMST [h]',fontsize=fonts)
     ax.set_ylabel('closure phase [deg]',fontsize=fonts)
