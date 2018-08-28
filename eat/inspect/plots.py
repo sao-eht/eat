@@ -971,8 +971,8 @@ ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerang
             else:
                 ax[couB,couP].axis([x1,x2]+y_range)
 
-            tmax = np.max(gtime)
-            tmin = np.min(gtime)
+            tmax = np.max(np.mod(np.asarray(fooG.gmst)+tshift,24)-tshift)
+            tmin = np.min(np.mod(np.asarray(fooG.gmst)+tshift,24)-tshift)
             ax[couB,couP].set_xlim([tmin-0.1,tmax+0.1])
 
             if timerange!='':
