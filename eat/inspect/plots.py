@@ -962,7 +962,7 @@ ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerang
                 gtime = np.mod(np.asarray(fooNi.gmst)+tshift,24)-tshift
                 try:
                     ax[couB,couP].errorbar(gtime,cphaseLoc,errscale*fooNi[error_type],fmt=fmtloc,capsize=5,markersize=ms,mfc=dict_night_color[LocNight],ecolor=dict_night_color[LocNight],markeredgecolor=dict_night_color[LocNight],label=LocNight)
-
+                    
                 except IndexError: pass
             
             [x1,x2,y1,y2]=ax[couB,couP].axis()
@@ -970,6 +970,10 @@ ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerang
                 ax[couB,couP].axis([x1,x2,y1,y2])
             else:
                 ax[couB,couP].axis([x1,x2]+y_range)
+
+            tmax = np.max(fooG.gmst)
+            tmin = np.min(fooG.gmst)
+            ax[couB,couP].set_xlim([tmin-0.1,tmax+0.1])
 
                 
     ax[1,1].set_xlabel('gmst time [h]')
