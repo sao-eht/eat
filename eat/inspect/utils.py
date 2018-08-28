@@ -9,7 +9,7 @@ import numpy.random as npr
 import matplotlib.pyplot as plt
 from eat.io import hops, util
 from eat.hops import util as hu
-from eat.aips import aips2alist as a2a
+#from eat.aips import aips2alist as a2a
 #from eat.inspect import closures as cl
 #from eat.inspect import closures as cl
 import statsmodels.stats.stattools as sss
@@ -1531,7 +1531,8 @@ def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polar
                         for quad in quadL:
                             lca_foo2 = lca_foo[(lca_foo.source==sour)&(lca_foo.polarization==polar)&(lca_foo.expt_no==expt)&(lca_foo.band==band)&(lca_foo.quadrangle==quad)]
                             if np.shape(lca_foo2)[0]>min_elem:
-                                namef = 'lca_'+str(quad[0])+'_'+str(quad[1])+'_'+str(quad[2])+'_'+str(quad[3])+'_'+sour+'_'+str(expt)+'_'+polar+'_'+band+'.txt'
+                                #namef = 'lca_'+str(quad[0])+'_'+str(quad[1])+'_'+str(quad[2])+'_'+str(quad[3])+'_'+sour+'_'+str(expt)+'_'+polar+'_'+band+'.txt'
+                                namef = 'lca_'+quad+'_'+sour+'_'+str(expt)+'_'+polar+'_'+band+'.txt'  
                                 print(namef)
                                 lca_foo3 = lca_foo2[['mjd','logamp','sigma']]
                                 lca_foo3.to_csv(lca_path+namef,sep=' ',index=False, header=False)
@@ -1539,7 +1540,8 @@ def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polar
     
     if 'CFP' in ctypes:
         print('Calculating closure fractional polarizations...')
-        cfp_df = cl.get_closepols(df)
+        #cfp_df = cl.get_closepols(df)
+        cfp_df = cl.get_logclosepols(df)
         if 'mjd' not in cfp_df.columns:
             cfp_df = add_mjd(cfp_df)
         baseL = list(cfp_df.baseline.unique())
@@ -1547,6 +1549,7 @@ def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polar
         if not os.path.exists(cfp_path):
             os.makedirs(cfp_path)
         print('Saving closure fractional polarizations...')
+        print(np.shape(cfp_df))
         for sour in sourL:
             for expt in exptL:
                 for band in bandL:
@@ -1560,6 +1563,45 @@ def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polar
                             cfp_foo3.to_csv(cfp_path+namef,sep=' ',index=False, header=False)
                         
 
+
+def generate_vis_amp_time_series(df,sourL='def',polarL=['RR','LL'],exptL='def',out_path='def',min_elem=200):
+    from eat.inspect import closures as cl
+    import os
+    if out_path=='def':
+        out_path='Closures_timeseries/'
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
+    if sourL=='def': sourL = list(df.source.unique())
+    if exptL=='def': exptL = list(df.expt_no.unique())
+
+    if 'band' not in df.columns:
+        df['band'] = ''
+    bandL = list(df.band.unique())
+
+    #GENERATE AMP TEXTFILES    
+    if 'mjd' not in df.columns:
+        df = add_mjd(df)
+    baseL = list(df.baseline.unique())
+    amp_path = out_path+'AMP/'
+    if not os.path.exists(amp_path):
+        os.makedirs(amp_path)
+    #print('Saving closure phases...')
+    for sour in sourL:
+        for expt in exptL:
+            for band in bandL:
+                for polar in polarL:
+                    foo = df
+                    for base in baseL:
+                        foo2 = foo[(foo.source==sour)&(foo.polarization==polar)&(foo.expt_no==expt)&(foo.band==band)&(foo.baseline==base)]
+                        if np.shape(foo2)[0]>min_elem:
+                            #namef = 'amp_'+base+'_'+sour+'_'+str(expt)+'_'+polar+'_'+band+'.txt'
+                            namef = 'amp_pha_'+base+'_'+sour+'_'+polar+'_'+band+'.txt'
+                            print(namef)
+                            print(np.shape(foo2)[0],[np.min(foo2.mjd),np.max(foo2.mjd)])
+                            foo3 = foo2[['mjd','amp','phase','sigma']]
+                            #print(amp_path+namef)
+                            foo3.to_csv(amp_path+namef,sep=' ',index=False, header=False)
 
 
 
