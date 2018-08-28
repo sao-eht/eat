@@ -30,7 +30,10 @@ def make_baselines_alphabetic(alist,what_phase='resid_phas'):
 
 def list_all_triangles(alist):
     all_baselines = set(alist.baseline)
-    all_stations = set(''.join( list(all_baselines)))
+    if all(['-' in x for x in all_baselines]):
+        all_stations = set( [y for sub in [x.split('-') for x in all_baselines] for y in sub])
+    else:
+        all_stations = set(''.join( list(all_baselines)))
     foo = list(itertools.combinations(all_stations, 3))
     foo = [list(x) for x in foo if ('R' not in set(x))|('S' not in set(x))]
     foo = [''.join(sorted(x)) for x in foo] 
@@ -160,11 +163,22 @@ def baselines2triangles(basel):
     return tri
 
 def all_bispectra(alist,phase_type='resid_phas'):
-
+    polars=[]
     if phase_type in alist.columns:
-        bsp_LL = all_bispectra_polar(alist,'LL',phase_type)
-        bsp_RR = all_bispectra_polar(alist,'RR',phase_type)
-        bsp = pd.concat([bsp_LL,bsp_RR],ignore_index=True)
+        try:
+            bsp_LL = all_bispectra_polar(alist,'LL',phase_type)
+            polars=polars+['LL']
+        except: pass
+        try:
+            bsp_RR = all_bispectra_polar(alist,'RR',phase_type)
+            polars=polars+['RR']
+        except: pass
+        print('polarz', polars)
+        if len(polars)==2:
+            bsp = pd.concat([bsp_LL,bsp_RR],ignore_index=True)
+        elif polars[0]=='LL':
+            bsp=bsp_LL
+        else: bsp = bsp_RR
         return bsp
     else:
         print('Wrong name for the phase column!')
@@ -173,8 +187,10 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.):
     if 'snr' not in alist.columns:
         alist.loc[:,'snr'] = alist.loc[:,'amp']/alist.loc[:,'sigma']
     alist.drop(list(alist[alist.snr<snr_cut].index.values),inplace=True)
+    #print(alist)
     alist = alist[alist['polarization']==polar]
     alist = alist.loc[:,~alist.columns.duplicated()]
+    
     if 'scan_id' not in alist.columns:
         alist.loc[:,'scan_id'] = alist.loc[:,'scan_no_tot']
     if 'band' not in alist.columns:
@@ -182,35 +198,48 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.):
     
     alist['amps']=alist['amp']
     alist['snrs']=alist['snr']
+    
     if 'fracpol' in alist.columns:
         #print(alist.columns)
         alist['fracpols']=alist['fracpol']
     else: alist['fracpols'] = 0
     triL = list_all_triangles(alist)
+    #print(triL)
     tri_baseL, sgnL = triangles2baselines(triL,alist)
     #this is done twice to remove some non-present triangles
+    #print(triL, tri_baseL)
     triL = baselines2triangles(tri_baseL)
     tri_baseL, sgnL = triangles2baselines(triL,alist)
+    #print(tri_baseL)
+    #print(sgnL)
     bsp_out = pd.DataFrame({})
+    #print('wtf?',triL, tri_baseL)
+    #triL=sorted(triL)
     for cou in range(len(triL)):
+        
         Tri = tri_baseL[cou]
+        print(Tri)
         signat = sgnL[cou]
+        #print(Tri)
         condB1 = (alist['baseline']==Tri[0])
         condB2 = (alist['baseline']==Tri[1])
         condB3 = (alist['baseline']==Tri[2])
         condB = condB1|condB2|condB3
         alist_Tri = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline',phase_type,'amp','snr','gmst','band','amps','snrs','fracpols']]
         #print(alist_Tri)
+        #print(alist_Tri)
         #print(np.shape(alist_Tri))
         #throw away times without full triangle
-        tlist = alist_Tri.groupby(('band','datetime')).filter(lambda x: len(x) == 3)
+        tlist = alist_Tri.groupby(['band','datetime']).filter(lambda x: len(x) == 3)
         tlist.loc[:,'sigma'] = (tlist.loc[:,'amp']/(tlist.loc[:,'snr']))
         #print(tlist.loc[:,phaseType])
+        #print(tlist)
+        
         for cou2 in range(3):
             tlist.loc[(tlist.loc[:,'baseline']==Tri[cou2]),phase_type] *= signat[cou2]*np.pi/180.
         tlist.loc[:,'sigma'] = 1./tlist.loc[:,'snr']**2 #put 1/snr**2 in the sigma column to aggregate
-        
-        bsp = tlist.groupby(('expt_no','source','band','scan_id','datetime')).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
+        #print(tlist.columns)
+        bsp = tlist.groupby(['expt_no','source','band','scan_id','datetime']).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
         'amps': lambda x: tuple(x),'snrs': lambda x: tuple(x),'fracpols': lambda x: tuple(x)})
         #sigma above is the CLOSURE PHASE ERROR
         #print(bsp.columns)
@@ -226,6 +255,7 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.):
         #bsp.loc[:,'snr'] = bsp.loc[:,'amp']/bsp.loc[:,'sigma']
         bsp.loc[:,'sigmaCP'] = 1./bsp.loc[:,'snr']*180./np.pi #deg
         bsp_out = pd.concat([bsp_out, bsp])
+        print(triL[cou]+': '+str(np.shape(bsp)[0])+' closure phases')
     #print(bsp_out.columns)
     bsp_out = bsp_out.reset_index()
     #print(bsp_out.columns)
@@ -233,6 +263,7 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.):
     #    bsp_out = bsp_out[['datetime','source','triangle','polarization','cphase','sigmaCP','amp','sigma','snr','scan_id','expt_no','band','amps','snrs','fracpols']] 
     #except KeyError:
     #   pass
+    
     bsp_out['rel_err'] = np.asarray(bsp_out['cphase'])/np.asarray(bsp_out['sigmaCP'])
     return bsp_out
 
@@ -477,9 +508,10 @@ def all_quadruples_polar_log(alist,polar):
         #print(bsp.columns)
         ##bsp.loc[:,'bisp'] = bsp.loc[:,'amp']*np.exp(1j*bsp.loc[:,phaseType])
         ##bsp.loc[:,'snr'] = 1./bsp.loc[:,'sigma']
-        
-        quadlist['quadrangle'] = [quad_baseL[cou]]*np.shape(quadlist)[0]
-        quadlist.loc[:,'polarization'] = polar
+        #print(tuple(quad_baseL[cou]))
+        quadlist['quadrangle'] = [tuple(quad_baseL[cou])]*np.shape(quadlist)[0]
+
+        quadlist['polarization'] = polar
         #bsp.loc[:,'signature'] = [signat]*np.shape(bsp)[0]
         ##bsp.loc[:,'cphase'] = np.angle(bsp.loc[:,'bisp'])*180./np.pi
         #quadlist.loc[:,'logamp'] = np.log(quadlist.loc[:,'amp'])
@@ -489,7 +521,8 @@ def all_quadruples_polar_log(alist,polar):
     quad_out = quad_out.reset_index()
     #print(quad_out)
     quad_out = quad_out[['datetime','band','source','quadrangle','polarization','logamp','sigma','scan_id','expt_no']] 
-    quad_out['quadrangle'] = list(map(tuple,quad_out.quadrangle))
+    #quad_out['quadrangle'] = list(map(tuple,quad_out.quadrangle))
+    quad_out['quadrangle'] = list(map(quadrangle2str, quad_out.quadrangle))
     return quad_out
 
 def only_trivial_quadrangles_str(quad, whichB='all'):
@@ -1771,7 +1804,31 @@ def get_closepols(data):
     + 0.5*np.asarray(fooRL.amp)*np.asarray(fooLR.amp)/(np.asarray(fooRR.amp)**2)/np.asarray(fooLL.amp)*np.asarray(fooRR.sigma)
     
     return fooRR[['mjd','datetime','fracpol','sigma','baseline','scan_id','band','expt_no','source']].copy()
+
+def get_logclosepols(data):
     
+    if 'sigma' not in data.columns:
+        data['sigma']=data['amp']/data['snr']
+    if 'mjd' not in data.columns:
+        data = ut.add_mjd(data)
+
+    #print('data shape ',np.shape(data))
+    #print('data shape ',data.columns)
+    data=data.groupby(['datetime','scan_id','band','baseline','expt_no']).filter(lambda x: len(x) == 4)
+    fooRL = data[(data.polarization=='RL')].sort_values(['datetime','band','baseline']).reset_index()
+    fooLR = data[(data.polarization=='LR')].sort_values(['datetime','band','baseline']).reset_index()
+    fooRR = data[(data.polarization=='RR')].sort_values(['datetime','band','baseline']).reset_index()
+    fooLL = data[(data.polarization=='LL')].sort_values(['datetime','band','baseline']).reset_index()
+    #print('data shape ',np.shape(data))
+
+    fooRR['fracpol'] = np.log(np.asarray(fooLR.amp))+np.log(np.asarray(fooRL.amp)) - np.log(np.asarray(fooRR.amp)) - np.log(np.asarray(fooLL.amp))
+    fooRR['sigma'] = np. sqrt(1./fooLR.snr**2+1./fooRL.snr**2+1./fooRR.snr**2+1./fooLL.snr**2)
+    #+ 0.5*np.asarray(fooRL.sigma)*np.asarray(fooLR.amp)/np.asarray(fooRR.amp)/np.asarray(fooLL.amp)
+    #+ 0.5*np.asarray(fooRL.amp)*np.asarray(fooLR.amp)/np.asarray(fooRR.amp)/(np.asarray(fooLL.amp)**2)*np.asarray(fooLL.sigma)
+    #+ 0.5*np.asarray(fooRL.amp)*np.asarray(fooLR.amp)/(np.asarray(fooRR.amp)**2)/np.asarray(fooLL.amp)*np.asarray(fooRR.sigma)
+    
+    return fooRR[['mjd','datetime','fracpol','sigma','baseline','scan_id','band','expt_no','source']].copy()
+     
 
 def get_snr_help(Esnr):
     """estimates snr given a single biased snr measurement
