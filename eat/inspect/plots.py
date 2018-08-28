@@ -971,9 +971,12 @@ ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerang
             else:
                 ax[couB,couP].axis([x1,x2]+y_range)
 
-            tmax = np.max(fooG.gmst)
-            tmin = np.min(fooG.gmst)
+            tmax = np.max(gtime)
+            tmin = np.min(gtime)
             ax[couB,couP].set_xlim([tmin-0.1,tmax+0.1])
+
+            if timertange!='':
+                ax[couB,couP].set_xlim(timerange)
 
                 
     ax[1,1].set_xlabel('gmst time [h]')
