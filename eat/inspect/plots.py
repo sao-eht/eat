@@ -1061,7 +1061,7 @@ ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerang
             
             [x1,x2,y1,y2]=ax[couB,couP].axis()
             if y_range==[]:
-                ax[couB,couP].axis([x1,x2,y1,y2])
+                ax[couB,couP].axis([x1,x2,y1-0.1,y2+0.1])
             else:
                 ax[couB,couP].axis([x1,x2]+y_range)
 
