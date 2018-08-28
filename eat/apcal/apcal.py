@@ -299,7 +299,7 @@ def prepare_calibration_data(folder_path):
     cols = ['datetime','Tsys_st_R_lo','Tsys_st_L_lo','Tsys_st_R_hi','Tsys_st_L_hi']
     antena='NoAntena'
     FooDF = pd.DataFrame(columns=cols)
-
+    RCP_first=True
     for f in list_files:
         fpath = folder_path+f
         dict_dpfu_loc, dict_gfit_loc, track_loc = dict_DPFU_GFIT(fpath)
@@ -319,7 +319,12 @@ def prepare_calibration_data(folder_path):
                     timeoff = 0
                 timeoff = datetime.timedelta(seconds = timeoff)
                 FooDF = pd.DataFrame(columns=cols)
+
+            if 'INDEX'in line:
+                RCP_first = line.find('R1')<line.find('L1')
+                print('Fixing rder RCP - LCP: ', RCP_first)
             
+                
             #data rows are the ones strarting with sth that can be converted to flow
             if isfloat(line.split(' ')[0]):
                 foo = line.split(' ')
@@ -341,8 +346,12 @@ def prepare_calibration_data(folder_path):
                     except IndexError:
                         Tsys_L_lo_loc = Tsys_R_lo_loc           
                     Tsys_R_hi_loc = Tsys_R_lo_loc
-                    Tsys_L_hi_loc = Tsys_L_lo_loc       
-                data_loc = [datetime_loc,Tsys_R_lo_loc,Tsys_L_lo_loc,Tsys_R_hi_loc,Tsys_L_hi_loc]
+                    Tsys_L_hi_loc = Tsys_L_lo_loc
+
+                if RCP_first==True:
+                    data_loc = [datetime_loc,Tsys_R_lo_loc,Tsys_L_lo_loc,Tsys_R_hi_loc,Tsys_L_hi_loc]
+                else:
+                    data_loc = [datetime_loc,Tsys_L_lo_loc,Tsys_R_lo_loc,Tsys_L_hi_loc,Tsys_R_hi_loc]
                 line_df = pd.DataFrame([data_loc], columns = cols)
                 
                 FooDF = FooDF.append(line_df, ignore_index=True)
@@ -364,16 +373,18 @@ def prepare_calibration_data(folder_path):
 
 
 def prepare_Tsys_data(folder_path):
+    from astropy.time import Time, TimeDelta
     Tsys={}
     list_files = os.listdir(folder_path)
     list_files = [f for f in list_files if f[0] =='e']
     cols = ['datetime','Tsys_st_R','Tsys_st_L','band']
     antena='NoAntena'
     FooDF = pd.DataFrame(columns=cols)
-
+    #print(list_files)
     for f in list_files:
+        #print('guu', f)
         fpath = folder_path+f
-    
+        #print(f)
         with open(fpath) as f:
             content = f.readlines()
         for line in content:
@@ -435,14 +446,119 @@ def prepare_Tsys_data(folder_path):
             #lines at the end of data for given antena
             #print(f.name)
         
-            track_loc = f.name.split('_')[3]
+            track_loc = f.name.split('_')[-2]
             if line[0]=='/':
+                #print(f)
+                #print((antena,track_loc))
                 if (antena,track_loc) in Tsys:
                     Tsys[(antena,track_loc)]=pd.concat([Tsys[(antena,track_loc)],FooDF ])
                 else:
                     Tsys[(antena,track_loc)] = FooDF
     #add mjd
     for key in Tsys:
+        foo = Time(list(Tsys[key].datetime)).mjd
+        Tsys[key]['mjd'] = foo
+    Tsfull = make_single_Tsys_table(Tsys)
+    return Tsfull
+
+
+def prepare_Tsys_data_separate(folder_path):
+    Tsys={}
+    list_files = os.listdir(folder_path)
+    list_files = [f for f in list_files if f[0] =='e']
+    cols = ['datetime','Tsys_st_R','Tsys_st_L','band']
+    antena='NoAntena'
+    FooDF = pd.DataFrame(columns=cols)
+
+    for f in list_files:
+        fpath = folder_path+f
+    
+        with open(fpath) as f:
+            content = f.readlines()
+        for line in content:
+            #first line of data for given antenna
+            if 'TSYS ' in line:
+                #antena = AZ2Z[line[5:7]]
+                antena = AZ2Z[line.split(' ')[1]]
+                print(fpath+', '+antena)
+                if line.split(' ')[2]=='timeoff=':
+                    timeoff = int(float(line.split(' ')[3]))
+                else:
+                    timeoff = 0
+                timeoff = datetime.timedelta(seconds = timeoff)
+                FooDF = pd.DataFrame(columns=cols)
+            
+            if 'INDEX'in line:
+                RCP_first = line.find('R1')<line.find('L1')
+                print('Order RCP - LCP: ', RCP_first)
+            
+            #data rows are the ones strarting with sth that can be converted to flow
+            
+            if isfloat(line.split(' ')[0]):
+                foo = line.split(' ')
+                foo = [x for x in foo if len(x)>0]
+                #get the timestamp
+                if antena=='A':
+                    
+                    datetime_loc = time2datetime1(foo[0],'00:00:00')
+                    datetime_loc = datetime_loc + ALMAtime2STANDARDtime(foo[1]) + timeoff
+                    #print(datetime_loc)
+                else:
+                    datetime_loc = time2datetime1(foo[0],foo[1]) + timeoff
+                
+                #get the band
+                band_loc = dic_band[f.name[-4]]
+
+                #now get the Tsys data
+                
+                #JCMT and SMAR have single pol, so we just fill both with same value
+                if antena=='A':
+                    TsysAA = np.asarray(list(map(float,foo[2:-1])))
+                    if len(TsysAA)==0:
+                        TsysAA = np.asarray(list(map(float,foo[2:])))
+                    TsysAA = TsysAA[(TsysAA!=0)&(TsysAA==TsysAA)]
+                    #print(TsysAA)
+                    if len(TsysAA) > 0:
+                        Tsys_R_loc = (1./np.mean(1./np.sqrt(TsysAA)))**2
+                        #Tsys_R_loc = np.mean(TsysAA)   
+                    else:
+                        Tsys_R_loc = np.nan
+                    Tsys_L_loc = Tsys_R_loc
+                    
+                else:
+                    Tsys_R_loc = float(foo[2])
+                    try:
+                        Tsys_L_loc = float(foo[3])
+                    except IndexError:
+                        Tsys_L_loc = Tsys_R_loc
+                
+                if RCP_first==True:
+                    data_loc = [datetime_loc,Tsys_R_loc,Tsys_L_loc,band_loc]
+                else:
+                    data_loc = [datetime_loc,Tsys_L_loc,Tsys_R_loc,band_loc]    
+                #data_loc = [datetime_loc,Tsys_R_loc,Tsys_L_loc,band_loc]
+                if np.sum(np.isnan(data_loc[1:3]))==0:
+                    line_df = pd.DataFrame([data_loc], columns = cols)
+                    FooDF = FooDF.append(line_df, ignore_index=True)
+                else:
+                    continue
+            
+            #lines at the end of data for given antena
+            #print(f.name)
+        
+            track_loc = f.name.split('_')[-2]
+            if line[0]=='/':
+                if (antena,track_loc) in Tsys:
+                    Tsys[(antena,track_loc)]=pd.concat([Tsys[(antena,track_loc)],FooDF ])
+                else:
+                    Tsys[(antena,track_loc)] = FooDF
+    return Tsys
+
+def merge_all_Tsys(Tsys):
+
+    for key in Tsys:
+        print(key)
+        print('Tsys shape: ',np.shape(Tsys[key]))
         foo = Time(list(Tsys[key].datetime)).mjd
         Tsys[key]['mjd'] = foo
     Tsfull = make_single_Tsys_table(Tsys)
@@ -733,6 +849,7 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
                 os.makedirs(dir_expt)
             
             for ant in antL:
+                print('no ad hoc fix')
                 for sour in sourL:
 
                     condB = (Tsys_full['band']==band)
@@ -760,7 +877,9 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
                         SEFDS = SEFDS.sort_values('mjd')
                         NameF = dir_expt+'/'+sour+'_'+Z2AZ[ant]+'.txt'
                         ###APPLY AD HOC FIXES
-                        SEFDS = ad_hoc_fixes(SEFDS,ant,sour)
+
+                        SEFDS = ad_dummy_values(SEFDS)
+                        #SEFDS = ad_hoc_fixes(SEFDS,ant,sour)
                         #CUT out too low SEFDs
                         SEFDS = SEFDS[(SEFDS['sefd_R']>1.)|(SEFDS['sefd_L']>1.)]
                         #####################
@@ -777,6 +896,16 @@ def ad_hoc_fixes(df,ant,sour):
             cond=(df['mjd']>fixt[0])&(df['mjd']<fixt[1])&(df['sefd_R']<7.)
             df.loc[cond,'sefd_R'] *= np.sqrt(10.)
             df.loc[cond,'sefd_L'] *= np.sqrt(10.)
+    return df
+
+def ad_dummy_values(df,dmjd=0.001):
+    print('Adding dummy boundary points to SEFDs')
+    first = df.head(1).copy()
+    last = df.tail(1).copy()
+    first['mjd'] = list(map(lambda x: x-dmjd,first['mjd']))
+    last['mjd'] = list(map(lambda x: x+dmjd,last['mjd']))
+    df = pd.concat([first,df,last],ignore_index=True)
+    #df.iloc[-1]
     return df
     
 
