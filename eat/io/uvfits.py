@@ -184,7 +184,8 @@ def add_vis_df(self,polarization='unknown',band='unknown',round_s=1.):
     self.vis_df = df
 
     
-def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='',band='unknown',round_s=0.1,only_parallel=False):
+def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='',band='unknown',
+    round_s=0.1,only_parallel=False,rescale_noise=False):
     """generate DataFrame from uvfits file
     Args:
         pathf: path to uvfits file to import
@@ -218,6 +219,9 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol=''
             dfXX['polarization'] = 'WTF' 
         df = dfXX.copy()
         df['band'] = band
+        if rescale_noise==True:
+            rsc = obsXX.estimate_noise_rescale_factor()
+            df['sigma']=rsc*df['sigma']
 
     elif force_singlepol=='':
         obsRR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='R')
@@ -237,7 +241,13 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol=''
             dfLR['polarization'] = 'LR'
             df = pd.concat([df,dfLR,dfRL],ignore_index=True)
 
-        df['band'] = band   
+        df['band'] = band  
+        if rescale_noise==True:
+            rscRR = obsRR.estimate_noise_rescale_factor()
+            rscLL = obsLL.estimate_noise_rescale_factor()
+            rsc=0.5*(rscRR+rscLL)
+            df['sigma']=rsc*df['sigma']
+
     else: 
         obs = eh.io.load.load_obs_uvfits(pathf,  force_singlepol=force_singlepol)
         df = obsdata_2_df(obs)
@@ -246,6 +256,9 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol=''
         elif len(force_singlepol)==2:
             df['polarization']=force_singlepol
         df['band'] = band
+        if rescale_noise==True:
+            rsc= obs.estimate_noise_rescale_factor()
+            df['sigma']=rsc*df['sigma']
 
     stations_2lett_1lett, jd_2_expt, scans = get_info(observation=observation,path_vex=path_vex)
     df['datetime'] = Time(df['mjd'], format='mjd').datetime
