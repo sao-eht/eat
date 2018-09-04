@@ -34,7 +34,8 @@ for dayident in os.listdir(datadir + fringefolder) :
         
         # generate the python calls
         call_genuvfits = 'python hops2uvfits.py --clean --uv --outdir ' + uvfitsfolder + ' ' + fringepath
-        call_caluvfits = 'python caluvfits.py --caldir ' + caldir + dayident + ' --outdir ' + uvcalfolder + ' ' + uvfitsfolder
+        #call_caluvfits = 'python caluvfits.py --caldir ' + caldir + dayident + ' --outdir ' + uvcalfolder + ' ' + uvfitsfolder
+        call_caluvfits = 'python cal_apriori_pang_uvfits.py --caldir ' + caldir + dayident + ' --outdir ' + uvcalfolder + ' ' + uvfitsfolder
 
         # if directories don't exist then create them
         try:
