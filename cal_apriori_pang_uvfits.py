@@ -280,9 +280,12 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     # apply the  calibration
 
     datatable = []
+    coub=0.
     for bl_obs in bllist:
         t1 = bl_obs['t1'][0]
         t2 = bl_obs['t2'][0]
+        coub=coub+1
+        print('Calibrting {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
         time_mjd = bl_obs['time'] - MJD_0 #dates are in mjd in Datastruct
         gmst = gmst_function(time_mjd)
         hangle1 = gmst + longitude[t1] - ra #HOUR ANGLE FIRST TELESCOPE
