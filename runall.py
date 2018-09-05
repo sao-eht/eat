@@ -49,9 +49,9 @@ for dayident in os.listdir(datadir + fringefolder) :
             os.mkdir(uvcalfolder)
         
         # generate the uvfits files from hops files
-        os.system(call_genuvfits)
+        #os.system(call_genuvfits)
         # apriori calibrate the uvfits files using the SEFD tables
-        #os.system(call_caluvfits)
+        os.system(call_caluvfits)
         
         
         
