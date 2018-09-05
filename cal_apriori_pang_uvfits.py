@@ -245,7 +245,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
 
     for s in range(0, len(caltable.tarr)):
         site = caltable.tarr[s]['site']
-        xyz_foo = np.asarray((caltable.tarr[0]['x'],caltable.tarr[0]['y'],caltable.tarr[0]['z']))
+        xyz_foo = np.asarray((caltable.tarr[s]['x'],caltable.tarr[s]['y'],caltable.tarr[s]['z']))
         xyz[site] = xyz_foo
         latlong = xyz_2_latlong(xyz_foo)
         latitude[site] = latlong[0][0]#rad
