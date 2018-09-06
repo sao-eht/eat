@@ -13,9 +13,16 @@ import astropy.time as at
 from argparse import Namespace
 import glob
 import os, sys
-import eat.hops.util
-from eat.io import util
-from eat.plots import util as putil
+try:
+    import eat.hops.util
+    from eat.io import util
+    #from eat.plots import util as putil
+except: #work on Maciek's laptop
+    sys.path.append('/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Data/MasterEAT/eat/')
+    import eat.hops.util
+    from eat.io import util
+    #from eat.plots import util as putil
+
 from astropy.time import Time
 import numpy.matlib
 
@@ -275,7 +282,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
         if baselineName[0] == baselineName[1]:
             continue
 
-        print "Making uvfits for baseline: ", baselineName        
+        print("Making uvfits for baseline: ", baselineName)      
         for filename in glob.glob(datadir + baselineName + '*'):
             
             # remove type 1 and 2 files and uvfits files with the same basename
@@ -428,7 +435,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             channel_id_ant2= np.array(channel_id_ant2)
         
             if len(set(channel_bw_ant1)) != 1:
-                print channel_bw_ant1
+                print(channel_bw_ant1)
                 raise Exception('the channels on this baseline have different bandwidths')
             
             if len(set(np.diff(channel_freq_ant1))) > 1:
@@ -553,7 +560,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
         # recompute uv points if necessary
         if recompute_uv:
-            print "    recomputing uv points!"
+            print("    recomputing uv points!")
             site1vec = xyz[0]
             site2vec = xyz[1]
 
@@ -775,7 +782,7 @@ def merge_hops_uvfits(fitsFiles):
     # NOTE: ref_freq should be equal to the first channel's freq but if the channels are not 
     # aligned on every baseline the ref_freqs wont be the same
     if (len(set([obsinfo.ref_freq for obsinfo in obsinfo_list]) )>1):
-        print [obsinfo.ref_freq for obsinfo in obsinfo_list]
+        print([obsinfo.ref_freq for obsinfo in obsinfo_list])
         raise Exception('rf not the same!') 
     else:
         ref_freq = obsinfo_list[0].ref_freq
@@ -808,13 +815,13 @@ def merge_hops_uvfits(fitsFiles):
     if not (ch1_freq in [obsinfo.ch_1 for obsinfo in obsinfo_list]):
         raise Exception('ch1_freq determined from merging ehtim style datatable not in any read uvfits header!')
 
-    print "baseline files: ", len(fitsFiles)
-    print "source: ", src
-    print "ra: ", ra
-    print "dec: ", dec
-    print "ch1 freq: ", ch1_freq/1.e9, "GHz"
-    print "ref freq: ", ref_freq/1.e9, "GHz"
-    print "channels: ", nchan
+    print("baseline files: ", len(fitsFiles))
+    print("source: ", src)
+    print("ra: ", ra)
+    print("dec: ", dec)
+    print("ch1 freq: ", ch1_freq/1.e9, "GHz")
+    print("ref freq: ", ref_freq/1.e9, "GHz")
+    print("channels: ", nchan)
     
     #print "Merging data ... "
 
@@ -1194,9 +1201,9 @@ def save_uvfits(datastruct, fname):
             continue
 
     if jj < len(jds):
-        print scan_arr[-1]
-        print round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT)
-        print jj, len(jds), round(jds[jj], ROUND_SCAN_INT)
+        print(scan_arr[-1])
+        print(round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT))
+        print(jj, len(jds), round(jds[jj], ROUND_SCAN_INT))
         print("WARNING!!!: in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
         #raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
 
@@ -1229,13 +1236,13 @@ def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_
                     recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False, sqrt2corr=False, flip_ALMA_pol=False):
     
 
-    print "********************************************************"
-    print "*********************HOPS2UVFITS************************"
-    print "********************************************************"
+    print("********************************************************")
+    print("*********************HOPS2UVFITS************************")
+    print("********************************************************")
 
-    print "Creating merged single-source uvfits files from hops fringe files"
-    print "directory: ", datadir
-    print
+    print("Creating merged single-source uvfits files from hops fringe files")
+    print("directory: ", datadir)
+    print(' ')
 
     scandirs = [os.path.join(datadir,o) for o in os.listdir(datadir) if os.path.isdir(os.path.join(datadir,o))]
     
@@ -1260,22 +1267,22 @@ def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_
         
         if recompute_bl_fits:
             # convert the finge files to baseline uv files  
-            print "---------------------------------------------------------"
-            print "---------------------------------------------------------"
-            print "scan directory %i/%i: %s" % (i,N, scandir)
+            print("---------------------------------------------------------")
+            print("---------------------------------------------------------")
+            print("scan directory %i/%i: %s" % (i,N, scandir))
             # clean up the files in case there were extra ones already there that we no longer want
             if clean_bl_fits:
-                print '    REMOVING old uvfits baseline files due to --clean flag'
+                print('    REMOVING old uvfits baseline files due to --clean flag')
                 for filename in glob.glob(scandir + '*_hops_baseline.uvfits'):
                     os.remove(filename)
             if not recompute_bl_fits:
-                print '    WARNING - not recomputing U,V coordinates!' 
-            print "---------------------------------------------------------"
-            print "---------------------------------------------------------"
+                print('    WARNING - not recomputing U,V coordinates!') 
+            print("---------------------------------------------------------")
+            print("---------------------------------------------------------")
             convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv, sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol)
         
-        print    
-        print "Merging baseline uvfits files in directory: ", scandir
+        print(' ')    
+        print("Merging baseline uvfits files in directory: ", scandir)
 
         bl_fitsFiles = []
         for filename in glob.glob(scandir + '*_hops_baseline.uvfits'):
@@ -1295,31 +1302,31 @@ def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_
         scan_sources.append(datastruct.obs_info.src)
         
 
-        print "Saved scan merged data to ", outname
-        print
+        print("Saved scan merged data to ", outname)
+        print(' ')
 
-    print
-    print "---------------------------------------------------------"
-    print "---------------------------------------------------------"
-    print "---------------------------------------------------------"
+    print(' ')
+    print("---------------------------------------------------------")
+    print("---------------------------------------------------------")
+    print("---------------------------------------------------------")
     #print scan_sources
-    print
+    print(' ')
     unique_sources = set(scan_sources)
     scan_fitsFiles = np.array(scan_fitsFiles)
     scan_sources = np.array(scan_sources)
     for source in unique_sources:
-        print
-        print "Merging all scan uvfits files in directory: ", datadir, "for source: ", source
+        print(' ')
+        print("Merging all scan uvfits files in directory: ", datadir, "for source: ", source)
         #print 'WARNING - U,V coordinate units unknown!'
         source_scan_fitsFiles = scan_fitsFiles[scan_sources==source]
         datastruct = merge_hops_uvfits(source_scan_fitsFiles)
         outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.uvfits'
         save_uvfits(datastruct, outname)
-        print "Saved full merged data to ", outname
-    print "---------------------------------------------------------"
-    print "---------------------------------------------------------"
-    print "---------------------------------------------------------"
-    print
+        print("Saved full merged data to ", outname)
+    print("---------------------------------------------------------")
+    print("---------------------------------------------------------")
+    print("---------------------------------------------------------")
+    print(' ')
     return 0
  
 
