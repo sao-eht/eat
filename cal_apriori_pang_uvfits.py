@@ -23,6 +23,8 @@ from hops2uvfits import *
 import pandas as pd
 import datetime
 from datetime import timedelta
+from astropy import units as u
+from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
 
 # For Andrew:
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
@@ -208,7 +210,7 @@ def xyz_2_latlong(obsvecs):
     #if out.shape[0]==1: out = out[0]
     return out
 
-def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=None,frotcal=True):
+def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
@@ -285,27 +287,28 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         t1 = bl_obs['t1'][0]
         t2 = bl_obs['t2'][0]
         coub=coub+1
-        print('Calibrting {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
+        print('Calibrating {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
         time_mjd = bl_obs['time'] - MJD_0 #dates are in mjd in Datastruct
-        gmst = gmst_function(time_mjd)
-        hangle1 = gmst + longitude[t1] - ra #HOUR ANGLE FIRST TELESCOPE
-        hangle2 = gmst + longitude[t2] - ra #HOUR ANGLE SECOND TELESCOPE
-        par1I_t1 = np.sin(hangle1)
-        par1I_t2 = np.sin(hangle2)
-        par1R_t1 = np.cos(dec)*np.tan(latitude[t1]) - np.sin(dec)*np.cos(hangle1)
-        par1R_t2 = np.cos(dec)*np.tan(latitude[t2]) - np.sin(dec)*np.cos(hangle2)
-        parangle1 = np.angle(par1R_t1 + 1j*par1I_t1 ) #PARALACTIC ANGLE T1
-        parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
-        datetimes = Time(time_mjd, format='mjd').to_datetime()
-        strtime = [str(round_time(x)) for x in datetimes]
-        elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
-        elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
-        fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
-        fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
-        fran_R1 = np.exp(1j*fran1)
-        fran_L1 = np.exp(-1j*fran1)
-        fran_R2 = np.exp(1j*fran2)
-        fran_L2 = np.exp(-1j*fran2)
+        if frotcal==True:
+            gmst = gmst_function(time_mjd)
+            hangle1 = gmst + longitude[t1] - ra #HOUR ANGLE FIRST TELESCOPE
+            hangle2 = gmst + longitude[t2] - ra #HOUR ANGLE SECOND TELESCOPE
+            par1I_t1 = np.sin(hangle1)
+            par1I_t2 = np.sin(hangle2)
+            par1R_t1 = np.cos(dec)*np.tan(latitude[t1]) - np.sin(dec)*np.cos(hangle1)
+            par1R_t2 = np.cos(dec)*np.tan(latitude[t2]) - np.sin(dec)*np.cos(hangle2)
+            parangle1 = np.angle(par1R_t1 + 1j*par1I_t1 ) #PARALACTIC ANGLE T1
+            parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
+            datetimes = Time(time_mjd, format='mjd').to_datetime()
+            strtime = [str(round_time(x)) for x in datetimes]
+            elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
+            elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
+            fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
+            fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
+            fran_R1 = np.exp(1j*fran1)
+            fran_L1 = np.exp(-1j*fran1)
+            fran_R2 = np.exp(1j*fran2)
+            fran_L2 = np.exp(-1j*fran2)
 
         if t1 in skipsites:
             rscale1 = lscale1 = np.array(1.)
@@ -430,8 +433,6 @@ def get_elev(ra_source, dec_source, xyz_antenna, time):
    returns the elevation of the telescope.
    Note that every parameter can be an array (e.g. the time)
    """
-   from astropy import units as u
-   from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
    #angle conversions:
    ra_src      = Angle(ra_source, unit=u.rad)
    dec_src      = Angle(dec_source, unit=u.rad)
