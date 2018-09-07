@@ -234,14 +234,16 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     linterp = {}
     skipsites = []
 
-    #PREPARE INTERPOLATION DATA
+    #PREPARE INTERPOLATION DATAfrom astropy import units as u
+    from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
+    from astropy import units as u
     xyz={}
     latitude={}
     longitude={}
     ra = caltable.ra*np.pi*2./24.#rad
     dec = caltable.dec*np.pi*2./360.#rad
-    #ra_src = Angle(ra, unit=u.rad)
-    #dec_src = Angle(dec, unit=u.rad)
+    ra_src = Angle(ra, unit=u.rad)
+    dec_src = Angle(dec, unit=u.rad)
     #source_position  = ICRS(ra=ra_src, dec=dec_src)
     PAR={}
     ELE={}
