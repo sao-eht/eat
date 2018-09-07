@@ -238,6 +238,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     longitude={}
     ra = caltable.ra*np.pi*2./24.#rad
     dec = caltable.dec*np.pi*2./360.#rad
+    sourcevec = np.array([np.cos(dec), 0, np.sin(dec)])
     PAR={}
     ELE={}
     OFF={}
@@ -289,6 +290,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         time_mjd = bl_obs['time'] - MJD_0 #dates are in mjd in Datastruct
         if frotcal==True:
             gmst = gmst_function(time_mjd)
+            thetas = np.mod((gmst - ra), 2*np.pi)
             hangle1 = gmst + longitude[t1] - ra #HOUR ANGLE FIRST TELESCOPE
             hangle2 = gmst + longitude[t2] - ra #HOUR ANGLE SECOND TELESCOPE
             par1I_t1 = np.sin(hangle1)
@@ -299,8 +301,10 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
             datetimes = Time(time_mjd, format='mjd').to_datetime()
             strtime = [str(round_time(x)) for x in datetimes]
-            elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
-            elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
+            elev1 = get_elev_2(earthrot(xyz[t1], thetas), sourcevec)
+            elev2 = get_elev_2(earthrot(xyz[t2], thetas), sourcevec)
+            #elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
+            #elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
             fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
             fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
             fran_R1 = np.exp(1j*fran1)
@@ -464,6 +468,46 @@ def round_time(t,round_s=1.):
     microseconds = int(1e6*(foo_s - days*3600*24 - seconds))
     round_t = t0+datetime.timedelta(days,seconds,microseconds)
     return round_t
+
+
+def earthrot(vecs, thetas):
+    """Rotate a vector / array of vectors about the z-direction by theta / array of thetas (radian)
+    """
+    if len(vecs.shape)==1:
+        vecs = np.array([vecs])
+    if np.isscalar(thetas):
+        thetas = np.array([thetas for i in range(len(vecs))])
+
+    # equal numbers of sites and angles
+    if len(thetas) == len(vecs):
+        rotvec = np.array([np.dot(np.array(((np.cos(thetas[i]),-np.sin(thetas[i]),0),(np.sin(thetas[i]),np.cos(thetas[i]),0),(0,0,1))), vecs[i])
+                       for i in range(len(vecs))])
+
+    # only one rotation angle, many sites
+    elif len(thetas) == 1:
+        rotvec = np.array([np.dot(np.array(((np.cos(thetas[0]),-np.sin(thetas[0]),0),(np.sin(thetas[0]),np.cos(thetas[0]),0),(0,0,1))), vecs[i])
+                       for i in range(len(vecs))])
+    # only one site, many angles
+    elif len(vecs) == 1:
+        rotvec = np.array([np.dot(np.array(((np.cos(thetas[i]),-np.sin(thetas[i]),0),(np.sin(thetas[i]),np.cos(thetas[i]),0),(0,0,1))), vecs[0])
+                       for i in range(len(thetas))])
+    else:
+        raise Exception("Unequal numbers of vectors and angles in earthrot(vecs, thetas)!")
+
+    return rotvec
+
+def get_elev_2(obsvecs, sourcevec):
+    """Return the elevation of a source with respect to an observer/observers in radians
+       obsvec can be an array of vectors but sourcevec can ONLY be a single vector
+    """
+
+    if len(obsvecs.shape)==1:
+        obsvecs=np.array([obsvecs])
+
+    anglebtw = np.array([np.dot(obsvec,sourcevec)/np.linalg.norm(obsvec)/np.linalg.norm(sourcevec) for obsvec in obsvecs])
+    el = 0.5*np.pi - np.arccos(anglebtw)
+
+    return el
 
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
