@@ -208,7 +208,7 @@ def xyz_2_latlong(obsvecs):
     #if out.shape[0]==1: out = out[0]
     return out
 
-def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='ehtim'):
+def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic'):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
@@ -245,8 +245,31 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     PAR={}
     ELE={}
     OFF={}
+    elevfit={}
     gmst_function= lambda time_mjd: Time(time_mjd, format='mjd').sidereal_time('mean','greenwich').hour*2.*np.pi/24.
+    
 
+    #FIND MAX RANGE OF MJD TIMES FOR INTERPOLATION
+    if (frotcal==True)&(interp_dt>0):
+        dt_mjd = interp_dt*1./24./60./60. #interp_dt in sec
+        mjd_max=-1
+        mjd_min=1e10
+        for s in range(0, len(caltable.tarr)):
+            site = caltable.tarr[s]['site']
+            time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
+            mjd_max_foo = np.max(time_mjd)
+            mjd_min_foo = np.min(time_mjd)
+            if (mjd_max_foo > mjd_max):
+                mjd_max = mjd_max_foo
+            if (mjd_min_foo < mjd_min):
+                mjd_min = mjd_min_foo
+        #MAKE TIME GRIDS FOR INTERPOLATION           
+        time_mjd_fake = np.arange(mjd_min,mjd_max,dt_mjd)
+        gmst_fake = gmst_function(time_mjd_fake)
+        datetimes_fake = Time(time_mjd_fake, format='mjd').to_datetime()
+        strtime_fake = [str(round_time(x)) for x in datetimes_fake]
+        thetas_fake = np.mod((gmst_fake - ra), 2.*np.pi)
+    
     for s in range(0, len(caltable.tarr)):
         site = caltable.tarr[s]['site']
         xyz_foo = np.asarray((caltable.tarr[s]['x'],caltable.tarr[s]['y'],caltable.tarr[s]['z']))
@@ -271,6 +294,17 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                                                    kind=interp, fill_value=fill_value)
         linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'],
                                                    kind=interp, fill_value=fill_value)
+        # This is only if we interpolate elevation
+        if (frotcal==True)&(interp_dt>0):
+            if elev_function=='ehtim':
+                elev_fake_foo = get_elev_2(earthrot(xyz[site], thetas_fake), sourcevec)#ehtim 
+            else:
+                elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
+
+            elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo,
+                                                kind=elev_interp_kind, fill_value=fill_value)
+
+
 
     #-------------------------------------------
     # sort by baseline
@@ -302,20 +336,26 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             par1R_t2 = np.cos(dec)*np.tan(latitude[t2]) - np.sin(dec)*np.cos(hangle2)
             parangle1 = np.angle(par1R_t1 + 1j*par1I_t1 ) #PARALACTIC ANGLE T1
             parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
-            if elev_function=='ehtim':
-                elev1 = get_elev_2(earthrot(xyz[t1], thetas), sourcevec)
-                elev2 = get_elev_2(earthrot(xyz[t2], thetas), sourcevec)
+            if interp_dt<=0:
+                if elev_function=='ehtim':
+                    elev1 = get_elev_2(earthrot(xyz[t1], thetas), sourcevec)
+                    elev2 = get_elev_2(earthrot(xyz[t2], thetas), sourcevec)
+                else:
+                    datetimes = Time(time_mjd, format='mjd').to_datetime()
+                    strtime = [str(round_time(x)) for x in datetimes]
+                    elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
+                    elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
             else:
-                datetimes = Time(time_mjd, format='mjd').to_datetime()
-                strtime = [str(round_time(x)) for x in datetimes]
-                elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
-                elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
+                elev1 = elevfit[t1](time_mjd)
+                elev2 = elevfit[t2](time_mjd)
+                
             fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
             fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
             fran_R1 = np.exp(1j*fran1)
             fran_L1 = np.exp(-1j*fran1)
             fran_R2 = np.exp(1j*fran2)
             fran_L2 = np.exp(-1j*fran2)
+
 
         if t1 in skipsites:
             rscale1 = lscale1 = np.array(1.)
