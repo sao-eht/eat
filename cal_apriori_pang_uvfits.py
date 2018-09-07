@@ -258,6 +258,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             site = caltable.tarr[s]['site']
             time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
             mjd_max_foo = np.max(time_mjd)
+            mjd_min_foo = np.min(time_mjd)
             if (mjd_max_foo > mjd_max):
                 mjd_max = mjd_max_foo
             if (mjd_min_foo < mjd_min):
