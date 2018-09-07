@@ -23,8 +23,6 @@ from hops2uvfits import *
 import pandas as pd
 import datetime
 from datetime import timedelta
-from astropy import units as u
-from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
 
 # For Andrew:
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
@@ -426,23 +424,25 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
 
 def get_elev(ra_source, dec_source, xyz_antenna, time):
     #this one is by Michael Janssen
-   """
-   given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
-   and given the position of the telescope from the vex file [Geocentric coordinates (m)]
-   and the time of the observation (e.g. '2012-7-13 23:00:00') [UTC:yr-m-d],
-   returns the elevation of the telescope.
-   Note that every parameter can be an array (e.g. the time)
-   """
-   #angle conversions:
-   ra_src      = Angle(ra_source, unit=u.rad)
-   dec_src      = Angle(dec_source, unit=u.rad)
+    """
+    given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
+    and given the position of the telescope from the vex file [Geocentric coordinates (m)]
+    and the time of the observation (e.g. '2012-7-13 23:00:00') [UTC:yr-m-d],
+    returns the elevation of the telescope.
+    Note that every parameter can be an array (e.g. the time)
+    """
+    from astropy import units as u
+    from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
+    #angle conversions:
+    ra_src      = Angle(ra_source, unit=u.rad)
+    dec_src      = Angle(dec_source, unit=u.rad)
 
-   source_position  = ICRS(ra=ra_src, dec=dec_src)
-   antenna_position = EarthLocation(x=xyz_antenna[0]*u.m, y=xyz_antenna[1]*u.m, z=xyz_antenna[2]*u.m)
-   altaz_system     = AltAz(location=antenna_position, obstime=time)
-   trans_to_altaz   = source_position.transform_to(altaz_system)
-   elevation        = trans_to_altaz.alt
-   return elevation.rad
+    source_position  = ICRS(ra=ra_src, dec=dec_src)
+    antenna_position = EarthLocation(x=xyz_antenna[0]*u.m, y=xyz_antenna[1]*u.m, z=xyz_antenna[2]*u.m)
+    altaz_system     = AltAz(location=antenna_position, obstime=time)
+    trans_to_altaz   = source_position.transform_to(altaz_system)
+    elevation        = trans_to_altaz.alt
+    return elevation.rad
 
 def round_time(t,round_s=1.):
 
