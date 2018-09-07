@@ -240,9 +240,9 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     longitude={}
     ra = caltable.ra*np.pi*2./24.#rad
     dec = caltable.dec*np.pi*2./360.#rad
-    ra_src = Angle(ra, unit=u.rad)
-    dec_src = Angle(dec, unit=u.rad)
-    source_position  = ICRS(ra=ra_src, dec=dec_src)
+    #ra_src = Angle(ra, unit=u.rad)
+    #dec_src = Angle(dec, unit=u.rad)
+    #source_position  = ICRS(ra=ra_src, dec=dec_src)
     PAR={}
     ELE={}
     OFF={}
@@ -307,10 +307,10 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
             datetimes = Time(time_mjd, format='mjd').to_datetime()
             strtime = [str(round_time(x)) for x in datetimes]
-            #elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
-            #elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
-            elev1 = get_elev(source_position, antenna_position[t1], strtime) #ELEVATION T1 
-            elev2 = get_elev(source_position, antenna_position[t2], strtime) #ELEVATION T2
+            elev1 = get_elev_old(ra, dec, xyz[t1], strtime) #ELEVATION T1 
+            elev2 = get_elev_old(ra, dec, xyz[t2], strtime) #ELEVATION T2
+            #elev1 = get_elev(source_position, antenna_position[t1], strtime) #ELEVATION T1 
+            #elev2 = get_elev(source_position, antenna_position[t2], strtime) #ELEVATION T2
             fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
             fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
             fran_R1 = np.exp(1j*fran1)
