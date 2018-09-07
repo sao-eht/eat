@@ -244,7 +244,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     dec = caltable.dec*np.pi*2./360.#rad
     ra_src = Angle(ra, unit=u.rad)
     dec_src = Angle(dec, unit=u.rad)
-    #source_position  = ICRS(ra=ra_src, dec=dec_src)
+    source_position  = ICRS(ra=ra_src, dec=dec_src)
     PAR={}
     ELE={}
     OFF={}
@@ -255,7 +255,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         site = caltable.tarr[s]['site']
         xyz_foo = np.asarray((caltable.tarr[s]['x'],caltable.tarr[s]['y'],caltable.tarr[s]['z']))
         xyz[site] = xyz_foo
-        #antenna_position[site] = EarthLocation(x=xyz[site][0]*u.m, y=xyz[site][1]*u.m, z=xyz[site][2]*u.m)
+        antenna_position[site] = EarthLocation(x=xyz[site][0]*u.m, y=xyz[site][1]*u.m, z=xyz[site][2]*u.m)
         latlong = xyz_2_latlong(xyz_foo)
         latitude[site] = latlong[0][0]#rad
         longitude[site] = latlong[0][1]#rad
@@ -309,10 +309,10 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
             datetimes = Time(time_mjd, format='mjd').to_datetime()
             strtime = [str(round_time(x)) for x in datetimes]
-            elev1 = get_elev_old(ra, dec, xyz[t1], strtime) #ELEVATION T1 
-            elev2 = get_elev_old(ra, dec, xyz[t2], strtime) #ELEVATION T2
-            #elev1 = get_elev(source_position, antenna_position[t1], strtime) #ELEVATION T1 
-            #elev2 = get_elev(source_position, antenna_position[t2], strtime) #ELEVATION T2
+            #elev1 = get_elev_old(ra, dec, xyz[t1], strtime) #ELEVATION T1 
+            #elev2 = get_elev_old(ra, dec, xyz[t2], strtime) #ELEVATION T2
+            elev1 = get_elev(source_position, antenna_position[t1], strtime) #ELEVATION T1 
+            elev2 = get_elev(source_position, antenna_position[t2], strtime) #ELEVATION T2
             fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
             fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
             fran_R1 = np.exp(1j*fran1)
