@@ -240,21 +240,27 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     longitude={}
     ra = caltable.ra*np.pi*2./24.#rad
     dec = caltable.dec*np.pi*2./360.#rad
+    ra_src = Angle(ra, unit=u.rad)
+    dec_src = Angle(dec, unit=u.rad)
+    source_position  = ICRS(ra=ra_src, dec=dec_src)
     PAR={}
     ELE={}
     OFF={}
+    antenna_position={}
     gmst_function= lambda time_mjd: Time(time_mjd, format='mjd').sidereal_time('mean','greenwich').hour*2.*np.pi/24.
 
     for s in range(0, len(caltable.tarr)):
         site = caltable.tarr[s]['site']
         xyz_foo = np.asarray((caltable.tarr[s]['x'],caltable.tarr[s]['y'],caltable.tarr[s]['z']))
         xyz[site] = xyz_foo
+        antenna_position[site] = EarthLocation(x=xyz[site][0]*u.m, y=xyz[site][1]*u.m, z=xyz[site][2]*u.m)
         latlong = xyz_2_latlong(xyz_foo)
         latitude[site] = latlong[0][0]#rad
         longitude[site] = latlong[0][1]#rad
         PAR[site] = station_frot[site][0]
         ELE[site] = station_frot[site][1]
         OFF[site] = station_frot[site][2]
+        
 
         try:
             caltable.data[site]
@@ -301,8 +307,10 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
             datetimes = Time(time_mjd, format='mjd').to_datetime()
             strtime = [str(round_time(x)) for x in datetimes]
-            elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
-            elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
+            #elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
+            #elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
+            elev1 = get_elev(source_position, antenna_position[t1], strtime) #ELEVATION T1 
+            elev2 = get_elev(source_position, antenna_position[t2], strtime) #ELEVATION T2
             fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
             fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
             fran_R1 = np.exp(1j*fran1)
@@ -424,7 +432,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     save_uvfits(datastruct_out, filename_out)
     return 
 
-def get_elev(ra_source, dec_source, xyz_antenna, time):
+def get_elev_old(ra_source, dec_source, xyz_antenna, time):
     #this one is by Michael Janssen
    """
    given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
@@ -439,6 +447,21 @@ def get_elev(ra_source, dec_source, xyz_antenna, time):
 
    source_position  = ICRS(ra=ra_src, dec=dec_src)
    antenna_position = EarthLocation(x=xyz_antenna[0]*u.m, y=xyz_antenna[1]*u.m, z=xyz_antenna[2]*u.m)
+   altaz_system     = AltAz(location=antenna_position, obstime=time)
+   trans_to_altaz   = source_position.transform_to(altaz_system)
+   elevation        = trans_to_altaz.alt
+   return elevation.rad
+
+def get_elev(source_position, antenna_position, time):
+    #this one is by Michael Janssen
+   """
+   given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
+   and given the position of the telescope from the vex file [Geocentric coordinates (m)]
+   and the time of the observation (e.g. '2012-7-13 23:00:00') [UTC:yr-m-d],
+   returns the elevation of the telescope.
+   Note that every parameter can be an array (e.g. the time)
+   """
+   #angle conversions:
    altaz_system     = AltAz(location=antenna_position, obstime=time)
    trans_to_altaz   = source_position.transform_to(altaz_system)
    elevation        = trans_to_altaz.alt
