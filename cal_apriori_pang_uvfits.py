@@ -251,7 +251,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
 
     #FIND MAX RANGE OF MJD TIMES FOR INTERPOLATION
     if (frotcal==True)&(interp_dt>0):
-        dt_mjd = interp_dt.*1./24./60./60. #interp_dt in sec
+        dt_mjd = interp_dt*1./24./60./60. #interp_dt in sec
         mjd_max=-1
         mjd_min=1e10
         for s in range(0, len(caltable.tarr)):
