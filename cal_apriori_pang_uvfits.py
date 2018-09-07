@@ -208,7 +208,7 @@ def xyz_2_latlong(obsvecs):
     #if out.shape[0]==1: out = out[0]
     return out
 
-def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='astropy',interp_dt=1.):
+def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic'):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
@@ -302,7 +302,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                 elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
 
             elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo,
-                                                kind='cubic', fill_value=fill_value)
+                                                kind=elev_interp_kind, fill_value=fill_value)
 
 
 
