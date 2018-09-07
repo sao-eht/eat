@@ -208,12 +208,15 @@ def xyz_2_latlong(obsvecs):
     #if out.shape[0]==1: out = out[0]
     return out
 
-def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True):
+def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='ehtim'):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
         datastruct (Datastruct) :  input data structure in EHTIM format
         filename_out (str) :  uvfits output file name
+        frotcal (bool): whether apply field rotation angle correction
+        elev_function (string): 'ehtim' for ehtim's function of calculating elevation, anything else
+        for astropy functions
     """
 
     if datastruct.dtype != "EHTIM":
@@ -299,12 +302,14 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             par1R_t2 = np.cos(dec)*np.tan(latitude[t2]) - np.sin(dec)*np.cos(hangle2)
             parangle1 = np.angle(par1R_t1 + 1j*par1I_t1 ) #PARALACTIC ANGLE T1
             parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
-            datetimes = Time(time_mjd, format='mjd').to_datetime()
-            strtime = [str(round_time(x)) for x in datetimes]
-            elev1 = get_elev_2(earthrot(xyz[t1], thetas), sourcevec)
-            elev2 = get_elev_2(earthrot(xyz[t2], thetas), sourcevec)
-            #elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
-            #elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
+            if elev_function=='ehtim':
+                elev1 = get_elev_2(earthrot(xyz[t1], thetas), sourcevec)
+                elev2 = get_elev_2(earthrot(xyz[t2], thetas), sourcevec)
+            else:
+                datetimes = Time(time_mjd, format='mjd').to_datetime()
+                strtime = [str(round_time(x)) for x in datetimes]
+                elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
+                elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
             fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
             fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
             fran_R1 = np.exp(1j*fran1)
