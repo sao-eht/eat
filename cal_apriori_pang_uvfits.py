@@ -302,7 +302,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                 elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
 
             elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo,
-                                                kind=interp, fill_value=fill_value)
+                                                kind='cubic', fill_value=fill_value)
 
 
 
