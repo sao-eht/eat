@@ -253,7 +253,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         site = caltable.tarr[s]['site']
         xyz_foo = np.asarray((caltable.tarr[s]['x'],caltable.tarr[s]['y'],caltable.tarr[s]['z']))
         xyz[site] = xyz_foo
-        antenna_position[site] = EarthLocation(x=xyz[site][0]*u.m, y=xyz[site][1]*u.m, z=xyz[site][2]*u.m)
+        #antenna_position[site] = EarthLocation(x=xyz[site][0]*u.m, y=xyz[site][1]*u.m, z=xyz[site][2]*u.m)
         latlong = xyz_2_latlong(xyz_foo)
         latitude[site] = latlong[0][0]#rad
         longitude[site] = latlong[0][1]#rad
