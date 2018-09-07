@@ -208,12 +208,15 @@ def xyz_2_latlong(obsvecs):
     #if out.shape[0]==1: out = out[0]
     return out
 
-def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=None,frotcal=True):
+def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='ehtim'):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
         datastruct (Datastruct) :  input data structure in EHTIM format
         filename_out (str) :  uvfits output file name
+        frotcal (bool): whether apply field rotation angle correction
+        elev_function (string): 'ehtim' for ehtim's function of calculating elevation, anything else
+        for astropy functions
     """
 
     if datastruct.dtype != "EHTIM":
@@ -238,6 +241,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     longitude={}
     ra = caltable.ra*np.pi*2./24.#rad
     dec = caltable.dec*np.pi*2./360.#rad
+    sourcevec = np.array([np.cos(dec), 0, np.sin(dec)])
     PAR={}
     ELE={}
     OFF={}
@@ -285,27 +289,33 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         t1 = bl_obs['t1'][0]
         t2 = bl_obs['t2'][0]
         coub=coub+1
-        print('Calibrting {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
+        print('Calibrating {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
         time_mjd = bl_obs['time'] - MJD_0 #dates are in mjd in Datastruct
-        gmst = gmst_function(time_mjd)
-        hangle1 = gmst + longitude[t1] - ra #HOUR ANGLE FIRST TELESCOPE
-        hangle2 = gmst + longitude[t2] - ra #HOUR ANGLE SECOND TELESCOPE
-        par1I_t1 = np.sin(hangle1)
-        par1I_t2 = np.sin(hangle2)
-        par1R_t1 = np.cos(dec)*np.tan(latitude[t1]) - np.sin(dec)*np.cos(hangle1)
-        par1R_t2 = np.cos(dec)*np.tan(latitude[t2]) - np.sin(dec)*np.cos(hangle2)
-        parangle1 = np.angle(par1R_t1 + 1j*par1I_t1 ) #PARALACTIC ANGLE T1
-        parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
-        datetimes = Time(time_mjd, format='mjd').to_datetime()
-        strtime = [str(round_time(x)) for x in datetimes]
-        elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
-        elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
-        fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
-        fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
-        fran_R1 = np.exp(1j*fran1)
-        fran_L1 = np.exp(-1j*fran1)
-        fran_R2 = np.exp(1j*fran2)
-        fran_L2 = np.exp(-1j*fran2)
+        if frotcal==True:
+            gmst = gmst_function(time_mjd)
+            thetas = np.mod((gmst - ra), 2*np.pi)
+            hangle1 = gmst + longitude[t1] - ra #HOUR ANGLE FIRST TELESCOPE
+            hangle2 = gmst + longitude[t2] - ra #HOUR ANGLE SECOND TELESCOPE
+            par1I_t1 = np.sin(hangle1)
+            par1I_t2 = np.sin(hangle2)
+            par1R_t1 = np.cos(dec)*np.tan(latitude[t1]) - np.sin(dec)*np.cos(hangle1)
+            par1R_t2 = np.cos(dec)*np.tan(latitude[t2]) - np.sin(dec)*np.cos(hangle2)
+            parangle1 = np.angle(par1R_t1 + 1j*par1I_t1 ) #PARALACTIC ANGLE T1
+            parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
+            if elev_function=='ehtim':
+                elev1 = get_elev_2(earthrot(xyz[t1], thetas), sourcevec)
+                elev2 = get_elev_2(earthrot(xyz[t2], thetas), sourcevec)
+            else:
+                datetimes = Time(time_mjd, format='mjd').to_datetime()
+                strtime = [str(round_time(x)) for x in datetimes]
+                elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
+                elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
+            fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
+            fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
+            fran_R1 = np.exp(1j*fran1)
+            fran_L1 = np.exp(-1j*fran1)
+            fran_R2 = np.exp(1j*fran2)
+            fran_L2 = np.exp(-1j*fran2)
 
         if t1 in skipsites:
             rscale1 = lscale1 = np.array(1.)
@@ -423,25 +433,25 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
 
 def get_elev(ra_source, dec_source, xyz_antenna, time):
     #this one is by Michael Janssen
-   """
-   given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
-   and given the position of the telescope from the vex file [Geocentric coordinates (m)]
-   and the time of the observation (e.g. '2012-7-13 23:00:00') [UTC:yr-m-d],
-   returns the elevation of the telescope.
-   Note that every parameter can be an array (e.g. the time)
-   """
-   from astropy import units as u
-   from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
-   #angle conversions:
-   ra_src      = Angle(ra_source, unit=u.rad)
-   dec_src      = Angle(dec_source, unit=u.rad)
+    """
+    given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
+    and given the position of the telescope from the vex file [Geocentric coordinates (m)]
+    and the time of the observation (e.g. '2012-7-13 23:00:00') [UTC:yr-m-d],
+    returns the elevation of the telescope.
+    Note that every parameter can be an array (e.g. the time)
+    """
+    from astropy import units as u
+    from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
+    #angle conversions:
+    ra_src      = Angle(ra_source, unit=u.rad)
+    dec_src      = Angle(dec_source, unit=u.rad)
 
-   source_position  = ICRS(ra=ra_src, dec=dec_src)
-   antenna_position = EarthLocation(x=xyz_antenna[0]*u.m, y=xyz_antenna[1]*u.m, z=xyz_antenna[2]*u.m)
-   altaz_system     = AltAz(location=antenna_position, obstime=time)
-   trans_to_altaz   = source_position.transform_to(altaz_system)
-   elevation        = trans_to_altaz.alt
-   return elevation.rad
+    source_position  = ICRS(ra=ra_src, dec=dec_src)
+    antenna_position = EarthLocation(x=xyz_antenna[0]*u.m, y=xyz_antenna[1]*u.m, z=xyz_antenna[2]*u.m)
+    altaz_system     = AltAz(location=antenna_position, obstime=time)
+    trans_to_altaz   = source_position.transform_to(altaz_system)
+    elevation        = trans_to_altaz.alt
+    return elevation.rad
 
 def round_time(t,round_s=1.):
 
@@ -463,6 +473,46 @@ def round_time(t,round_s=1.):
     microseconds = int(1e6*(foo_s - days*3600*24 - seconds))
     round_t = t0+datetime.timedelta(days,seconds,microseconds)
     return round_t
+
+
+def earthrot(vecs, thetas):
+    """Rotate a vector / array of vectors about the z-direction by theta / array of thetas (radian)
+    """
+    if len(vecs.shape)==1:
+        vecs = np.array([vecs])
+    if np.isscalar(thetas):
+        thetas = np.array([thetas for i in range(len(vecs))])
+
+    # equal numbers of sites and angles
+    if len(thetas) == len(vecs):
+        rotvec = np.array([np.dot(np.array(((np.cos(thetas[i]),-np.sin(thetas[i]),0),(np.sin(thetas[i]),np.cos(thetas[i]),0),(0,0,1))), vecs[i])
+                       for i in range(len(vecs))])
+
+    # only one rotation angle, many sites
+    elif len(thetas) == 1:
+        rotvec = np.array([np.dot(np.array(((np.cos(thetas[0]),-np.sin(thetas[0]),0),(np.sin(thetas[0]),np.cos(thetas[0]),0),(0,0,1))), vecs[i])
+                       for i in range(len(vecs))])
+    # only one site, many angles
+    elif len(vecs) == 1:
+        rotvec = np.array([np.dot(np.array(((np.cos(thetas[i]),-np.sin(thetas[i]),0),(np.sin(thetas[i]),np.cos(thetas[i]),0),(0,0,1))), vecs[0])
+                       for i in range(len(thetas))])
+    else:
+        raise Exception("Unequal numbers of vectors and angles in earthrot(vecs, thetas)!")
+
+    return rotvec
+
+def get_elev_2(obsvecs, sourcevec):
+    """Return the elevation of a source with respect to an observer/observers in radians
+       obsvec can be an array of vectors but sourcevec can ONLY be a single vector
+    """
+
+    if len(obsvecs.shape)==1:
+        obsvecs=np.array([obsvecs])
+
+    anglebtw = np.array([np.dot(obsvec,sourcevec)/np.linalg.norm(obsvec)/np.linalg.norm(sourcevec) for obsvec in obsvecs])
+    el = 0.5*np.pi - np.arccos(anglebtw)
+
+    return el
 
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
