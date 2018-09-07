@@ -234,9 +234,9 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     linterp = {}
     skipsites = []
 
-    #PREPARE INTERPOLATION DATAfrom astropy import units as u
-    from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
-    from astropy import units as u
+    #PREPARE INTERPOLATION DATA
+    #from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
+    #from astropy import units as u
     xyz={}
     latitude={}
     longitude={}
@@ -290,7 +290,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     # apply the  calibration
 
     datatable = []
-    coub=0.
+    coub=0
     for bl_obs in bllist:
         t1 = bl_obs['t1'][0]
         t2 = bl_obs['t2'][0]
