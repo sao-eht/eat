@@ -622,25 +622,25 @@ if __name__=='__main__':
     if "--elev_function" in sys.argv: 
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--elev_function'):
-                elev_function = int(sys.argv[a+1]) 
+                elev_function = (sys.argv[a+1]) 
     
     interp_dt = 1.
     if "--interp_dt" in sys.argv: 
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--interp_dt'):
-                interp_dt = int(sys.argv[a+1])
+                interp_dt = float(sys.argv[a+1])
 
     interp = "linear"
     if "--interp" in sys.argv: 
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--interp'):
-                interp = int(sys.argv[a+1]) 
+                interp = (sys.argv[a+1]) 
 
     elev_interp_kind='cubic'
     if "--elev_interp_kind" in sys.argv: 
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--elev_interp_kind'):
-                elev_interp_kind = int(sys.argv[a+1])
+                elev_interp_kind = (sys.argv[a+1])
     
     ident = ""
     if "--ident" in sys.argv: 
