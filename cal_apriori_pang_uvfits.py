@@ -302,7 +302,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                 elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
 
             elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo,
-                                                kind=elev_interp_kind, fill_value=fill_value)
+                                                kind=elev_interp_kind)
 
 
 
@@ -558,7 +558,7 @@ def get_elev_2(obsvecs, sourcevec):
 ##########################  Main FUNCTION ########################################################################################
 ################################################################################################################################## 
 def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT, 
-         interp='linear', extrapolate=True, ident='',sqrt_gains=False):
+         interp='linear', extrapolate=True, ident='',sqrt_gains=False, frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic'):
     
     print("********************************************************")
     print("*********************CALUVFITS**************************")
@@ -583,7 +583,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
 
 
         outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.apriori.uvfits'
-        apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate)
+        apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind)
         print("Saved calibrated data to ", outname)
     print("---------------------------------------------------------")
     print("---------------------------------------------------------")
@@ -608,17 +608,40 @@ if __name__=='__main__':
               "   --sqrt_gains : specify to take sqrt of gains before applying")
         sys.exit()
 
+    
+    frotcal = True
+    if "--no-frotcal"  in sys.argv: frotcal = None
+
     extrapolate = True
     if "--no-extrapolate" in sys.argv: extrapolate = None
 
     sqrt_gains = False
     if "--sqrt_gains" in sys.argv: sqrt_gains = True
 
+    elev_function = 'astropy'
+    if "--elev_function" in sys.argv: 
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--elev_function'):
+                elev_function = int(sys.argv[a+1]) 
+    
+    interp_dt = 1.
+    if "--interp_dt" in sys.argv: 
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--interp_dt'):
+                interp_dt = int(sys.argv[a+1])
+
     interp = "linear"
     if "--interp" in sys.argv: 
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--interp'):
                 interp = int(sys.argv[a+1]) 
+
+    elev_interp_kind='cubic'
+    if "--elev_interp_kind" in sys.argv: 
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--elev_interp_kind'):
+                elev_interp_kind = int(sys.argv[a+1])
+    
     ident = ""
     if "--ident" in sys.argv: 
         for a in range(0, len(sys.argv)):
@@ -639,4 +662,4 @@ if __name__=='__main__':
     else:
         outdir = OUTDIR_DEFAULT
 
-    main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate,sqrt_gains=sqrt_gains)
+    main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate,sqrt_gains=sqrt_gains,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind)
