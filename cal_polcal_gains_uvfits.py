@@ -400,7 +400,7 @@ if __name__=='__main__':
     if "--calfile" in sys.argv: 
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--calfile'):
-                caldir = sys.argv[a+1] 
+                calfile = sys.argv[a+1] 
 
     outdir = datadir 
     if "--outdir" in sys.argv: 
