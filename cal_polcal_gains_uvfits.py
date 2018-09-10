@@ -359,7 +359,7 @@ def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT
     print(' ')
 
     uvfitsfiles = glob.glob(datadir + '/*.uvfits')
-    print('uvf: ',uvfitsfiles)
+    
     for uvfitsfile in sorted(uvfitsfiles):
         print(' ')
         print("Polcal gains calibrating: ", uvfitsfile)
@@ -411,10 +411,4 @@ if __name__=='__main__':
     else:
         outdir = OUTDIR_DEFAULT
 
-    datadir='home/maciek/polcal/testing/apcal_frotcal_speed/hops-lo/test_out/3597/'
-    calfile='/home/maciek/polcal/testing/polcal_gains/polcal_er5test3_lo.csv'
-    outdir='/home/maciek/polcal/testing/polcal_gains/test_out/3597/'
-    print('data: ', datadir)
-    print('cal: ', calfile)
-    print('out: ', outdir)
     main(datadir=datadir, calfile=calfile, outdir=outdir, ident=ident)
