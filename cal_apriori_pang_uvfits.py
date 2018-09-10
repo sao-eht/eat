@@ -256,13 +256,15 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         mjd_min=1e10
         for s in range(0, len(caltable.tarr)):
             site = caltable.tarr[s]['site']
-            time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
-            mjd_max_foo = np.max(time_mjd)
-            mjd_min_foo = np.min(time_mjd)
-            if (mjd_max_foo > mjd_max):
-                mjd_max = mjd_max_foo
-            if (mjd_min_foo < mjd_min):
-                mjd_min = mjd_min_foo
+            try:
+                time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
+                mjd_max_foo = np.max(time_mjd)
+                mjd_min_foo = np.min(time_mjd)
+                if (mjd_max_foo > mjd_max):
+                    mjd_max = mjd_max_foo
+                if (mjd_min_foo < mjd_min):
+                    mjd_min = mjd_min_foo
+            except KeyError: pass
         #MAKE TIME GRIDS FOR INTERPOLATION           
         time_mjd_fake = np.arange(mjd_min,mjd_max,dt_mjd)
         gmst_fake = gmst_function(time_mjd_fake)
