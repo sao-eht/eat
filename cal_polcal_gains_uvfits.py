@@ -413,4 +413,7 @@ if __name__=='__main__':
     datadir='home/maciek/polcal/testing/apcal_frotcal_speed/hops-lo/test_out/3597/'
     calfile='/home/maciek/polcal/testing/polcal_gains/polcal_er5test3_lo.csv'
     outdir='/home/maciek/polcal/testing/polcal_gains/test_out/3597/'
+    print('data: ', datadir)
+    print('cal: ', calfile)
+    print('out: ', outdir)
     main(datadir=datadir, calfile=calfile, outdir=outdir, ident=ident)
