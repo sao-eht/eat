@@ -359,7 +359,7 @@ def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT
     print(' ')
 
     uvfitsfiles = glob.glob(datadir + '/*.uvfits')
-    for uvfitsfile in uvfitsfiles:
+    for uvfitsfile in sorted(uvfitsfiles):
         print(' ')
         print("Polcal gains calibrating: ", uvfitsfile)
 
