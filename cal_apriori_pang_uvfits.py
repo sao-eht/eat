@@ -257,6 +257,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         for s in range(0, len(caltable.tarr)):
             site = caltable.tarr[s]['site']
             try:
+                #sometimes station reported but no calibration
                 time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
                 mjd_max_foo = np.max(time_mjd)
                 mjd_min_foo = np.min(time_mjd)
@@ -283,6 +284,16 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         ELE[site] = station_frot[site][1]
         OFF[site] = station_frot[site][2]
 
+        # This is only if we interpolate elevation
+        if (frotcal==True)&(interp_dt>0):
+            if elev_function=='ehtim':
+                elev_fake_foo = get_elev_2(earthrot(xyz[site], thetas_fake), sourcevec)#ehtim 
+            else:
+                elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
+
+            elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo,
+                                                kind=elev_interp_kind)
+
         try:
             caltable.data[site]
         except KeyError:
@@ -296,16 +307,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                                                    kind=interp, fill_value=fill_value)
         linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'],
                                                    kind=interp, fill_value=fill_value)
-        # This is only if we interpolate elevation
-        if (frotcal==True)&(interp_dt>0):
-            if elev_function=='ehtim':
-                elev_fake_foo = get_elev_2(earthrot(xyz[site], thetas_fake), sourcevec)#ehtim 
-            else:
-                elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
-
-            elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo,
-                                                kind=elev_interp_kind)
-
+        
 
 
     #-------------------------------------------
