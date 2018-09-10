@@ -218,6 +218,7 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
 
     for cou, row in gains.iterrows():
         polygain[row.station] = poly_from_str(row.ratio_phas)
+        mjd_start[row.station] = row.mjd_start
     #print(gains0)
     #print(polygain)
     # interpolate the calibration  table
@@ -249,13 +250,13 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
             rscale1 = lscale1 = np.array(1.)
         else:
             rscale1 = np.array(1.)
-            lscale1 = np.exp(1j*polygain[t1](time_mjd)*np.pi/180.)
+            lscale1 = np.exp(1j*polygain[t1](time_mjd - mjd_start[t1])*np.pi/180.)
 
         if t2 in skipsites:
             rscale2 = lscale2 = np.array(1.)
         else:
             rscale2 = np.array(1.)
-            lscale2 = np.exp(1j*polygain[t2](time_mjd)*np.pi/180.)
+            lscale2 = np.exp(1j*polygain[t2](time_mjd - mjd_start[t2])*np.pi/180.)
 
         rrscale = rscale1 * rscale2.conj()
         llscale = lscale1 * lscale2.conj()
