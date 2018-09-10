@@ -211,6 +211,7 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
 
     gains0 = pd.read_csv(gaincaltable)
     polygain={}
+    mjd_start={}
 
     #deterimine which calibration to use when multiple options for multiple periods
     mjd_mean = datastruct.data['time'].mean()  - MJD_0
