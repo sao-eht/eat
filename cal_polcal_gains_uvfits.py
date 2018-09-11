@@ -211,6 +211,7 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
 
     gains0 = pd.read_csv(gaincaltable)
     polygain={}
+    mjd_start={}
 
     #deterimine which calibration to use when multiple options for multiple periods
     mjd_mean = datastruct.data['time'].mean()  - MJD_0
@@ -218,6 +219,7 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
 
     for cou, row in gains.iterrows():
         polygain[row.station] = poly_from_str(row.ratio_phas)
+        mjd_start[row.station] = row.mjd_start
     #print(gains0)
     #print(polygain)
     # interpolate the calibration  table
@@ -249,13 +251,13 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
             rscale1 = lscale1 = np.array(1.)
         else:
             rscale1 = np.array(1.)
-            lscale1 = np.exp(1j*polygain[t1](time_mjd)*np.pi/180.)
+            lscale1 = np.exp(1j*polygain[t1](time_mjd - mjd_start[t1])*np.pi/180.)
 
         if t2 in skipsites:
             rscale2 = lscale2 = np.array(1.)
         else:
             rscale2 = np.array(1.)
-            lscale2 = np.exp(1j*polygain[t2](time_mjd)*np.pi/180.)
+            lscale2 = np.exp(1j*polygain[t2](time_mjd - mjd_start[t2])*np.pi/180.)
 
         rrscale = rscale1 * rscale2.conj()
         llscale = lscale1 * lscale2.conj()
@@ -359,7 +361,8 @@ def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT
     print(' ')
 
     uvfitsfiles = glob.glob(datadir + '/*.uvfits')
-    for uvfitsfile in uvfitsfiles:
+    
+    for uvfitsfile in sorted(uvfitsfiles):
         print(' ')
         print("Polcal gains calibrating: ", uvfitsfile)
 
@@ -400,7 +403,7 @@ if __name__=='__main__':
     if "--calfile" in sys.argv: 
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--calfile'):
-                caldir = sys.argv[a+1] 
+                calfile = sys.argv[a+1] 
 
     outdir = datadir 
     if "--outdir" in sys.argv: 

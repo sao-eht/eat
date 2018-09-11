@@ -256,13 +256,16 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         mjd_min=1e10
         for s in range(0, len(caltable.tarr)):
             site = caltable.tarr[s]['site']
-            time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
-            mjd_max_foo = np.max(time_mjd)
-            mjd_min_foo = np.min(time_mjd)
-            if (mjd_max_foo > mjd_max):
-                mjd_max = mjd_max_foo
-            if (mjd_min_foo < mjd_min):
-                mjd_min = mjd_min_foo
+            try:
+                #sometimes station reported but no calibration
+                time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
+                mjd_max_foo = np.max(time_mjd)
+                mjd_min_foo = np.min(time_mjd)
+                if (mjd_max_foo > mjd_max):
+                    mjd_max = mjd_max_foo
+                if (mjd_min_foo < mjd_min):
+                    mjd_min = mjd_min_foo
+            except KeyError: continue
         #MAKE TIME GRIDS FOR INTERPOLATION           
         time_mjd_fake = np.arange(mjd_min,mjd_max,dt_mjd)
         gmst_fake = gmst_function(time_mjd_fake)
@@ -281,6 +284,16 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         ELE[site] = station_frot[site][1]
         OFF[site] = station_frot[site][2]
 
+        # This is only if we interpolate elevation
+        if (frotcal==True)&(interp_dt>0):
+            if elev_function=='ehtim':
+                elev_fake_foo = get_elev_2(earthrot(xyz[site], thetas_fake), sourcevec)#ehtim 
+            else:
+                elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
+
+            elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo,
+                                                kind=elev_interp_kind)
+
         try:
             caltable.data[site]
         except KeyError:
@@ -294,16 +307,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                                                    kind=interp, fill_value=fill_value)
         linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'],
                                                    kind=interp, fill_value=fill_value)
-        # This is only if we interpolate elevation
-        if (frotcal==True)&(interp_dt>0):
-            if elev_function=='ehtim':
-                elev_fake_foo = get_elev_2(earthrot(xyz[site], thetas_fake), sourcevec)#ehtim 
-            else:
-                elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
-
-            elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo,
-                                                kind=elev_interp_kind)
-
+        
 
 
     #-------------------------------------------
@@ -569,7 +573,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
     print(' ')
 
     uvfitsfiles = glob.glob(datadir + '/*.uvfits')
-    for uvfitsfile in uvfitsfiles:
+    for uvfitsfile in sorted(uvfitsfiles):
         print(' ')
         print("A priori calibrating: ", uvfitsfile)
 
