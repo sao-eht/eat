@@ -1,0 +1,45 @@
+#!/usr/bin/env python
+
+# SNR table from alist(s)
+
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('filename', nargs='+', help='alist txt file(s)')
+parser.add_argument('-t', '--tags', help='tags for each alist file', nargs='*', default=[])
+parser.add_argument('-r', '--ref', help='reference station', default='A')
+parser.add_argument('-i', '--index', help='pivot table index', nargs='+', default='expt_no timetag scan_id source polarization'.split())
+parser.add_argument('-c', '--columns', help='pivot table columns', nargs='+', default=['baseline'])
+parser.add_argument('-v', '--values', help='pivot table values', nargs='+', default=['snr'])
+parser.add_argument('-s', '--source', help='filter by source', default=None)
+parser.add_argument('-p', '--polarization', help='filter by polarization', nargs='+', default=['LL', 'LR', 'RL', 'RR'])
+parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
+args = parser.parse_args()
+
+from eat.io import hops, util
+import pandas as pd
+
+alists = [hops.read_alist(af) for af in args.filename]
+tags = args.tags if len(args.tags) > 0 else map(str, range(len(args.filename)))
+
+if len(alists) > 1:
+    for (a, tag) in zip(alists, tags):
+        a['tag'] = tag
+    a = pd.concat(alists, ignore_index=True)
+    args.index.append('tag')
+else:
+    a = alists[0]
+
+if not args.no_fix:
+    util.fix(a)
+
+if args.source:
+    a = a[(a.source == args.source) & (a.polarization.isin(set(args.polarization)))]
+
+pd.options.display.float_format = '{:.1f}'.format
+cols = ' '.join(args.values)
+if 'delay' in cols or 'mbd' in cols or 'sbd' in cols:
+    pd.options.display.float_format = '{:.6f}'.format
+
+b = util.noauto(a[a.baseline.str.contains(args.ref)])
+print b.pivot_table(index=args.index, columns=args.columns, values=args.values).to_string()
