@@ -430,12 +430,13 @@ def expmean(x, s=8, n=4): # robust mean of exponential distribution
 # delay_off, rate_off: subtract this from the data before doing search
 # manual offsets will show up in axis labels, automatic offsets (from centering) will not
 # replacedata: new visibility array to substitute with actual data before fringe fitting
+# cf: use control file to preprocess data (only type 120)
 def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None, None),
                dt=2, df=None, ni=1, ret=False, showhops=False,
                delay_off=0., rate_off=0., flip=False, segment=(None, None), channels=(None,None),
-               pol=None, unrotate_212=True, replacedata=None):
+               pol=None, unrotate_212=True, replacedata=None, cf=None):
     b = getfringefile(fringefile, pol=pol)
-    p = params(b)
+    p = params(b, cf=cf)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
     if kind is None:
         kind = 230 if bool(b.t230[0]) else 212 # use type_230 if available
@@ -451,7 +452,13 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
         if flip:
             v = v[:,:,::-1] # test flip frequency order of spectral points
     elif kind==120: # original correlator output
-        v = np.swapaxes(replacedata if replacedata is not None else pop120(b), 1, 0)  # put AP as axis 0
+        if replacedata:
+            v = replacedata
+        else:
+            v = pop120(b)[:,p.startidx:p.stopidx,:]   # visib array (nchan, nap, nspec/2)
+            if cf is not None:
+                v = v * p.pre_rot[:,None,:]
+        v = np.swapaxes(v, 1, 0)  # put AP as axis 0
         df = df or 2 # arbitrary, but compensate for type_230 inflation factor of x2 (SSB)
         nspec = v.shape[-1]
         assert(v.shape == (nap, nchan, nspec))
@@ -1735,7 +1742,7 @@ def align(bs, snrs=None, tint=5.):
     igood = wstack > 0.
     vstack[igood] = vstack[igood] / wstack[igood, None]
     vstack[~igood] = interp1d(p0.dtvec[igood], vstack[igood], axis=0,
-                              kind='linear', bounds_error=False)(p0.dtvec[~igood])
+                              kind='linear', fill_value='extrapolate', bounds_error=False)(p0.dtvec[~igood])
     return vstack
 
 # pick a reference station based on maximum sum(log(snr)) of detections

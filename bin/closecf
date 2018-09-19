@@ -48,9 +48,12 @@ util.unwrap_mbd(a)
 util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_error,
                      crosspol_systematic=args.crosspol_delay_error)
 
-# extra error for JS baseline, possible noise fringes, SR baseline, JR sideband contamination (rate)
+# extra error for JS baseline, possible noise fringes, SR baseline, JR sideband contamination (rate), 1.5ns LMT delayed leakage, AR problem high band
 a['mbd_err'] = np.sqrt(a['mbd_err']**2 + 50e-6**2*(a.baseline.isin({'JS', 'JR', 'SJ', 'RJ'}))
-                       + 1.*(a.baseline.isin({'SR', 'RS'})) + 1.*(a.snr < args.threshold))
+                       + 1.*(a.baseline.isin({'SR', 'RS'})) + 1.*(a.snr < args.threshold)
+                       + 1.5e-3**2*(a.baseline.str.contains('L') & a.polarization.isin({'RL', 'LR'}))
+                       + 23e-3**2*((a.ref_freq > 228100.) & (a.baseline == 'AR') & (a.polarization == 'RL')
+                                 & (a.scan_id.isin({'095-0829', '095-0839', '095-0849', '095-0859', '095-0908'}))))
 a['rate_err'] = np.sqrt(a['rate_err']**2 + 0.25*(a.baseline.isin({'SR', 'RS'})) + 4.0*(a.baseline.isin({'JR', 'RJ'})) + 1.*(a.snr < args.threshold))
 
 hu.closefringe(a)

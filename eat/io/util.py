@@ -163,6 +163,25 @@ def add_gmst(df):
     for (gmst, idx) in zip(times_gmst, indices):
         df.ix[idx, 'gmst'] = gmst
 
+def add_mjd(df):
+    """add *gmst* column to data frame with *datetime* field using astropy for conversion"""
+    from astropy import time
+    g = df.groupby('datetime')
+    (timestamps, indices) = list(zip(*iter(g.groups.items())))
+    # this broke in pandas 0.9 with API changes
+    if type(timestamps[0]) is np.datetime64: # pandas < 0.9
+        times_unix = 1e-9*np.array(
+            timestamps).astype('float') # note one float64 is not [ns] precision
+    elif type(timestamps[0]) is pd.Timestamp:
+        times_unix = np.array([1e-9 * t.value for t in timestamps]) # will be int64's
+    else:
+        raise Exception("do not know how to convert timestamp of type " + repr(type(timestamps[0])))
+    times_mjd = time.Time(
+        times_unix, format='unix').mjd # vectorized
+    df['mjd'] = 0. # initialize new column
+    for (mjd, idx) in zip(times_mjd, indices):
+        df.ix[idx, 'mjd'] = mjd
+
 def noauto(df):
     """returns new data frame with autocorrelations removed regardless of polarziation"""
     auto = df.baseline.str[0] == df.baseline.str[1]
@@ -188,6 +207,16 @@ def fix(df):
     # SMA polarization swap EHT high band D05
     idx1 = (df.baseline.str[0] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
     idx2 = (df.baseline.str[1] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
+    df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'RL', 'LR':'RR', 'RL':'LL', 'RR':'LR'})
+    df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LR', 'LR':'LL', 'RL':'RR', 'RR':'RL'})
+    # SPT polarization swap EHT high band D05 for Rev3
+    idx1 = (df.baseline.str[0] == 'Y') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
+    idx2 = (df.baseline.str[1] == 'Y') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
+    df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'RL', 'LR':'RR', 'RL':'LL', 'RR':'LR'})
+    df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LR', 'LR':'LL', 'RL':'RR', 'RR':'RL'})
+    # SPT polarization swap EHT high band D05 for Rev5 (and earlier new root code)
+    idx1 = (df.baseline.str[0] == 'Y') & (df.root_id > '000000') & (df.root_id < '09FRZZ') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
+    idx2 = (df.baseline.str[1] == 'Y') & (df.root_id > '000000') & (df.root_id < '09FRZZ') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
     df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'RL', 'LR':'RR', 'RL':'LL', 'RR':'LR'})
     df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LR', 'LR':'LL', 'RL':'RR', 'RR':'RL'})
     
