@@ -1237,7 +1237,8 @@ def plot_uv_coverage_publ(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=
     'LMT-SPT':'yellow','LMT-IRAM30':'tomato','SMA-SPT':'olivedrab','JCMT-SPT':'olivedrab',
     'SMT-SPT':'salmon', 'IRAM30-SPT':'saddlebrown','IRAM30-SMA':'tan','JCMT-IRAM30':'tan',
     'SMT-IRAM30':'dodgerblue'}
-    current_palette=palette_dict
+    palette_dict_inv = {k.split('-')[1]+'-'+k.split('-')[0] : v for k, v in palette_dict.items()}
+    current_palette={**palette_dict, **palette_dict_inv}
     #current_palette={'AX':'k','AZ':'b'}
     #current_palette = sns.color_palette("Dark2", Nb)
     #sns.set_palette(current_palette)
