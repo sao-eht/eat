@@ -1524,7 +1524,7 @@ def delayplot(df, site, offs={}, vlines=[]):
     labels = []
     for (name, rows) in b.groupby(['baseline', 'polarization']):
         (bl, pol) = name
-        label = bl if pol == 'LL' else '_nolabel'
+        label = bl if pol == 'LL' else '_nolegend_'
         offset = np.array([offs.get((bl[1], expt), 0.) - offs.get((bl[0], expt), 0.)
                            for expt in rows.expt_no])
         h = plt.plot(rows.scan_no, 1e3*rows.mbd_unwrap - offset, marker=mk[pol], ls='none',
@@ -1690,7 +1690,7 @@ def trendplot(df, site='', offs={}, col='sbdelay', vlines=None, **kwargs):
     labels = []
     for (name, rows) in b.groupby(['baseline', 'polarization']):
         (bl, pol) = name
-        label = bl if pol == 'LL' else '_nolabel'
+        label = bl if pol == 'LL' else '_nolegend_'
         offset = np.array([offs.get((bl[1], expt), 0.) - offs.get((bl[0], expt), 0.)
                            for expt in rows.expt_no])
         val = (1e3 if ('mbd' in col or 'sbd' in col or 'delay' in col) and (not 'rate' in col) else 1.) * rows[col]
@@ -1836,14 +1836,14 @@ def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5, flip=Tru
     for name in sorted(set(itertools.chain(detections.baseline, upperlimits.baseline))):
         plt.plot([], [], 'o', mew=1, label=name, alpha=1, color=color[name])
     for (name, rows) in detections.sort_values('baseline').groupby('baseline'):
-        h = plt.plot(rows.u/1e3, rows.v/1e3, 'o', mew=1, label='_nolabel_', alpha=1, color=color[name], zorder=100)
-        plt.plot(-rows.u/1e3, -rows.v/1e3, 'o', mew=1, label='_nolabel_', alpha=1, color=color[name], zorder=100)
+        h = plt.plot(rows.u/1e3, rows.v/1e3, 'o', mew=1, label='_nolegend_', alpha=1, color=color[name], zorder=100)
+        plt.plot(-rows.u/1e3, -rows.v/1e3, 'o', mew=1, label='_nolegend_', alpha=1, color=color[name], zorder=100)
     for (name, rows) in upperlimits.groupby('baseline'):
-        plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolabel_', alpha=1, color=color[name])
-        plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolabel_', alpha=1, color=color[name])
+        plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolegend_', alpha=1, color=color[name])
+        plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolegend_', alpha=1, color=color[name])
     for (name, rows) in nondetections.groupby('baseline'):
-        plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1, mfc='white', label='_nolabel_', alpha=0.5, color='gray', zorder=-100)
-        plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1, mfc='white', label='_nolabel_', alpha=0.5, color='gray', zorder=-100)
+        plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1, mfc='white', label='_nolegend_', alpha=0.5, color='gray', zorder=-100)
+        plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1, mfc='white', label='_nolegend_', alpha=0.5, color='gray', zorder=-100)
     r = 1 / ((2*np.pi/360) * 50e-6 / 3600) / 1e9
     cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
     plt.text(0+.3, r+0.25, '(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
