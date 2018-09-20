@@ -1832,8 +1832,11 @@ def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5, flip=Tru
     if color is None:
         bls = sorted(set(df.baseline))
         color = dict(zip(bls, sns.color_palette(sns.hls_palette(len(bls), l=.6, s=.6))))
+    # labels for legend
+    for name in sorted(set(itertools.chain(detections.baseline, upperlimits.baseline))):
+        plt.plot([], [], 'o', mew=1, label=name, alpha=1, color=color[name])
     for (name, rows) in detections.sort_values('baseline').groupby('baseline'):
-        h = plt.plot(rows.u/1e3, rows.v/1e3, 'o', mew=1, label=name, alpha=1, color=color[name], zorder=100)
+        h = plt.plot(rows.u/1e3, rows.v/1e3, 'o', mew=1, label='_nolabel_', alpha=1, color=color[name], zorder=100)
         plt.plot(-rows.u/1e3, -rows.v/1e3, 'o', mew=1, label='_nolabel_', alpha=1, color=color[name], zorder=100)
     for (name, rows) in upperlimits.groupby('baseline'):
         plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolabel_', alpha=1, color=color[name])
@@ -1860,10 +1863,11 @@ def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5, flip=Tru
     lines.append(plt.Line2D([0], [0], color='k', ls='none', marker='.', mew=1.5, mfc='white', alpha=1, label='upper limit'))
     lines.append(plt.Line2D([0], [0], color='gray', ls='none', marker='.', mew=1, mfc='white', alpha=0.5, label='non-det'))
     leg = Legend(plt.gca(), lines, ['detection', 'upper lim', 'non-det'], loc='lower right', ncol=1)
-    leg.set_zorder(300)
-    plt.gca().add_artist(leg)
-    leg = plt.legend(loc='upper right')
-    leg.set_zorder(300)
+    if leg is not None:
+        leg.set_zorder(300)
+        plt.gca().add_artist(leg)
+        leg = plt.legend(loc='upper right')
+        leg.set_zorder(300)
     pu.wide(6, 6)
 
 def uvsnrplot(df, source=None, color=None, kind='baseline'):
