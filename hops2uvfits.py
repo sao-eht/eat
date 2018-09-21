@@ -1293,7 +1293,8 @@ def save_uvfits(datastruct, fname):
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
 def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_fits=True,
-                    recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False, sqrt2corr=False, flip_ALMA_pol=False):
+         recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False,
+         sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False):
 
 
     print("********************************************************")
@@ -1339,7 +1340,8 @@ def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_
                 print('    WARNING - not recomputing U,V coordinates!')
             print("---------------------------------------------------------")
             print("---------------------------------------------------------")
-            convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv, sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol)
+            convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv,
+                                   sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol, flip_SPT_pol=flip_SPT_pol)
 
         print(' ')
         print("Merging baseline uvfits files in directory: ", scandir)
@@ -1408,6 +1410,7 @@ if __name__=='__main__':
               "   --uv : specify to recompute uv points \n" +
               "   --sqrt2corr : specify to include the sqrt(2) correction to ALMA baselines"
               "   --flip_ALMA_pol : flip RL and LR for ALMA"
+              "   --flip_SPT_pol : flip RL and LR for SPT"
              )
         sys.exit()
 
