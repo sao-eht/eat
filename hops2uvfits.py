@@ -235,7 +235,8 @@ class Datastruct(object):
 #######################################################################
 ##########################  Load/Save FUNCTIONS #######################
 #######################################################################
-def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False, recompute_uv=False, sqrt2corr=False, flip_ALMA_pol=False):
+def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False, recompute_uv=False,
+                           sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False):
     """read all fringe files in a directory and produce single baseline uvfits files
 
        Args:
@@ -530,6 +531,13 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                     elif channel_pol_ant1[i]=='L' and channel_pol_ant2[i]=='R':
                         channel_pol_ant1[i]=='R'
                         channel_pol_ant2[i]=='L'
+
+                if flip_SPT_pol:
+                    swap = {'R': 'L', 'L': 'R'}
+                    if ant1 == 'SP':
+                        channel_pol_ant1[i]== swap[channel_pol_ant1[i]]
+                    elif ant2 == 'SP':
+                        channel_pol_ant2[i]== swap[channel_pol_ant2[i]]
 
                 # put visibilities in the data table
                 if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='R':
@@ -1425,6 +1433,9 @@ if __name__=='__main__':
     flip_ALMA_pol = False
     if "--flip_ALMA_pol" in sys.argv: flip_ALMA_pol = True
 
+    flip_SPT_pol = False
+    if "--flip_SPT_pol" in sys.argv: flip_SPT_pol = True
+
     ident = ""
     if "--ident" in sys.argv:
         for a in range(0, len(sys.argv)):
@@ -1441,4 +1452,5 @@ if __name__=='__main__':
 
     main(datadir=datadir, outdir=outdir, ident=ident,
          recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits,
-         rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv, sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol)
+         rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv,
+         sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol, flip_SPT_pol=flip_SPT_pol)
