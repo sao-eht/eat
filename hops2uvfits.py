@@ -526,18 +526,18 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
                 if flip_ALMA_pol and (ant1== 'AA' or ant2 == 'AA'):
                     if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='L':
-                        channel_pol_ant1[i]=='L'
-                        channel_pol_ant2[i]=='R'
+                        channel_pol_ant1[i] = 'L'
+                        channel_pol_ant2[i] = 'R'
                     elif channel_pol_ant1[i]=='L' and channel_pol_ant2[i]=='R':
-                        channel_pol_ant1[i]=='R'
-                        channel_pol_ant2[i]=='L'
+                        channel_pol_ant1[i] = 'R'
+                        channel_pol_ant2[i] = 'L'
 
                 if flip_SPT_pol:
                     swap = {'R': 'L', 'L': 'R'}
                     if ant1 == 'SP':
-                        channel_pol_ant1[i]== swap[channel_pol_ant1[i]]
+                        channel_pol_ant1[i] = swap[channel_pol_ant1[i]]
                     elif ant2 == 'SP':
-                        channel_pol_ant2[i]== swap[channel_pol_ant2[i]]
+                        channel_pol_ant2[i] = swap[channel_pol_ant2[i]]
 
                 # put visibilities in the data table
                 if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='R':
