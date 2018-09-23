@@ -536,7 +536,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                     swap = {'R': 'L', 'L': 'R'}
                     if ant1 == 'SP':
                         channel_pol_ant1[i] = swap[channel_pol_ant1[i]]
-                    elif ant2 == 'SP':
+                    if ant2 == 'SP':
                         channel_pol_ant2[i] = swap[channel_pol_ant2[i]]
 
                 # put visibilities in the data table
