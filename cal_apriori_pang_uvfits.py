@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 #hops2uvfits.py
 #take data from all fringe files in a directory and put them in a uvfits file
@@ -27,7 +27,7 @@ from datetime import timedelta
 # For Andrew:
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
 DAY=str(3600)
-CALDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/SEFDs/SEFD_HI/'+DAY 
+CALDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/SEFDs/SEFD_HI/'+DAY
 DATADIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/6.uvfits_new/'+DAY
 OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/7.apriorical'
 
@@ -72,7 +72,7 @@ RADPERARCSEC = (np.pi / 180.) / 3600.
 # Caltable object
 ##################################################################################################
 # ANDREW TODO copied from caltable.py in ehtim
-# load directly instead?  
+# load directly instead?
 class Caltable(object):
     """
        Attributes:
@@ -145,13 +145,13 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
         except IOError:
             print("NO FILE: " + filename)
             continue
-            
+
         datatable = []
 
         # ANDREW HACKY WAY TO MAKE IT WORK WITH ONLY ONE ENTRY
-        onerowonly=False        
+        onerowonly=False
         try: data.shape[1]
-        except IndexError: 
+        except IndexError:
             data = data.reshape(1,len(data))
             onerowonly = True
         for row in data:
@@ -247,7 +247,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     OFF={}
     elevfit={}
     gmst_function= lambda time_mjd: Time(time_mjd, format='mjd').sidereal_time('mean','greenwich').hour*2.*np.pi/24.
-    
+
 
     #FIND MAX RANGE OF MJD TIMES FOR INTERPOLATION
     if (frotcal==True)&(interp_dt>0):
@@ -266,13 +266,13 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                 if (mjd_min_foo < mjd_min):
                     mjd_min = mjd_min_foo
             except KeyError: continue
-        #MAKE TIME GRIDS FOR INTERPOLATION           
+        #MAKE TIME GRIDS FOR INTERPOLATION
         time_mjd_fake = np.arange(mjd_min,mjd_max,dt_mjd)
         gmst_fake = gmst_function(time_mjd_fake)
         datetimes_fake = Time(time_mjd_fake, format='mjd').to_datetime()
         strtime_fake = [str(round_time(x)) for x in datetimes_fake]
         thetas_fake = np.mod((gmst_fake - ra), 2.*np.pi)
-    
+
     for s in range(0, len(caltable.tarr)):
         site = caltable.tarr[s]['site']
         xyz_foo = np.asarray((caltable.tarr[s]['x'],caltable.tarr[s]['y'],caltable.tarr[s]['z']))
@@ -287,7 +287,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         # This is only if we interpolate elevation
         if (frotcal==True)&(interp_dt>0):
             if elev_function=='ehtim':
-                elev_fake_foo = get_elev_2(earthrot(xyz[site], thetas_fake), sourcevec)#ehtim 
+                elev_fake_foo = get_elev_2(earthrot(xyz[site], thetas_fake), sourcevec)#ehtim
             else:
                 elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
 
@@ -300,20 +300,20 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             skipsites.append(site)
             print ("No Calibration  Data for %s !" % site)
             continue
-      
+
         time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
 
         rinterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['rscale'],
                                                    kind=interp, fill_value=fill_value)
         linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'],
                                                    kind=interp, fill_value=fill_value)
-        
+
 
 
     #-------------------------------------------
     # sort by baseline
     data =  datastruct.data
-    idx = np.lexsort((data['t2'], data['t1']))    
+    idx = np.lexsort((data['t2'], data['t1']))
     bllist = []
     for key, group in it.groupby(data[idx], lambda x: set((x['t1'], x['t2'])) ):
         bllist.append(np.array([obs for obs in group]))
@@ -347,12 +347,12 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                 else:
                     datetimes = Time(time_mjd, format='mjd').to_datetime()
                     strtime = [str(round_time(x)) for x in datetimes]
-                    elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1 
+                    elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1
                     elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
             else:
                 elev1 = elevfit[t1](time_mjd)
                 elev2 = elevfit[t2](time_mjd)
-                
+
             fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
             fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
             fran_R1 = np.exp(1j*fran1)
@@ -373,13 +373,13 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         if t2 in skipsites:
             rscale2 = lscale2 = np.array(1.)
         else:
-            if frotcal==False:    
+            if frotcal==False:
                 rscale2 = rinterp[t2](time_mjd)
                 lscale2 = linterp[t2](time_mjd)
             else:
                 rscale2 = rinterp[t2](time_mjd)*fran_R2
                 lscale2 = linterp[t2](time_mjd)*fran_L2
-                
+
 
 #        if force_singlepol == 'R':
 #            lscale1 = rscale1
@@ -411,7 +411,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     # put in uvfits format datastruct
     # telescope arrays
     tarr = datastruct.antenna_info
-    tkeys = {tarr[i]['site']: i for i in range(len(tarr))}    
+    tkeys = {tarr[i]['site']: i for i in range(len(tarr))}
     tnames = tarr['site']
     tnums = np.arange(1, len(tarr) + 1)
     xyz = np.array([[tarr[i]['x'],tarr[i]['y'],tarr[i]['z']] for i in np.arange(len(tarr))])
@@ -434,10 +434,10 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             entry['lr'] = np.conj(entry['lr'])
             datatable[i] = entry
         bl_list.append(np.array((entry['time'],entry['t1'],entry['t2']),dtype=BLTYPE))
-    _, unique_idx_anttime, idx_anttime = np.unique(bl_list, return_index=True, return_inverse=True) 
-    _, unique_idx_freq, idx_freq = np.unique(datatable['freq'], return_index=True, return_inverse=True) 
+    _, unique_idx_anttime, idx_anttime = np.unique(bl_list, return_index=True, return_inverse=True)
+    _, unique_idx_freq, idx_freq = np.unique(datatable['freq'], return_index=True, return_inverse=True)
 
-    # random group params    
+    # random group params
     u = datatable['u'][unique_idx_anttime]
     v = datatable['v'][unique_idx_anttime]
     t1num = [tkeys[scope] + 1 for scope in datatable['t1'][unique_idx_anttime]]
@@ -453,13 +453,13 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     nchan = datastruct.obs_info.nchan
 
     outdat = np.zeros((nap, 1, 1, nchan, nsubchan, nstokes, 3))
-    outdat[:,:,:,:,:,:,2] = -1.0  
-    
+    outdat[:,:,:,:,:,:,2] = -1.0
+
     vistypes = ['rr','ll','rl','lr']
     for i in xrange(len(datatable)):
         row_freq_idx = idx_freq[i]
         row_dat_idx = idx_anttime[i]
-        
+
         for j in range(len(vistypes)):
             outdat[row_dat_idx,0,0,row_freq_idx,0,j,0] = np.real(datatable[i][vistypes[j]])
             outdat[row_dat_idx,0,0,row_freq_idx,0,j,1] = np.imag(datatable[i][vistypes[j]])
@@ -473,7 +473,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
 
     # save final file
     save_uvfits(datastruct_out, filename_out)
-    return 
+    return
 
 def get_elev(ra_source, dec_source, xyz_antenna, time):
     #this one is by Michael Janssen
@@ -560,10 +560,10 @@ def get_elev_2(obsvecs, sourcevec):
 
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
-################################################################################################################################## 
-def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT, 
+##################################################################################################################################
+def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
          interp='linear', extrapolate=True, ident='',sqrt_gains=False, frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic'):
-    
+
     print("********************************************************")
     print("*********************CALUVFITS**************************")
     print("********************************************************")
@@ -594,25 +594,25 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
     print("---------------------------------------------------------")
     print(' ')
     return 0
- 
+
 if __name__=='__main__':
-    if len(sys.argv) == 1: 
+    if len(sys.argv) == 1:
         datadir = DATADIR_DEFAULT
     else: datadir = sys.argv[-1]
     if datadir[0] == '-': datadir=DATADIR_DEFAULT
 
     if ("-h" in sys.argv) or ("--h" in sys.argv):
-        print("usage: caluvfits.py datadir \n" + 
+        print("usage: caluvfits.py datadir \n" +
               "options: \n" +
-              "   --caldir caldir : specify directory with cal tables \n" + 
+              "   --caldir caldir : specify directory with cal tables \n" +
               "   --outdir outdir : specifiy output directory for calibrated files \n" +
               "   --ident : specify identifying tag for uvfits files \n"
-              "   --interp : specify interpolation order \n" + 
+              "   --interp : specify interpolation order \n" +
               "   --no-extrapolate : specify to not calibrate outside interval in cal tables \n"
               "   --sqrt_gains : specify to take sqrt of gains before applying")
         sys.exit()
 
-    
+
     frotcal = True
     if "--no-frotcal"  in sys.argv: frotcal = None
 
@@ -623,46 +623,46 @@ if __name__=='__main__':
     if "--sqrt_gains" in sys.argv: sqrt_gains = True
 
     elev_function = 'astropy'
-    if "--elev_function" in sys.argv: 
+    if "--elev_function" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--elev_function'):
-                elev_function = (sys.argv[a+1]) 
-    
+                elev_function = (sys.argv[a+1])
+
     interp_dt = 1.
-    if "--interp_dt" in sys.argv: 
+    if "--interp_dt" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--interp_dt'):
                 interp_dt = float(sys.argv[a+1])
 
     interp = "linear"
-    if "--interp" in sys.argv: 
+    if "--interp" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--interp'):
-                interp = (sys.argv[a+1]) 
+                interp = (sys.argv[a+1])
 
     elev_interp_kind='cubic'
-    if "--elev_interp_kind" in sys.argv: 
+    if "--elev_interp_kind" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--elev_interp_kind'):
                 elev_interp_kind = (sys.argv[a+1])
-    
+
     ident = ""
-    if "--ident" in sys.argv: 
+    if "--ident" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--ident'):
-                ident = "_" + sys.argv[a+1] 
-    
-    caldir = CALDIR_DEFAULT 
-    if "--caldir" in sys.argv: 
+                ident = "_" + sys.argv[a+1]
+
+    caldir = CALDIR_DEFAULT
+    if "--caldir" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--caldir'):
-                caldir = sys.argv[a+1] 
+                caldir = sys.argv[a+1]
 
-    outdir = datadir 
-    if "--outdir" in sys.argv: 
+    outdir = datadir
+    if "--outdir" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--outdir'):
-                outdir = sys.argv[a+1] 
+                outdir = sys.argv[a+1]
     else:
         outdir = OUTDIR_DEFAULT
 
