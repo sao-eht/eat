@@ -236,7 +236,7 @@ class Datastruct(object):
 ##########################  Load/Save FUNCTIONS #######################
 #######################################################################
 def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False, recompute_uv=False,
-                           sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False):
+                           sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False, fix_src_name=False):
     """read all fringe files in a directory and produce single baseline uvfits files
 
        Args:
@@ -299,6 +299,9 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 ###################################  SOURCE INFO ###################################
                 # name of the source
                 srcname = b.t201[0].source
+                if fix_src_name:
+                    if srcname == '1921-293':
+                        srcname = 'J1924-2914'
 
                 # get the ra
                 ra_hrs = b.t201[0].coord.ra_hrs
@@ -1294,7 +1297,7 @@ def save_uvfits(datastruct, fname):
 ##################################################################################################################################
 def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_fits=True,
          recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False,
-         sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False):
+         sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False, fix_src_name=False):
 
 
     print("********************************************************")
@@ -1341,7 +1344,7 @@ def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_
             print("---------------------------------------------------------")
             print("---------------------------------------------------------")
             convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv,
-                                   sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol, flip_SPT_pol=flip_SPT_pol)
+                                   sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol, flip_SPT_pol=flip_SPT_pol, fix_src_name=fix_src_name)
 
         print(' ')
         print("Merging baseline uvfits files in directory: ", scandir)
@@ -1411,6 +1414,7 @@ if __name__=='__main__':
               "   --sqrt2corr : specify to include the sqrt(2) correction to ALMA baselines"
               "   --flip_ALMA_pol : flip RL and LR for ALMA"
               "   --flip_SPT_pol : flip RL and LR for SPT"
+              "   --fix_src_name : rename '1921-293' to 'J1924-2914'"
              )
         sys.exit()
 
@@ -1439,6 +1443,9 @@ if __name__=='__main__':
     flip_SPT_pol = False
     if "--flip_SPT_pol" in sys.argv: flip_SPT_pol = True
 
+    fix_src_name = False
+    if "--fix_src_name" in sys.argv: fix_src_name = True
+
     ident = ""
     if "--ident" in sys.argv:
         for a in range(0, len(sys.argv)):
@@ -1456,4 +1463,4 @@ if __name__=='__main__':
     main(datadir=datadir, outdir=outdir, ident=ident,
          recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits,
          rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv,
-         sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol, flip_SPT_pol=flip_SPT_pol)
+         sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol, flip_SPT_pol=flip_SPT_pol, fix_src_name=fix_src_name)
