@@ -947,13 +947,13 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
         columns_out0 += ['lrvis']
         aggregating['rlvis'] = np.mean
         columns_out0 += ['rlvis']
-        aggregating['rrsigma'] = np.mean
+        aggregating['rrsigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
         columns_out0 += ['rrsigma']
-        aggregating['llsigma'] = np.mean
+        aggregating['llsigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
         columns_out0 += ['llsigma']
-        aggregating['lrsigma'] = np.mean
+        aggregating['lrsigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
         columns_out0 += ['lrsigma']
-        aggregating['rlsigma'] = np.mean
+        aggregating['rlsigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
         columns_out0 += ['rlsigma']
 
     if 'EB_sigma' in frame.columns:
