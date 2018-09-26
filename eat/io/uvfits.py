@@ -174,16 +174,16 @@ def obsdata_2_df(obs):
     df['baselength'] = np.sqrt(np.asarray(df.u)**2+np.asarray(df.v)**2)
     if 'vis' not in df.columns:
         try: df['vis'] = df['rrvis']
-        except: continue
+        except:  pass
     if 'amp' not in df.columns:
         try: df['amp'] = np.abs(df['vis'])
-        except: continue
+        except:  pass
     if 'phase' not in df.columns:
         try: df['phase'] = np.angle(df['rrvis'])*180/np.pi
-        except: continue
+        except:  pass
     if 'sigma' not in df.columns:
         try: df['sigma'] = df['rrsigma']
-        except: continue
+        except: pass
     return df
 
 
