@@ -172,6 +172,18 @@ def obsdata_2_df(obs):
     df['jd'] = Time(df['mjd'], format='mjd').jd
     df['source'] = sour
     df['baselength'] = np.sqrt(np.asarray(df.u)**2+np.asarray(df.v)**2)
+    if 'vis' not in df.columns:
+        try: df['vis'] = df['rrvis']
+        except: continue
+    if 'amp' not in df.columns:
+        try: df['amp'] = np.abs(df['vis'])
+        except: continue
+    if 'phase' not in df.columns:
+        try: df['phase'] = np.angle(df['rrvis'])*180/np.pi
+        except: continue
+    if 'sigma' not in df.columns:
+        try: df['sigma'] = df['rrsigma']
+        except: continue
     return df
 
 
@@ -227,8 +239,8 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
 
     elif force_singlepol=='':
         if polrep in ['circ','stokes']:
-            obsRR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='R',polrep='circ')
-            obsLL = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='L',polrep='circ')
+            obsRR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='R',polrep=polrep)
+            obsLL = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='L',polrep=polrep)
         else:
             obsRR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='R')
             obsLL = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='L')
