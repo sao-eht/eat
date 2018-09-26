@@ -100,6 +100,19 @@ def circular_std(theta):
     st = np.sqrt(-2.*np.log(np.sqrt(C**2+S**2)))*180./np.pi
     return st
 
+def circular_std_vector(theta):
+
+    N = np.shape(theta)[1]
+    st = np.zeros(N)
+    for cou in range(N):
+        theta_foo = theta[:,cou]
+        theta_foo = theta_foo[theta_foo==theta_foo]
+        theta_foo = np.asarray(theta_foo, dtype=np.float32)*np.pi/180.
+        C = np.mean(np.cos(theta_foo))
+        S = np.mean(np.sin(theta_foo))
+        st[cou] = np.sqrt(-2.*np.log(np.sqrt(C**2+S**2)))*180./np.pi
+    return st
+
 def circular_std_of_mean(theta):
     return circular_std(theta)/np.sqrt(len(theta))
 
@@ -178,7 +191,6 @@ def kurt(theta):
     theta = np.asarray(theta, dtype=np.float32)
     return st.kurtosis(theta)
 
-def mad(theta):
     theta = np.asarray(theta, dtype=np.float32)
     madev = float(srs.mad(theta))
     return madev
@@ -796,7 +808,8 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas',debi
                  'mbdelay','delay_rate','total_rate','total_mbdelay','total_sbresid','ref_elev','rem_elev'])&set(frame.columns))
     
     frame.drop_duplicates(subset=list(grouping0)+['datetime'], keep='first', inplace=True)
-    frame['vis']=frame['amp']*np.exp(1j*frame[phase_type]*np.pi/180.)
+    if 'vis' not in frame.columns:
+        frame['vis']=frame['amp']*np.exp(1j*frame[phase_type]*np.pi/180.)
     frame['number']=0.
 
     if 'phase' not in frame.columns:
@@ -906,7 +919,8 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
                  'mbdelay','delay_rate','total_rate','total_mbdelay','total_sbresid','ref_elev','rem_elev'])&set(frame.columns))
     #print(groupingSc)
     frame.drop_duplicates(subset=list(grouping0)+['datetime'], keep='first', inplace=True)
-    frame['vis']=frame['amp']*np.exp(1j*frame[phase_type]*np.pi/180.)
+    if 'vis' not in frame.columns:
+        frame['vis']=frame['amp']*np.exp(1j*frame[phase_type]*np.pi/180.)
     frame['number']=0.
     
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
@@ -922,6 +936,17 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     if 'v' in frame.columns:
         aggregating['v'] = np.mean
         columns_out0 += ['v']
+
+    if 'rrvis' in frame.columns:
+        #polrep='circ' stuff
+        aggregating['rrvis'] = np.mean
+        columns_out0 += ['rrvis']
+        aggregating['llvis'] = np.mean
+        columns_out0 += ['llvis']
+        aggregating['lrvis'] = np.mean
+        columns_out0 += ['lrvis']
+        aggregating['rlvis'] = np.mean
+        columns_out0 += ['rlvis']
 
     if 'EB_sigma' in frame.columns:
         aggregating['EB_sigma'] = lambda x: np.mean(x)/np.sqrt(len(x))
@@ -1523,6 +1548,7 @@ def generate_closure_time_series(df, ctypes=['CP','LCA','CFP'],sourL='def',polar
     if 'LCA' in ctypes:
         print('Calculating log closure amplitudes...')
         lca_df = cl.all_quadruples_log(df)
+        print('shape LCA:', np.shape(lca_df))
         if 'mjd' not in lca_df.columns:
             lca_df = add_mjd(lca_df)
         quadL = list(lca_df.quadrangle.unique())
