@@ -279,113 +279,14 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
     except AttributeError:
         df['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0]]+stations_2lett_1lett[x[1]],zip(df['t1'],df['t2'])))
 
-    is_alphabetic = list(map(lambda x: float(x== ''.join(sorted([x[0],x[1]]))),df['baseline']))
-    df['baseline'] = list(map(lambda x: ''.join(sorted([x[0],x[1]])),df['baseline']))
-    df['amp'] = list(map(np.abs,df['vis']))
-    df['snr'] = df['amp']/df['sigma']
+    #is_alphabetic = list(map(lambda x: float(x== ''.join(sorted([x[0],x[1]]))),df['baseline']))
+    #df['baseline'] = list(map(lambda x: ''.join(sorted([x[0],x[1]])),df['baseline']))
+    if 'vis' in df.columns:
+        df['amp'] = list(map(np.abs,df['vis']))
+        df['snr'] = df['amp']/df['sigma']
+        df['phase'] = np.angle(df['vis'])*180./np.pi
     #conjugate phase if baseline letters order has been reversed to make it alphabetic
-    df['phase'] = list(map(lambda x: (2.*x[1]-1.)*(180./np.pi)*np.angle(x[0]),zip(df['vis'],is_alphabetic)))
+    #df['phase'] = list(map(lambda x: (2.*x[1]-1.)*(180./np.pi)*np.angle(x[0]),zip(df['vis'],is_alphabetic)))
     if path_vex!='':   
         df = match_scans(scans,df)          
     return df
-
-
-
-
-def get_df_from_uvfit_polrep(pathf,observation='EHT2017',path_vex='',force_singlepol='',band='unknown',
-    round_s=0.1,only_parallel=False,rescale_noise=False,polrep='circ'):
-    """generate DataFrame from uvfits file
-    Args:
-        pathf: path to uvfits file to import
-        observation: name of observation campaign, to generate 'expt' info and 1-letter station codes
-        by default EHT2017
-        path_vex: path to folder with vex files used to generate 'scan_id' data
-        by default no vex file, so 'scan_id' not provided in the dataframe
-        force_singlepol: '' if all polarizations in the uvfits file, otherwise specify the unique 
-        polarization in the uvfits file
-        band: manually provide info about the band for the 'band' column
-        round_s: precision of converting fractional mjd to datetime object, in seconds
-    """
-    
-    import ehtim as eh
-
-    if force_singlepol=='LL':
-        force_singlepol='L'
-    if force_singlepol=='RR':
-        force_singlepol='R'
-
-    if force_singlepol=='no':
-        print('reading data without singlepol, make sure that this is a netcal file')
-        filen = pathf.split('/')[-1]
-        obsXX = eh.io.load.load_obs_uvfits(pathf,polrep=polrep)
-        dfXX = obsdata_2_df(obsXX)
-        if 'RR' in filen:
-            dfXX['polarization'] = 'RR'    
-        elif 'LL' in filen:
-            dfXX['polarization'] = 'LL' 
-        else:
-            dfXX['polarization'] = 'WTF' 
-        df = dfXX.copy()
-        df['band'] = band
-        if rescale_noise==True:
-            rsc = obsXX.estimate_noise_rescale_factor()
-            df['sigma']=rsc*df['sigma']
-
-    elif force_singlepol=='':
-        obsRR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='R')
-        obsLL = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='L')
-        dfRR = obsdata_2_df(obsRR)
-        dfLL = obsdata_2_df(obsLL)
-        dfRR['polarization'] = 'RR'
-        dfLL['polarization'] = 'LL'
-        df = pd.concat([dfRR,dfLL],ignore_index=True)
-
-        if only_parallel==False:
-            obsRL = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='RL')
-            obsLR = eh.io.load.load_obs_uvfits(pathf,  force_singlepol='LR')
-            dfRL = obsdata_2_df(obsRL)
-            dfLR = obsdata_2_df(obsLR)
-            dfRL['polarization'] = 'RL'
-            dfLR['polarization'] = 'LR'
-            df = pd.concat([df,dfLR,dfRL],ignore_index=True)
-
-        df['band'] = band  
-        if rescale_noise==True:
-            rscRR = obsRR.estimate_noise_rescale_factor()
-            rscLL = obsLL.estimate_noise_rescale_factor()
-            rsc=0.5*(rscRR+rscLL)
-            df['sigma']=rsc*df['sigma']
-
-    else: 
-        obs = eh.io.load.load_obs_uvfits(pathf,  force_singlepol=force_singlepol)
-        df = obsdata_2_df(obs)
-        if len(force_singlepol)==1:
-            df['polarization']=force_singlepol+force_singlepol
-        elif len(force_singlepol)==2:
-            df['polarization']=force_singlepol
-        df['band'] = band
-        if rescale_noise==True:
-            rsc= obs.estimate_noise_rescale_factor()
-            df['sigma']=rsc*df['sigma']
-
-    stations_2lett_1lett, jd_2_expt, scans = get_info(observation=observation,path_vex=path_vex)
-    df['datetime'] = Time(df['mjd'], format='mjd').datetime
-    df['datetime'] =list(map(lambda x: round_time(x,round_s=round_s),df['datetime']))
-    df['expt_no'] = list(map(jd_2_expt,df['jd']))
-    try:
-        df['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0].decode('unicode_escape')]+stations_2lett_1lett[x[1].decode('unicode_escape')],zip(df['t1'],df['t2'])))
-    except AttributeError:
-        df['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0]]+stations_2lett_1lett[x[1]],zip(df['t1'],df['t2'])))
-
-    is_alphabetic = list(map(lambda x: float(x== ''.join(sorted([x[0],x[1]]))),df['baseline']))
-    df['baseline'] = list(map(lambda x: ''.join(sorted([x[0],x[1]])),df['baseline']))
-    df['amp'] = list(map(np.abs,df['vis']))
-    df['snr'] = df['amp']/df['sigma']
-    #conjugate phase if baseline letters order has been reversed to make it alphabetic
-    df['phase'] = list(map(lambda x: (2.*x[1]-1.)*(180./np.pi)*np.angle(x[0]),zip(df['vis'],is_alphabetic)))
-    if path_vex!='':   
-        df = match_scans(scans,df)          
-    return df
-
-
-
