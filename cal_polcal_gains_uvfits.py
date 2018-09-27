@@ -195,15 +195,13 @@ def poly_from_str(strcoeffs):
     coeffs = list(map(float, strcoeffs.split(',')))
     return np.polynomial.polynomial.Polynomial(coeffs)
 
-def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
+def apply_caltable_uvfits(gaincaltable, datastruct, filename_out,cal_amp=False):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a gaincaltable object
         datastruct (Datastruct) :  input data structure in EHTIM format
         filename_out (str) :  uvfits output file name
-        frotcal (bool): whether apply field rotation angle correction
-        elev_function (string): 'ehtim' for ehtim's function of calculating elevation, anything else
-        for astropy functions
+        cal_amp (bool): whether to do amplitude calibration
     """
 
     if datastruct.dtype != "EHTIM":
@@ -220,6 +218,11 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
     for cou, row in gains.iterrows():
         polygain[row.station] = poly_from_str(row.ratio_phas)
         mjd_start[row.station] = row.mjd_start
+        if cal_amp==True:
+            polyamp[row.station] = poly_from_str(row.ratio_amp)
+        else:
+            polyamp[row.station] = poly_from_str('1.0')
+
     #print(gains0)
     #print(polygain)
     # interpolate the calibration  table
@@ -239,7 +242,7 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
     # apply the  calibration
 
     datatable = []
-    coub=0.
+    coub=0
     for bl_obs in bllist:
         t1 = bl_obs['t1'][0]
         t2 = bl_obs['t2'][0]
@@ -250,14 +253,14 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
         if t1 in skipsites:
             rscale1 = lscale1 = np.array(1.)
         else:
-            rscale1 = np.array(1.)
-            lscale1 = np.exp(1j*polygain[t1](time_mjd - mjd_start[t1])*np.pi/180.)
+            rscale1 = 1./np.sqrt(polyamp[t1](time_mjd))
+            lscale1 = np.sqrt(polyamp[t1](time_mjd))*np.exp(1j*polygain[t1](time_mjd - mjd_start[t1])*np.pi/180.)
 
         if t2 in skipsites:
             rscale2 = lscale2 = np.array(1.)
         else:
-            rscale2 = np.array(1.)
-            lscale2 = np.exp(1j*polygain[t2](time_mjd - mjd_start[t2])*np.pi/180.)
+            rscale2 = 1./np.sqrt(polyamp[t2](time_mjd))
+            lscale2 = np.sqrt(polyamp[t2](time_mjd))*np.exp(1j*polygain[t2](time_mjd - mjd_start[t2])*np.pi/180.)
 
         rrscale = rscale1 * rscale2.conj()
         llscale = lscale1 * lscale2.conj()
@@ -349,8 +352,8 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
 
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
-##################################################################################################################################
-def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT, ident=''):
+################################################################################################################################## 
+def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='',cal_amp=False):
 
     print("********************************************************")
     print("********************POLCALUVFITS************************")
@@ -371,7 +374,7 @@ def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT
         tarr = datastruct_ehtim.antenna_info
 
         outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.polcal.uvfits'
-        apply_caltable_uvfits(calfile, datastruct_ehtim, outname)
+        apply_caltable_uvfits(calfile, datastruct_ehtim, outname,cal_amp=False)
         print("Saved calibrated data to ", outname)
     print("---------------------------------------------------------")
     print("---------------------------------------------------------")
@@ -393,6 +396,10 @@ if __name__=='__main__':
               "   --ident : specify identifying tag for uvfits files \n")
         sys.exit()
 
+    
+    cal_amp = False
+    if "--cal_amp" in sys.argv: cal_amp = True
+    
     ident = ""
     if "--ident" in sys.argv:
         for a in range(0, len(sys.argv)):
@@ -413,4 +420,6 @@ if __name__=='__main__':
     else:
         outdir = OUTDIR_DEFAULT
 
-    main(datadir=datadir, calfile=calfile, outdir=outdir, ident=ident)
+    main(datadir=datadir, calfile=calfile, outdir=outdir, ident=ident,cal_amp=cal_amp)
+
+
