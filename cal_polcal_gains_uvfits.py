@@ -8,6 +8,7 @@ import datetime
 import ctypes
 import astropy.io.fits as fits
 import astropy.time as at
+from astropy.time import Time
 from argparse import Namespace
 import glob
 import os, sys
@@ -19,6 +20,10 @@ import numpy.matlib
 import scipy.interpolate
 import itertools as it
 from hops2uvfits import *
+import pandas as pd
+import datetime
+from datetime import timedelta
+import pandas as pd
 
 # For Andrew:
 #DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
@@ -34,7 +39,19 @@ OUTDIR_DEFAULT = '/home/achael/Desktop/imaging_workshop/HOPS_Rev1/er1-hops-hi/7.
 
 
 #conversion factors and data types
-station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR', 'SPT':'SP'}
+#station_dic = {'ALMA':'AA', 'APEX':'AP', 'SMTO':'AZ', 'JCMT':'JC', 'LMT':'LM', 'PICOVEL':'PV', 'SMAP':'SM', 'SMAR':'SR', 'SPT':'SP'}
+station_dic = {'ALMA':'AA', 'A':'AA','AA':'AA',
+           'APEX':'AP', 'X':'AP','AP': 'AP',
+            'LMT':'LM','L':'LM','LM':'LM',
+            'PICOVEL':'PV','P':'PV','IRAM30': 'PV','PV':'PV',
+            'SMTO':'AZ','Z': 'AZ','SMT':'AZ','AZ':'AZ',
+            'SPT':'SP','Y':'SP','SP':'SP',
+            'JCMT':'JC','J':'JC','JC':'JC',
+            'SMAP':'SM','S':'SM','SMAR':'SM','SMA':'SM','SM':'SM',
+            'SMAR':'SR','R':'SR','SMR':'SR','SR':'SR'}
+
+station_frot = {'PV':(1,-1,0),'AZ':(1,1,0),'SM':(1,-1,np.pi/4.),'LM': (1,-1,0),'AA':(1,0,0),'SP':(1,0,0),'AP':(1,1,0),'JC':(1,0,0),'SR':(1,-1,np.pi/4.)}
+
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
 DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
 DTCAL = [('time','f8'), ('rscale','c16'), ('lscale','c16')]
@@ -127,7 +144,7 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
         try:
             data = np.loadtxt(filename, dtype=bytes).astype(str)
         except IOError:
-            print "NO FILE: " + filename
+            print("NO FILE: " + filename)
             continue
 
         datatable = []
@@ -174,45 +191,43 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
         caltable=False
     return caltable
 
-def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=None):
+def poly_from_str(strcoeffs):
+    coeffs = list(map(float, strcoeffs.split(',')))
+    return np.polynomial.polynomial.Polynomial(coeffs)
+
+def apply_caltable_uvfits(gaincaltable, datastruct, filename_out):
     """apply a calibration table to a uvfits file
        Args:
-        caltable (Caltable) : a caltable object
+        caltable (Caltable) : a gaincaltable object
         datastruct (Datastruct) :  input data structure in EHTIM format
         filename_out (str) :  uvfits output file name
+        frotcal (bool): whether apply field rotation angle correction
+        elev_function (string): 'ehtim' for ehtim's function of calculating elevation, anything else
+        for astropy functions
     """
 
     if datastruct.dtype != "EHTIM":
         raise Exception("datastruct must be in EHTIM format in apply_caltable_uvfits!")
 
-    if not (caltable.tarr == datastruct.antenna_info).all():
-        raise Exception("The telescope array in the Caltable is not the same as in the Datastruct")
+    gains0 = pd.read_csv(gaincaltable)
+    polygain={}
+    mjd_start={}
 
-    if extrapolate is True: # extrapolate can be a tuple or numpy array
-        fill_value = "extrapolate"
-    else:
-        fill_value = extrapolate
+    #deterimine which calibration to use when multiple options for multiple periods
+    mjd_mean = datastruct.data['time'].mean()  - MJD_0
+    gains = gains0[(gains0.mjd_start<=mjd_mean)&(gains0.mjd_stop>=mjd_mean)].reset_index(drop=True).copy()
 
+    for cou, row in gains.iterrows():
+        polygain[row.station] = poly_from_str(row.ratio_phas)
+        mjd_start[row.station] = row.mjd_start
+    #print(gains0)
+    #print(polygain)
     # interpolate the calibration  table
     rinterp = {}
     linterp = {}
     skipsites = []
-    for s in range(0, len(caltable.tarr)):
-        site = caltable.tarr[s]['site']
-        try:
-            caltable.data[site]
-        except KeyError:
-            skipsites.append(site)
-            print ("No Calibration  Data for %s !" % site)
-            continue
 
-        time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
-
-        rinterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['rscale'],
-                                                   kind=interp, fill_value=fill_value)
-        linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'],
-                                                   kind=interp, fill_value=fill_value)
-
+    #-------------------------------------------
     # sort by baseline
     data =  datastruct.data
     idx = np.lexsort((data['t2'], data['t1']))
@@ -222,29 +237,27 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     bllist = np.array(bllist)
 
     # apply the  calibration
+
     datatable = []
+    coub=0.
     for bl_obs in bllist:
         t1 = bl_obs['t1'][0]
         t2 = bl_obs['t2'][0]
+        coub=coub+1
+        print('Calibrating {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
         time_mjd = bl_obs['time'] - MJD_0 #dates are in mjd in Datastruct
 
         if t1 in skipsites:
             rscale1 = lscale1 = np.array(1.)
         else:
-            rscale1 = rinterp[t1](time_mjd)
-            lscale1 = linterp[t1](time_mjd)
+            rscale1 = np.array(1.)
+            lscale1 = np.exp(1j*polygain[t1](time_mjd - mjd_start[t1])*np.pi/180.)
+
         if t2 in skipsites:
             rscale2 = lscale2 = np.array(1.)
         else:
-            rscale2 = rinterp[t2](time_mjd)
-            lscale2 = linterp[t2](time_mjd)
-
-#        if force_singlepol == 'R':
-#            lscale1 = rscale1
-#            lscale2 = rscale2
-#        if force_singlepol == 'L':
-#            rscale1 = lscale1
-#            rscale2 = lscale2
+            rscale2 = np.array(1.)
+            lscale2 = np.exp(1j*polygain[t2](time_mjd - mjd_start[t2])*np.pi/180.)
 
         rrscale = rscale1 * rscale2.conj()
         llscale = lscale1 * lscale2.conj()
@@ -333,41 +346,37 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     save_uvfits(datastruct_out, filename_out)
     return
 
+
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
-def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
-         interp='linear', extrapolate=True, ident='',sqrt_gains=False):
+def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT, ident=''):
 
-    print "********************************************************"
-    print "*********************CALUVFITS**************************"
-    print "********************************************************"
+    print("********************************************************")
+    print("********************POLCALUVFITS************************")
+    print("********************************************************")
 
-    print "Applying calibration tables from directory", caldir
-    print "to uvfits files in directory: ", datadir
-    print
+    print("Applying polarimetric gains calibration tables from", calfile)
+    print("to uvfits files in directory: ", datadir)
+    print(' ')
 
     uvfitsfiles = glob.glob(datadir + '/*.uvfits')
-    for uvfitsfile in uvfitsfiles:
-        print
-        print "A priori calibrating: ", uvfitsfile
+
+    for uvfitsfile in sorted(uvfitsfiles):
+        print(' ')
+        print("Polcal gains calibrating: ", uvfitsfile)
 
         datastruct_ehtim = load_and_convert_hops_uvfits(uvfitsfile)
         source = datastruct_ehtim.obs_info.src
         tarr = datastruct_ehtim.antenna_info
-        caltable = load_caltable_ds(datastruct_ehtim, caldir,sqrt_gains=sqrt_gains)
-        if caltable==False:
-            print "couldn't find caltable in " + caldir + " for " + source + "!!"
-            continue
 
-
-        outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.apriori.uvfits'
-        apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate)
-        print "Saved calibrated data to ", outname
-    print "---------------------------------------------------------"
-    print "---------------------------------------------------------"
-    print "---------------------------------------------------------"
-    print
+        outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.polcal.uvfits'
+        apply_caltable_uvfits(calfile, datastruct_ehtim, outname)
+        print("Saved calibrated data to ", outname)
+    print("---------------------------------------------------------")
+    print("---------------------------------------------------------")
+    print("---------------------------------------------------------")
+    print(' ')
     return 0
 
 if __name__=='__main__':
@@ -379,36 +388,22 @@ if __name__=='__main__':
     if ("-h" in sys.argv) or ("--h" in sys.argv):
         print("usage: caluvfits.py datadir \n" +
               "options: \n" +
-              "   --caldir caldir : specify directory with cal tables \n" +
+              "   --calfile calfile : specify directory with cal tables \n" +
               "   --outdir outdir : specifiy output directory for calibrated files \n" +
-              "   --ident : specify identifying tag for uvfits files \n"
-              "   --interp : specify interpolation order \n" +
-              "   --no-extrapolate : specify to not calibrate outside interval in cal tables \n"
-              "   --sqrt_gains : specify to take sqrt of gains before applying")
+              "   --ident : specify identifying tag for uvfits files \n")
         sys.exit()
 
-    extrapolate = True
-    if "--no-extrapolate" in sys.argv: extrapolate = None
-
-    sqrt_gains = False
-    if "--sqrt_gains" in sys.argv: sqrt_gains = True
-
-    interp = "linear"
-    if "--interp" in sys.argv:
-        for a in range(0, len(sys.argv)):
-            if(sys.argv[a] == '--interp'):
-                interp = int(sys.argv[a+1])
     ident = ""
     if "--ident" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--ident'):
                 ident = "_" + sys.argv[a+1]
 
-    caldir = CALDIR_DEFAULT
-    if "--caldir" in sys.argv:
+    calfile = CALDIR_DEFAULT
+    if "--calfile" in sys.argv:
         for a in range(0, len(sys.argv)):
-            if(sys.argv[a] == '--caldir'):
-                caldir = sys.argv[a+1]
+            if(sys.argv[a] == '--calfile'):
+                calfile = sys.argv[a+1]
 
     outdir = datadir
     if "--outdir" in sys.argv:
@@ -418,4 +413,4 @@ if __name__=='__main__':
     else:
         outdir = OUTDIR_DEFAULT
 
-    main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate,sqrt_gains=sqrt_gains)
+    main(datadir=datadir, calfile=calfile, outdir=outdir, ident=ident)
