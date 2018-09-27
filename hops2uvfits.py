@@ -625,7 +625,7 @@ def load_hops_uvfits(filename):
         #scan_arr.append([scan_start + refdate, 
         #                  scan_start + scan_dur + refdate])
         scan_arr.append([scan_start - 0.5*scan_dur + refdate, 
-                          scan_start + 0.5*scan_dur + refdate])
+                         scan_start + 0.5*scan_dur + refdate])
 
     scan_arr = np.array(scan_arr)
     obsinfo = Obs_info(src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan, scan_arr)
@@ -1119,7 +1119,6 @@ def save_uvfits(datastruct, fname):
     head['FREQ']= ref_freq
     head['POLARX'] = 0.e0
     head['POLARY'] = 0.e0
-
 
     head['ARRNAM'] = 'VLBA'  # TODO must be recognized by aips/casa
     head['XYZHAND'] = 'RIGHT'
