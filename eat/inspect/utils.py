@@ -1685,3 +1685,42 @@ def rename_baselines(frame,stations_2lett_1lett):
     t2 = list(map(lambda x: x.split('-')[1],frame.baseline))
     frame['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0].decode('unicode_escape')]+stations_2lett_1lett[x[1].decode('unicode_escape')],zip(t1,t2)))
     return frame
+
+
+
+def old_format(df):
+    """
+    turns polrep circ type with rrvis, llvis columns into old format used for figures etc
+    """
+    cols = df.columns
+    pols = ['rrvis','llvis','lrvis','rlvis']
+    base = [x for x in cols if x not in pols]
+    
+
+    df_rr = df[base+['rrvis']].copy()
+    df_rr['vis']=df_rr['rrvis']
+    df_rr['sigma']=df_rr['rrsigma']
+    df_rr.drop('rrvis',axis=1,inplace=True)
+
+    df_ll = df[base+['llvis']].copy()
+    df_ll['vis']=df_ll['llvis']
+    df_ll['sigma']=df_rr['llsigma']
+    df_ll.drop('llvis',axis=1,inplace=True)
+
+    df_rl = df[base+['rlvis']].copy()
+    df_rl['vis']=df_rl['rlvis']
+    df_rl['sigma']=df_rl['rlsigma']
+    df_rl.drop('rlvis',axis=1,inplace=True)
+
+    df_lr = df[base+['lrvis']].copy()
+    df_lr['vis']=df_lr['lrvis']
+    df_lr['sigma']=df_lr['lrsigma']
+    df_lr.drop('lrvis',axis=1,inplace=True)
+
+    common = list(set(df_rr.columns)&set(df_ll.columns)&set(df_rl.columns)&set(df_lr.columns))
+    df_old = pd.concat([df_rr[common].copy(),df_ll[common].copy(),df_rl[common].copy(),df_lr[common].copy()],ignore_index=True)
+    df_old['amp'] = np.abs(df_old['vis'])
+    df_old['phase'] = np.angle(df_old['vis'])*180./np.pi
+    df_old['snr'] = df_old['amp']/df_old['sigma']
+
+    return df_old
