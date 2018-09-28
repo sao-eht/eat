@@ -1700,22 +1700,30 @@ def old_format(df):
     df_rr = df[base+['rrvis']].copy()
     df_rr['vis']=df_rr['rrvis']
     df_rr['sigma']=df_rr['rrsigma']
+    df_rr['polarization']='RR'
     df_rr.drop('rrvis',axis=1,inplace=True)
+    df_rr.drop('rrsigma',axis=1,inplace=True)
 
     df_ll = df[base+['llvis']].copy()
     df_ll['vis']=df_ll['llvis']
     df_ll['sigma']=df_rr['llsigma']
+    df_ll['polarization']='LL'
     df_ll.drop('llvis',axis=1,inplace=True)
+    df_ll.drop('llsigma',axis=1,inplace=True)
 
     df_rl = df[base+['rlvis']].copy()
     df_rl['vis']=df_rl['rlvis']
     df_rl['sigma']=df_rl['rlsigma']
+    df_rl['polarization']='RL'
     df_rl.drop('rlvis',axis=1,inplace=True)
+    df_rl.drop('rlsigma',axis=1,inplace=True)
 
     df_lr = df[base+['lrvis']].copy()
     df_lr['vis']=df_lr['lrvis']
     df_lr['sigma']=df_lr['lrsigma']
+    df_lr['polarization']='LR'
     df_lr.drop('lrvis',axis=1,inplace=True)
+    df_lr.drop('lrsigma',axis=1,inplace=True)
 
     common = list(set(df_rr.columns)&set(df_ll.columns)&set(df_rl.columns)&set(df_lr.columns))
     df_old = pd.concat([df_rr[common].copy(),df_ll[common].copy(),df_rl[common].copy(),df_lr[common].copy()],ignore_index=True)
