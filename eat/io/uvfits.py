@@ -219,7 +219,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         force_singlepol='R'
 
     if force_singlepol=='no':
-        print('reading data without singlepol, make sure that this is a netcal file')
+        print('reading data without singlepol, using polrep= ',polrep)
         filen = pathf.split('/')[-1]
         if polrep in ['circ','stokes']:
             obsXX = eh.io.load.load_obs_uvfits(pathf,polrep=polrep)
