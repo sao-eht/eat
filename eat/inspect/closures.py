@@ -292,14 +292,14 @@ def all_bispectra_polar_scan_MC(alist,polar,phaseType='resid_phas'):
         alist_Tri = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline',phaseType,'unbiased_amp','snr','gmst','band']]
         
         #throw away times without full triangle
-        tlist = alist_Tri.groupby(('band','datetime')).filter(lambda x: len(x) > 2)
+        tlist = alist_Tri.groupby(['band','datetime']).filter(lambda x: len(x) > 2)
         tlist.loc[:,'sigma'] = (tlist.loc[:,'amp']/(tlist.loc[:,'snr']))
 
         for cou2 in range(3):
             tlist.loc[(tlist.loc[:,'baseline']==Tri[cou2]),phaseType] *= signat[cou2]*np.pi/180.
         tlist.loc[:,'sigma'] = 1./tlist.loc[:,'snr']**2 #put 1/snr**2 in the sigma column to aggregate
         
-        bsp = tlist.groupby(('expt_no','source','band','scan_id','datetime')).agg({phaseType: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x))})
+        bsp = tlist.groupby(['expt_no','source','band','scan_id','datetime']).agg({phaseType: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x))})
         #sigma above is the CLOSURE PHASE ERROR
         
         bsp.loc[:,'bisp'] = bsp.loc[:,'amp']*np.exp(1j*bsp.loc[:,phaseType])
@@ -337,9 +337,17 @@ def only_non_trivial_triangles(bsp):
     return bsp
 
 def all_quadruples_log(alist):
-    quad_LL =all_quadruples_polar_log(alist,'LL')
-    quad_RR =all_quadruples_polar_log(alist,'RR')
-    quad = pd.concat([quad_LL,quad_RR],ignore_index=True)
+    quad=pd.DataFrame({})
+    try:
+        quad_LL =all_quadruples_polar_log(alist,'LL')
+        #print('shape LL', np.shape(quad_LL))
+        quad = pd.concat([quad,quad_LL],ignore_index=True)
+    except: pass
+    #print('shape add LL', np.shape(quad))
+    try:
+        quad_RR =all_quadruples_polar_log(alist,'RR')
+        quad = pd.concat([quad,quad_RR],ignore_index=True)
+    except: pass
     return quad
 
 def debias_A_sig(A,sigma):
@@ -401,7 +409,7 @@ def all_quadruples_new(alist,ctype='camp',debias='no'):
         alist_Quad = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline','polarization','amp','snr','gmst','band','amps','snrs','snr1','snr2','snr3','snr4','sigma']]
         print(Quad, np.shape(alist_Quad)[0])
         #throw away times without full quadrangle
-        tlist = alist_Quad.groupby(('polarization','band','datetime')).filter(lambda x: len(x) == 4)
+        tlist = alist_Quad.groupby(['polarization','band','datetime']).filter(lambda x: len(x) == 4)
         tlist['snr1'] = tlist['snr1']*(tlist['baseline']==Quad[0])
         tlist['snr2'] = tlist['snr2']*(tlist['baseline']==Quad[1])
         tlist['snr3'] = tlist['snr3']*(tlist['baseline']==Quad[2])
@@ -473,7 +481,7 @@ def all_quadruples_polar_log(alist,polar):
         alist_Quad = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline','amp','snr','gmst','band','amps','snrs']]
         print(Quad)
         #throw away times without full quadrangle
-        tlist = alist_Quad.groupby(('band','datetime')).filter(lambda x: len(x) == 4)
+        tlist = alist_Quad.groupby(['band','datetime']).filter(lambda x: len(x) == 4)
 
         ###MONTE CARLO VARIATION
         #foo = list(zip(tlist.loc[:,'snr'],tlist.loc[:,'amp']))
@@ -493,7 +501,7 @@ def all_quadruples_polar_log(alist,polar):
         #print((foo))
         #print(np.shape(tlist))
         
-        quadlist_group = tlist.groupby(('expt_no','band','source','scan_id','datetime'))
+        quadlist_group = tlist.groupby(['expt_no','band','source','scan_id','datetime'])
         
         ###STANDARD FORMULA FOR VARIATION
         quadlist = quadlist_group.agg({'logamp': lambda x: np.sum(np.log(x)),'sigma': lambda x: np.sqrt(np.sum(x)),
@@ -520,6 +528,7 @@ def all_quadruples_polar_log(alist,polar):
         quad_out = pd.concat([quad_out, quadlist])
     quad_out = quad_out.reset_index()
     #print(quad_out)
+    print(quad_out.columns)
     quad_out = quad_out[['datetime','band','source','quadrangle','polarization','logamp','sigma','scan_id','expt_no']] 
     #quad_out['quadrangle'] = list(map(tuple,quad_out.quadrangle))
     quad_out['quadrangle'] = list(map(quadrangle2str, quad_out.quadrangle))
@@ -597,11 +606,11 @@ def coh_average_bsp(AIPS, tcoh = 5.):
         AIPS.loc[:,'band'] = ['unknown']*np.shape(AIPS)[0]
     if tcoh == 'scan':
         AIPS = AIPS[['datetime','band','triangle','source','polarization','vis','sigmaCP','snr','scan_id','expt_no','circ_sigma']]
-        AIPS = AIPS.groupby(('triangle','band','source','polarization','expt_no','scan_id')).agg({'datetime': 'min', 'vis': np.mean, 'sigmaCP': lambda x: np.sqrt(np.sum(x**2))/len(x),'snr': lambda x: np.sqrt(np.sum(x**2)),'circ_sigma': circular_std_of_mean_dif})
+        AIPS = AIPS.groupby(['triangle','band','source','polarization','expt_no','scan_id']).agg({'datetime': 'min', 'vis': np.mean, 'sigmaCP': lambda x: np.sqrt(np.sum(x**2))/len(x),'snr': lambda x: np.sqrt(np.sum(x**2)),'circ_sigma': circular_std_of_mean_dif})
     else:
         AIPS.loc[:,'round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/tcoh),AIPS.loc[:,'datetime']))
         AIPS = AIPS[['datetime','band','triangle','source','polarization','vis','sigma','sigmaCP','scan_id','expt_no','round_time','snr','circ_sigma']]
-        AIPS = AIPS.groupby(('triangle','band','source','polarization','expt_no','scan_id','round_time')).agg({'datetime': 'min', 'vis': np.mean, 'sigmaCP': lambda x: np.sqrt(np.sum(x**2))/len(x),'snr': lambda x: np.sqrt(np.sum(x**2)),'circ_sigma': circular_std_of_mean_dif })
+        AIPS = AIPS.groupby(['triangle','band','source','polarization','expt_no','scan_id','round_time']).agg({'datetime': 'min', 'vis': np.mean, 'sigmaCP': lambda x: np.sqrt(np.sum(x**2))/len(x),'snr': lambda x: np.sqrt(np.sum(x**2)),'circ_sigma': circular_std_of_mean_dif })
     AIPS = AIPS.reset_index()
     AIPS['amp'] = np.abs(AIPS['vis'])
     AIPS['cphase'] = np.angle(AIPS['vis'])*180/np.pi
