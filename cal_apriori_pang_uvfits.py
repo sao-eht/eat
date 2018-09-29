@@ -422,7 +422,9 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         entry = datatable[i]
         t1num = entry['t1']
         t2num = entry['t2']
-        if tkeys[entry['t1']] > tkeys[entry['t2']]: # reorder telescopes if necessary
+        rl = entry['rl']
+        lr = entry['lr']
+        if tkeys[entry['t2']] < tkeys[entry['t1']]: # reorder telescopes if necessary
             #print entry['t1'], tkeys[entry['t1']], entry['t2'], tkeys[entry['t2']]
             entry['t1'] = t2num
             entry['t2'] = t1num
@@ -430,8 +432,8 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             entry['v'] = -entry['v']
             entry['rr'] = np.conj(entry['rr'])
             entry['ll'] = np.conj(entry['ll'])
-            entry['rl'] = np.conj(entry['rl'])
-            entry['lr'] = np.conj(entry['lr'])
+            entry['rl'] = np.conj(lr)
+            entry['lr'] = np.conj(rl)
             datatable[i] = entry
         bl_list.append(np.array((entry['time'],entry['t1'],entry['t2']),dtype=BLTYPE))
     _, unique_idx_anttime, idx_anttime = np.unique(bl_list, return_index=True, return_inverse=True)

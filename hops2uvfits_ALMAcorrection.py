@@ -472,7 +472,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             # get the complex visibilities
             visibilities = eat.hops.util.pop212(a)
             if antennas[ant2] < antennas[ant1]:
-                visibilities =  visibilities.conj()
+                visibilities =  visibilities.conj() #TODO ???? Is this right ???
 
             amplitude = b.t208[0].amplitude * 10000.
             #amplitude = np.abs(np.mean(visibilities))
@@ -863,7 +863,9 @@ def merge_hops_uvfits(fitsFiles):
         entry = datatable_merge[i]
         t1num = entry['t1']
         t2num = entry['t2']
-        if tkeys[entry['t1']] > tkeys[entry['t2']]: # reorder telescopes if necessary
+        rl = entry['rl']
+        lr = entry['lr']
+        if tkeys[entry['t2']] < tkeys[entry['t1']]: # reorder telescopes if necessary
             #print entry['t1'], tkeys[entry['t1']], entry['t2'], tkeys[entry['t2']]
             entry['t1'] = t2num
             entry['t2'] = t1num
@@ -871,8 +873,8 @@ def merge_hops_uvfits(fitsFiles):
             entry['v'] = -entry['v']
             entry['rr'] = np.conj(entry['rr'])
             entry['ll'] = np.conj(entry['ll'])
-            entry['rl'] = np.conj(entry['rl'])
-            entry['lr'] = np.conj(entry['lr'])
+            entry['rl'] = np.conj(lr)
+            entry['lr'] = np.conj(rl)
             datatable_merge[i] = entry
         bl_list.append(np.array((entry['time'],entry['t1'],entry['t2']),dtype=BLTYPE))
 

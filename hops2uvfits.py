@@ -477,8 +477,8 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
             # get the complex visibilities
             visibilities = eat.hops.util.pop212(a)
-            if antennas[ant2] < antennas[ant1]:
-                visibilities =  visibilities.conj()
+            if antennas[ant2] < antennas[ant1]: 
+                visibilities =  visibilities.conj() #TODO ???? Is this right ???
 
             amplitude = b.t208[0].amplitude * 10000. * scalingFac
             #amplitude = np.abs(np.mean(visibilities))
