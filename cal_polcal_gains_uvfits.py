@@ -210,6 +210,7 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out,cal_amp=False):
     gains0 = pd.read_csv(gaincaltable)
     polygain={}
     mjd_start={}
+    polyamp={}
 
     #deterimine which calibration to use when multiple options for multiple periods
     mjd_mean = datastruct.data['time'].mean()  - MJD_0
@@ -354,7 +355,7 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out,cal_amp=False):
 
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
-################################################################################################################################## 
+##################################################################################################################################
 def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT, ident='',cal_amp=False):
 
     print("********************************************************")
@@ -398,10 +399,10 @@ if __name__=='__main__':
               "   --ident : specify identifying tag for uvfits files \n")
         sys.exit()
 
-    
+
     cal_amp = False
     if "--cal_amp" in sys.argv: cal_amp = True
-    
+
     ident = ""
     if "--ident" in sys.argv:
         for a in range(0, len(sys.argv)):
@@ -423,5 +424,3 @@ if __name__=='__main__':
         outdir = OUTDIR_DEFAULT
 
     main(datadir=datadir, calfile=calfile, outdir=outdir, ident=ident,cal_amp=cal_amp)
-
-
