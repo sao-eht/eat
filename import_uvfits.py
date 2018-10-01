@@ -1,0 +1,138 @@
+import pandas as pd
+from eat.io import uvfits
+from eat.inspect import utils as ut
+import os,sys,importlib
+
+VEX_DEFAULT='/home/maciek/VEX/'
+
+def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',exptL=[3597,3598,3599,3600,3601,''],
+    bandL=['lo','hi'],only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True):
+
+    if not os.path.exists(path_out):
+        os.makedirs(path_out) 
+    df = pd.DataFrame({})
+    for band in bandL:  
+        for expt in exptL:
+            path0 = path_data_0+pipeline_name+'-'+band+'/'+data_subfolder+str(expt)+'/'
+            for filen in os.listdir(path0):
+                if filen.endswith(filend): 
+                    print('processing ', filen)
+                    try:
+                        df_foo = uvfits.get_df_from_uvfit(path0+filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep)
+                        if 'std_by_mean' in df_foo.columns:
+                            df_foo.drop('std_by_mean',axis=1,inplace=True)
+                        df_foo['std_by_mean'] = df_foo['amp']
+                        if incoh_avg==False:
+                            df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
+                        else:
+                            df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
+                        df = pd.concat([df,df_scan.copy()],ignore_index=True)
+                        df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
+                    except: pass
+                else: pass 
+    df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
+    df['source'] = list(map(str,df['source']))
+    if old_format:
+        df = ut.old_format(df)
+    if len(bandL)==1:
+        out_name=out_name+'_'+bandL[0]        
+    if out_type=='hdf':
+        df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
+    elif out_type=='pic':
+        df.to_pickle(path_out+out_name+'.pic')
+    elif out_type=='both':
+        df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
+        df.to_pickle(path_out+out_name+'.pic')
+    else: return df
+
+
+##################################################################################################################################
+##########################  Main FUNCTION ########################################################################################
+##################################################################################################################################
+def main(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',exptL=[3597,3598,3599,3600,3601],
+    bandL=['lo','hi'],only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True):
+
+    print("********************************************************")
+    print("*********************IMPORT DATA************************")
+    print("********************************************************")
+
+    import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name=pipeline_name,tavg=tavg,exptL=[3597,3598,3599,3600,3601],
+    bandL=['lo','hi'],only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type='hdf',rescale_noise=rescale_noise,polrep=polrep, old_format=old_format)
+    return 0
+
+if __name__=='__main__':
+
+    if ("-h" in sys.argv) or ("--h" in sys.argv):
+        print("importing data")
+        sys.exit()
+    
+    if "--datadir" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--datadir'):
+                path_data_0 = sys.argv[a+1]
+    else:
+        raise Exception("must provide data directory!")
+
+    if "--pipeline" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--pipeline'):
+                pipeline_name = sys.argv[a+1]
+    else:   pipeline_name = 'hops'
+
+    if "--outname" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--outname'):
+                out_name = sys.argv[a+1]
+    else:   out_name = pipeline_name
+
+    if "--outdir" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--outdir'):
+                path_out = sys.argv[a+1]
+    else:   path_out = datadir
+
+    if "--subfolder" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--subfolder'):
+                data_subfolder = sys.argv[a+1]
+    else:
+        data_subfolder=''
+
+    if "--filend" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--filend'):
+                filend = sys.argv[a+1]
+    else:
+        filend='.uvfits'
+
+    if "--path_vex" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--path_vex'):
+                path_vex = sys.argv[a+1]
+    else:
+        path_vex=VEX_DEFAULT
+
+    if "--tavg" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--tavg'):
+                if(sys.argv[a+1]=='scan'):
+                    tavg='scan'
+                else: tavg=float(sys.argv[a+1])
+
+    rescale_noise=False
+    if "--rescale_noise" in sys.argv:
+        rescale_noise=True
+
+    incoh_avg=False
+    if "--incoh_avg" in sys.argv:
+        incoh_avg=True
+
+    if "--polrep" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--polrep'):
+                polrep = sys.argv[a+1]
+    else: polrep='circ'
+
+
+    main(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name=pipeline_name,tavg=tavg,exptL=[3597,3598,3599,3600,3601],
+    bandL=['lo','hi'],only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type='hdf',rescale_noise=rescale_noise,polrep=polrep, old_format=True)
