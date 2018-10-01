@@ -6,7 +6,7 @@ import os,sys,importlib
 VEX_DEFAULT='/home/maciek/VEX/'
 
 def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',exptL=[3597,3598,3599,3600,3601,''],
-    bandL=['lo','hi'],only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True):
+    bandL=['lo','hi'],only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', old_format=True):
 
     if not os.path.exists(path_out):
         os.makedirs(path_out) 
