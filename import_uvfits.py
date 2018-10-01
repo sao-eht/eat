@@ -5,8 +5,9 @@ import os,sys,importlib
 
 VEX_DEFAULT='/home/maciek/VEX/'
 
+
 def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',exptL=[3597,3598,3599,3600,3601,''],
-    bandL=['lo','hi'],only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', old_format=True):
+    bandL=['lo','hi'],only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', old_format=True,path_ehtim=''):
 
     if not os.path.exists(path_out):
         os.makedirs(path_out) 
@@ -18,7 +19,7 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
                 if filen.endswith(filend): 
                     print('processing ', filen)
                     try:
-                        df_foo = uvfits.get_df_from_uvfit(path0+filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep)
+                        df_foo = uvfits.get_df_from_uvfit(path0+filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
                         if 'std_by_mean' in df_foo.columns:
                             df_foo.drop('std_by_mean',axis=1,inplace=True)
                         df_foo['std_by_mean'] = df_foo['amp']
@@ -50,14 +51,14 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
 def main(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',exptL=[3597,3598,3599,3600,3601],
-    bandL=['lo','hi'],only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True):
+    bandL=['lo','hi'],only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True,path_ehtim=''):
 
     print("********************************************************")
     print("*********************IMPORT DATA************************")
     print("********************************************************")
 
     import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name=pipeline_name,tavg=tavg,exptL=[3597,3598,3599,3600,3601],
-    bandL=['lo','hi'],only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type='hdf',rescale_noise=rescale_noise,polrep=polrep, old_format=old_format)
+    bandL=['lo','hi'],only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type='hdf',rescale_noise=rescale_noise,polrep=polrep, old_format=old_format,path_ehtim=path_ehtim)
     return 0
 
 if __name__=='__main__':
@@ -90,6 +91,11 @@ if __name__=='__main__':
             if(sys.argv[a] == '--outdir'):
                 path_out = sys.argv[a+1]
     else:   path_out = datadir
+
+    if "--ehtdir" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--ehtdir'):
+                path_ehtim = sys.argv[a+1]
 
     if "--subfolder" in sys.argv:
         for a in range(0, len(sys.argv)):
@@ -135,4 +141,4 @@ if __name__=='__main__':
 
 
     main(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name=pipeline_name,tavg=tavg,exptL=[3597,3598,3599,3600,3601],
-    bandL=['lo','hi'],only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type='hdf',rescale_noise=rescale_noise,polrep=polrep, old_format=True)
+    bandL=['lo','hi'],only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type='hdf',rescale_noise=rescale_noise,polrep=polrep, old_format=True,path_ehtim=path_ehtim)
