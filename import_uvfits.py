@@ -39,25 +39,24 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
     if old_format:
         df = ut.old_format(df)
 
-    if closure=='cphase':
+    if (closure=='cphase')|(closure=='lcamp'):
         print("Saving scan-averaged closure phases...")
         bsp = cl.all_bispectra(df,phase_type='phase')
         bsp.drop('fracpols',axis=1,inplace=True)
         bsp.drop('snrs',axis=1,inplace=True)
         bsp.drop('amps',axis=1,inplace=True)
         bsp_sc = ut.coh_avg_bsp(bsp,tavg=tavg_closures)
-        out_name = 'cp_'+out_name
-        bsp_sc.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
+        out_name_cp = 'cp_'+out_name
+        bsp_sc.to_hdf(path_out+out_name_cp+'.h5', key=out_name, mode='w',format='table')
     
-    elif closure=='lcamp':
         print("Saving scan-averaged log closure amplitudes...")
         quad=cl.all_quadruples_new(data,ctype='logcamp',debias='camp')
         quad.drop('snrs',axis=1,inplace=True)
         quad.drop('amps',axis=1,inplace=True)
         quad_sc=ut.avg_camp(quad,tavg=tavg_closures)
-        out_name= 'lca_'+out_name
+        out_name_lca= 'lca_'+out_name
         quad_sc['scan_id'] = list(map(np.int64,quad_sc.scan_id))
-        quad_sc.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
+        quad_sc.to_hdf(path_out+out_name_lca+'.h5', key=out_name, mode='w',format='table')
 
     if len(bandL)==1:
         out_name=out_name+'_'+bandL[0]        
