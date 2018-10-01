@@ -18,18 +18,18 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
             for filen in os.listdir(path0):
                 if filen.endswith(filend): 
                     print('processing ', filen)
-                    try:
-                        df_foo = uvfits.get_df_from_uvfit(path0+filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
-                        if 'std_by_mean' in df_foo.columns:
-                            df_foo.drop('std_by_mean',axis=1,inplace=True)
-                        df_foo['std_by_mean'] = df_foo['amp']
-                        if incoh_avg==False:
-                            df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
-                        else:
-                            df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
-                        df = pd.concat([df,df_scan.copy()],ignore_index=True)
-                        df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
-                    except: pass
+                    #try:
+                    df_foo = uvfits.get_df_from_uvfit(path0+filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
+                    if 'std_by_mean' in df_foo.columns:
+                        df_foo.drop('std_by_mean',axis=1,inplace=True)
+                    df_foo['std_by_mean'] = df_foo['amp']
+                    if incoh_avg==False:
+                        df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
+                    else:
+                        df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
+                    df = pd.concat([df,df_scan.copy()],ignore_index=True)
+                    df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
+                    #except: pass
                 else: pass 
     df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
     df['source'] = list(map(str,df['source']))
