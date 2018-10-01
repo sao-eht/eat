@@ -5,7 +5,7 @@ Maciek Wielgus 06/07/2018
 maciek.wielgus@gmail.com
 '''
 import pandas as pd
-import os
+import os,sys
 import numpy as np
 from astropy.time import Time, TimeDelta
 import datetime as datetime
@@ -197,7 +197,7 @@ def add_vis_df(self,polarization='unknown',band='unknown',round_s=1.):
 
     
 def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='no',band='unknown',
-    round_s=0.1,only_parallel=False,rescale_noise=False,polrep=None):
+    round_s=0.1,only_parallel=False,rescale_noise=False,polrep=None,path_ehtim=''):
     """generate DataFrame from uvfits file
     Args:
         pathf: path to uvfits file to import
@@ -210,7 +210,8 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         band: manually provide info about the band for the 'band' column
         round_s: precision of converting fractional mjd to datetime object, in seconds
     """
-    
+    if path_ehtim!='':
+        sys.path.insert(0,path_ehtim)
     import ehtim as eh
     path_eh = os.path.dirname(eh.__file__)
     print('Using eht-imaging library from ', path_eh)
