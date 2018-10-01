@@ -215,6 +215,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         print('Inserting path ', path_ehtim)
     if 'ehtim' in list(sys.modules):
         print('Ehtim already loaded!')
+        import ehtim as eh
         #try: 
         reload(eh)
         print('Ehtim reloaded...')
