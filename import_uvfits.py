@@ -59,17 +59,16 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
         quad_sc['scan_id'] = list(map(np.int64,quad_sc.scan_id))
         quad_sc.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
 
-    else:
-        if len(bandL)==1:
-            out_name=out_name+'_'+bandL[0]        
-        if out_type=='hdf':
-            df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
-        elif out_type=='pic':
-            df.to_pickle(path_out+out_name+'.pic')
-        elif out_type=='both':
-            df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
-            df.to_pickle(path_out+out_name+'.pic')
-        else: return df
+    if len(bandL)==1:
+        out_name=out_name+'_'+bandL[0]        
+    if out_type=='hdf':
+        df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
+    elif out_type=='pic':
+        df.to_pickle(path_out+out_name+'.pic')
+    elif out_type=='both':
+        df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
+        df.to_pickle(path_out+out_name+'.pic')
+    else: return df
 
 
 ##################################################################################################################################
