@@ -226,8 +226,9 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         if polrep in ['circ','stokes']:
             obsXX = eh.io.load.load_obs_uvfits(pathf,polrep=polrep)
             print('Polrep is ', obsXX.polrep)
-        else: obsXX = eh.io.load.load_obs_uvfits(pathf)
-            print('Polrep unspecified ')
+        else: 
+            obsXX = eh.io.load.load_obs_uvfits(pathf)
+            print('Polrep unspecified')
         dfXX = obsdata_2_df(obsXX)
         if 'RR' in filen:
             dfXX['polarization'] = 'RR'    
