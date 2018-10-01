@@ -213,13 +213,13 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
     if path_ehtim!='':
         sys.path.insert(0,path_ehtim)
         print('Inserting path ', path_ehtim)
-    if 'ehtim' in list(sys.modules):
-        print('Ehtim already loaded!')
-        import ehtim as eh
-        #try: 
-        reload(eh)
-        print('Ehtim reloaded...')
-        #except: pass
+    #if 'ehtim' in list(sys.modules):
+    #    print('Ehtim already loaded!')
+    #    import ehtim as eh
+    #    #try: 
+    #    reload(eh)
+    #    print('Ehtim reloaded...')
+    #    #except: pass
     import ehtim as eh
     path_eh = os.path.dirname(eh.__file__)
     print('Using eht-imaging library from ', path_eh)
