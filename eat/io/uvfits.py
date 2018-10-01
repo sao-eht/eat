@@ -214,7 +214,9 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         sys.path.insert(0,path_ehtim)
         print('Inserting path ', path_ehtim)
     if 'ehtim' in list(sys.modules):
-        try: reload(eh)
+        try: 
+            reload(eh)
+            print('Ehtim reloaded...')
         except: pass
     import ehtim as eh
     path_eh = os.path.dirname(eh.__file__)
