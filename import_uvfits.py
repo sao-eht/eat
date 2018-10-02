@@ -37,6 +37,7 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
     df['source'] = list(map(str,df['source']))
     
     if old_format:
+        print('Following columns present: ',df.columns)
         df = ut.old_format(df)
 
     if (closure=='cphase')|(closure=='lcamp'):
@@ -55,7 +56,7 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
         bsp_sc.to_hdf(path_out+out_name_cp+'.h5', key=out_name, mode='w',format='table')
     
         print("Saving scan-averaged log closure amplitudes...")
-        quad=cl.all_quadruples_new(data,ctype='logcamp',debias='camp')
+        quad=cl.all_quadruples_new(df,ctype='logcamp',debias='camp')
         quad.drop('snrs',axis=1,inplace=True)
         quad.drop('amps',axis=1,inplace=True)
         quad_sc=ut.avg_camp(quad,tavg=tavg_closures)
