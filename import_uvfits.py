@@ -27,8 +27,10 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
                             df_foo.drop('std_by_mean',axis=1,inplace=True)
                         df_foo['std_by_mean'] = df_foo['amp']
                         if incoh_avg==False:
+                            print('Averaging incoherently for ', str(tavg))
                             df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
                         else:
+                            print('Averaging coherently for ', str(tavg))
                             df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
                         df = pd.concat([df,df_scan.copy()],ignore_index=True)
                         df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
