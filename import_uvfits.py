@@ -149,6 +149,7 @@ if __name__=='__main__':
                     tavg='scan'
                 else: tavg=float(sys.argv[a+1])
     
+    tavg_closures='scan'
     if "--tavg_closures" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--tavg_closures'):
