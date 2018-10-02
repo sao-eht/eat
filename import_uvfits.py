@@ -9,7 +9,13 @@ VEX_DEFAULT='/home/maciek/VEX/'
 def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',exptL=[3597,3598,3599,3600,3601,''],
     bandL=['lo','hi'],only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', 
     old_format=True,path_ehtim='',closure='',tavg_closures='scan'):
-
+    print('path_data_0 = ', path_path_data_0)
+    print('path_vex = ', path_vex)
+    print('data_subfolder = ', data_subfolder)
+    print('path_out = ', path_out)
+    print('out_name = ', out_name)
+    print('pipeline_name= ', pipeline_name)
+    print('tavg = ', tavg)
     if not os.path.exists(path_out):
         os.makedirs(path_out) 
     df = pd.DataFrame({})
