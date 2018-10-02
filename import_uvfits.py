@@ -31,7 +31,7 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
         #for expt in exptL:
         path0a = glob.glob(path_data_0+pipeline_name+'-'+band+'/'+data_subfolder+'/*/*'+filend)
         path0b = glob.glob(path_data_0+pipeline_name+'-'+band+'/'+data_subfolder+'/*'+filend)
-        path0 = path0a+path0b
+        path0 = sorted(path0a+path0b)
         #if os.path.exists(path0):
         #for filen in os.listdir(path0):
         for filen in path0:
