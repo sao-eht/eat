@@ -880,22 +880,23 @@ def incoh_avg_amp_vector(vec,debias=True,robust=False):
     amp0=amp; sig0=sig
     amp=amp0[(amp0==amp0)&(sig0==sig0)]
     sig=sig0[(amp0==amp0)&(sig0==sig0)]
-
-    if debias==True:
-        if robust==False:
-            A02 = np.sum(amp**2 - ( 2. -1./len(amp) )*sig**2)/len(amp)
-            A02 = np.maximum(A02,0.)
-            amp_out = np.sqrt(A02)
-            #eq 9.86 Thompson 
+    try:
+        if debias==True:
+            if robust==False:
+                A02 = np.sum(amp**2 - ( 2. -1./len(amp) )*sig**2)/len(amp)
+                A02 = np.maximum(A02,0.)
+                amp_out = np.sqrt(A02)
+                #eq 9.86 Thompson 
+            else:
+                A02 = np.median(amp**2) - ( 2. -1./len(amp) )*np.median(sig**2) 
+                A02 = np.maximum(A02,0.)
+                amp_out = np.sqrt(A02)
         else:
-            A02 = np.median(amp**2) - ( 2. -1./len(amp) )*np.median(sig**2) 
-            A02 = np.maximum(A02,0.)
-            amp_out = np.sqrt(A02)
-    else:
-        if robust==False:
-            amp_out = np.sqrt(np.sum(amp**2/len(amp)))
-        else:
-            amp_out  = np.median(amp)
+            if robust==False:
+                amp_out = np.sqrt(np.sum(amp**2/len(amp)))
+            else:
+                amp_out  = np.median(amp)
+    except ZeroDivisionError: amp_out = float('nan')
 
     return amp_out
 
