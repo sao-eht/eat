@@ -104,14 +104,14 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
-def main(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',exptL=[3597,3598,3599,3600,3601],
+def main(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',
     bandL=['lo','hi'],only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True,path_ehtim='',closure='',tavg_closures='scan'):
 
     print("********************************************************")
     print("*********************IMPORT DATA************************")
     print("********************************************************")
 
-    import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name=pipeline_name,tavg=tavg,exptL=[3597,3598,3599,3600,3601],
+    import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name=pipeline_name,tavg=tavg,
     bandL=['lo','hi'],only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type='hdf',rescale_noise=rescale_noise,polrep=polrep, old_format=old_format,
     path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures)
     return 0
@@ -220,5 +220,5 @@ if __name__=='__main__':
     print('out_name = ', out_name)
     print('pipeline_name= ', pipeline_name)
     print('tavg = ', tavg)
-    main(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name=pipeline_name,tavg=tavg,exptL=[3597,3598,3599,3600,3601],
+    main(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name=pipeline_name,tavg=tavg,
     bandL=['lo','hi'],only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type='hdf',rescale_noise=rescale_noise,polrep=polrep, old_format=True,path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures)
