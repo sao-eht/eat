@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from eat.io import uvfits
 from eat.inspect import utils as ut
 from eat.inspect import closures as cl
@@ -185,8 +186,8 @@ if __name__=='__main__':
     if "--cphase" in sys.argv:
         closure='cphase'
     
-    if "--lcamp" in sys.argv:
-        closure='lcamp'
+    #if "--lcamp" in sys.argv:
+    #    closure='lcamp'
 
     if "--polrep" in sys.argv:
         for a in range(0, len(sys.argv)):
