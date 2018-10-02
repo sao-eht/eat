@@ -3,13 +3,20 @@ import numpy as np
 from eat.io import uvfits
 from eat.inspect import utils as ut
 from eat.inspect import closures as cl
-import os,sys,importlib
+import os,sys,importlib,glob
 
 VEX_DEFAULT='/home/maciek/VEX/'
 
-def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',exptL=[3597,3598,3599,3600,3601,''],
+#def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',exptL=[3597,3598,3599,3600,3601,''],
+#    bandL=['lo','hi'],only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', 
+#    old_format=True,path_ehtim='',closure='',tavg_closures='scan'):
+def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name='hops',tavg='scan',
     bandL=['lo','hi'],only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', 
     old_format=True,path_ehtim='',closure='',tavg_closures='scan'):
+    '''
+    Imports whole dataset of uvfits with HOPS folder structure
+
+    '''
     print('path_data_0 = ', path_data_0)
     print('path_vex = ', path_vex)
     print('data_subfolder = ', data_subfolder)
@@ -21,34 +28,39 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
         os.makedirs(path_out) 
     df = pd.DataFrame({})
     for band in bandL:  
-        for expt in exptL:
-            path0 = path_data_0+pipeline_name+'-'+band+'/'+data_subfolder+str(expt)+'/'
-            if os.path.exists(path0):
-                for filen in os.listdir(path0):
-                    if filen.endswith(filend): 
-                        print('processing ', filen)
-                        #try:
-                        df_foo = uvfits.get_df_from_uvfit(path0+filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,
-                        only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
-                        
-                        if old_format:
-                            #print('Following columns present: ',df.columns)
-                            df_foo = ut.old_format(df_foo)
-                        
-                        if 'std_by_mean' in df_foo.columns:
-                            df_foo.drop('std_by_mean',axis=1,inplace=True)
-                        df_foo['std_by_mean'] = df_foo['amp']
-                        if incoh_avg==False:
-                            print('Averaging coherently for ', str(tavg))
-                            df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
-                        else:
-                            print('Averaging incoherently for ', str(tavg))
-                            df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
-                        df = pd.concat([df,df_scan.copy()],ignore_index=True)
-                        df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
-                        #except: pass
-                    else: pass
-            else: pass 
+        #for expt in exptL:
+        path0a = glob.glob(path_data_0+pipeline_name+'-'+band+'/'+data_subfolder+'/*/*'+filend
+        path0b = glob.glob(path_data_0+pipeline_name+'-'+band+'/'+data_subfolder+'/*'+filend
+        path0 = path0a+path0b
+        #if os.path.exists(path0):
+        #for filen in os.listdir(path0):
+        for filen in path0:
+            #if filen.endswith(filend):
+            print('*****************************************') 
+            print('processing ', filen)
+            print('*****************************************') 
+            #try:
+            #df_foo = uvfits.get_df_from_uvfit(path0+filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,
+            df_foo = uvfits.get_df_from_uvfit(filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,
+            only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
+            
+            if old_format:
+                #print('Following columns present: ',df.columns)
+                df_foo = ut.old_format(df_foo)
+            
+            if 'std_by_mean' in df_foo.columns:
+                df_foo.drop('std_by_mean',axis=1,inplace=True)
+            df_foo['std_by_mean'] = df_foo['amp']
+            if incoh_avg==False:
+                print('Averaging coherently for ', str(tavg))
+                df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
+            else:
+                print('Averaging incoherently for ', str(tavg))
+                df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
+            df = pd.concat([df,df_scan.copy()],ignore_index=True)
+            df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
+            #except: pass
+        else: pass 
     df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
     df['source'] = list(map(str,df['source']))
     
