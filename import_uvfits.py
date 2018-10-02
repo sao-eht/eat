@@ -40,6 +40,11 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
         df = ut.old_format(df)
 
     if (closure=='cphase')|(closure=='lcamp'):
+
+        print("********************************************************")
+        print("******************SAVING CLOSURES***********************")
+        print("********************************************************")
+
         print("Saving scan-averaged closure phases...")
         bsp = cl.all_bispectra(df,phase_type='phase')
         bsp.drop('fracpols',axis=1,inplace=True)
