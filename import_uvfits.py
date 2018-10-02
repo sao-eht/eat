@@ -30,6 +30,11 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
                         #try:
                         df_foo = uvfits.get_df_from_uvfit(path0+filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,
                         only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
+                        
+                        if old_format:
+                            #print('Following columns present: ',df.columns)
+                            df_foo = ut.old_format(df_foo)
+                        
                         if 'std_by_mean' in df_foo.columns:
                             df_foo.drop('std_by_mean',axis=1,inplace=True)
                         df_foo['std_by_mean'] = df_foo['amp']
@@ -47,9 +52,6 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
     df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
     df['source'] = list(map(str,df['source']))
     
-    if old_format:
-        print('Following columns present: ',df.columns)
-        df = ut.old_format(df)
 
     if (closure=='cphase')|(closure=='lcamp'):
 
