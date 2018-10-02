@@ -33,10 +33,10 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
                             df_foo.drop('std_by_mean',axis=1,inplace=True)
                         df_foo['std_by_mean'] = df_foo['amp']
                         if incoh_avg==False:
-                            print('Averaging incoherently for ', str(tavg))
+                            print('Averaging coherently for ', str(tavg))
                             df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
                         else:
-                            print('Averaging coherently for ', str(tavg))
+                            print('Averaging incoherently for ', str(tavg))
                             df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
                         df = pd.concat([df,df_scan.copy()],ignore_index=True)
                         df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
@@ -195,5 +195,13 @@ if __name__=='__main__':
                 polrep = sys.argv[a+1]
     else: polrep='circ'
 
+
+    print('path_data_0 = ', path_data_0)
+    print('path_vex = ', path_vex)
+    print('data_subfolder = ', data_subfolder)
+    print('path_out = ', path_out)
+    print('out_name = ', out_name)
+    print('pipeline_name= ', pipeline_name)
+    print('tavg = ', tavg)
     main(path_data_0,data_subfolder,path_vex,path_out,out_name,pipeline_name=pipeline_name,tavg=tavg,exptL=[3597,3598,3599,3600,3601],
     bandL=['lo','hi'],only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type='hdf',rescale_noise=rescale_noise,polrep=polrep, old_format=True,path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures)
