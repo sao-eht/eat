@@ -65,7 +65,7 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
         bsp.drop('snrs',axis=1,inplace=True)
         bsp.drop('amps',axis=1,inplace=True)
         bsp_sc = ut.coh_avg_bsp(bsp,tavg=tavg_closures)
-        out_name_cp = 'cp_'+out_name
+        out_name_cp = 'cp_sc_'+out_name
         bsp_sc.to_hdf(path_out+out_name_cp+'.h5', key=out_name, mode='w',format='table')
     
         print("Saving scan-averaged log closure amplitudes...")
@@ -73,7 +73,7 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
         quad.drop('snrs',axis=1,inplace=True)
         quad.drop('amps',axis=1,inplace=True)
         quad_sc=ut.avg_camp(quad,tavg=tavg_closures)
-        out_name_lca= 'lca_'+out_name
+        out_name_lca= 'lca_sc_'+out_name
         quad_sc['scan_id'] = list(map(np.int64,quad_sc.scan_id))
         quad_sc.to_hdf(path_out+out_name_lca+'.h5', key=out_name, mode='w',format='table')
 
