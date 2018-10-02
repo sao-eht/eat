@@ -36,9 +36,9 @@ def import_uvfits_set(path_data_0,data_subfolder,path_vex,path_out,out_name,pipe
         #for filen in os.listdir(path0):
         for filen in path0:
             #if filen.endswith(filend):
-            print('*****************************************') 
+            print("********************************************************") 
             print('processing ', filen)
-            print('*****************************************') 
+            print("********************************************************")
             #try:
             #df_foo = uvfits.get_df_from_uvfit(path0+filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,
             df_foo = uvfits.get_df_from_uvfit(filen,path_vex=path_vex,force_singlepol='no',band=band,round_s=0.1,
