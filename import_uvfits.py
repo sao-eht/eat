@@ -185,7 +185,6 @@ if __name__=='__main__':
     if "--cphase" in sys.argv:
         closure='cphase'
     
-    closure=''
     if "--lcamp" in sys.argv:
         closure='lcamp'
 
@@ -195,6 +194,9 @@ if __name__=='__main__':
                 polrep = sys.argv[a+1]
     else: polrep='circ'
 
+    print("********************************************************")
+    print("*********************IMPORT DATA************************")
+    print("********************************************************")
 
     print('path_data_0 = ', path_data_0)
     print('path_vex = ', path_vex)
