@@ -7,7 +7,6 @@ from eat.inspect import closures as cl
 from eat.io import hops, util
 from eat.hops import util as hu
 from eat.polcal import polcal
-from eat.apcal import apcal
 from eat.inspect import utils as ut
 from eat.polcal import polcal_pipeline as pp
 import ehtim as eh
