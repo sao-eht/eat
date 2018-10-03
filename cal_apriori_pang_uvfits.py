@@ -208,7 +208,7 @@ def xyz_2_latlong(obsvecs):
     #if out.shape[0]==1: out = out[0]
     return out
 
-def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic'):
+def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic',err_scale=1.):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
@@ -365,20 +365,20 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             rscale1 = lscale1 = np.array(1.)
         else:
             if frotcal==False:
-                rscale1 = rinterp[t1](time_mjd)
-                lscale1 = linterp[t1](time_mjd)
+                rscale1 = rinterp[t1](time_mjd)*err_scale
+                lscale1 = linterp[t1](time_mjd)*err_scale
             else:
-                rscale1 = rinterp[t1](time_mjd)*fran_R1
-                lscale1 = linterp[t1](time_mjd)*fran_L1
+                rscale1 = rinterp[t1](time_mjd)*fran_R1*err_scale
+                lscale1 = linterp[t1](time_mjd)*fran_L1*err_scale
         if t2 in skipsites:
             rscale2 = lscale2 = np.array(1.)
         else:
             if frotcal==False:
-                rscale2 = rinterp[t2](time_mjd)
-                lscale2 = linterp[t2](time_mjd)
+                rscale2 = rinterp[t2](time_mjd)*err_scale
+                lscale2 = linterp[t2](time_mjd)*err_scale
             else:
-                rscale2 = rinterp[t2](time_mjd)*fran_R2
-                lscale2 = linterp[t2](time_mjd)*fran_L2
+                rscale2 = rinterp[t2](time_mjd)*fran_R2*err_scale
+                lscale2 = linterp[t2](time_mjd)*fran_L2*err_scale
 
 
 #        if force_singlepol == 'R':
@@ -564,7 +564,7 @@ def get_elev_2(obsvecs, sourcevec):
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
 def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
-         interp='linear', extrapolate=True, ident='',sqrt_gains=False, frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic'):
+         interp='linear', extrapolate=True, ident='',sqrt_gains=False, frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic',err_scale=1.):
 
     print("********************************************************")
     print("*********************CALUVFITS**************************")
@@ -589,7 +589,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
 
 
         outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.apriori.uvfits'
-        apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind)
+        apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=err_scale)
         print("Saved calibrated data to ", outname)
     print("---------------------------------------------------------")
     print("---------------------------------------------------------")
@@ -636,6 +636,12 @@ if __name__=='__main__':
             if(sys.argv[a] == '--interp_dt'):
                 interp_dt = float(sys.argv[a+1])
 
+    err_scale = 1.
+    if "--err_scale" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--err_scale'):
+                err_scale = float(sys.argv[a+1])
+
     interp = "linear"
     if "--interp" in sys.argv:
         for a in range(0, len(sys.argv)):
@@ -668,4 +674,4 @@ if __name__=='__main__':
     else:
         outdir = OUTDIR_DEFAULT
 
-    main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate,sqrt_gains=sqrt_gains,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind)
+    main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate,sqrt_gains=sqrt_gains,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=1.)
