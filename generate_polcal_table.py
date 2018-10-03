@@ -97,7 +97,7 @@ def get_polcal(path_data,path_out,degSMA=3):
                                  'mjd_start': vis.mjd.min() - toff, 
                                  'mjd_stop': vis.mjd.max() + toff,
                                  'ratio_amp': "%.3f" % 1., 
-                                 'ratio_phas': "%.3f" % -0.}])])
+                                 'ratio_phas': "%.3f" % -0.}])],ignore_index=True)
     corrected = apply_correction(corrected,ratios,'A')
     ##-------------------------------------------------------
     #LMT CALIBRATION
