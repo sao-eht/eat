@@ -8,7 +8,6 @@ from eat.io import hops, util
 from eat.hops import util as hu
 from eat.polcal import polcal
 from eat.inspect import utils as ut
-from eat.polcal import polcal_pipeline as pp
 import ehtim as eh
 import datetime
 from astropy.time import Time
