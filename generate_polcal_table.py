@@ -350,6 +350,6 @@ if __name__=='__main__':
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--degSMA'):
                 degSMA = int(sys.argv[a+1])
-            else: degSMA = 3
+    else: degSMA = 3
 
     main(path_data,path_out,degSMA=degSMA)
