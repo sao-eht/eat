@@ -95,9 +95,7 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         elif out_type=='both':
             quad_sc.to_hdf(path_out+out_name_lca+'.h5', key=out_name_lca, mode='w',format='table')
             quad_sc.to_pickle(path_out+out_name_lca+'.pic')
-
-    if len(bandL)==1:
-        out_name=out_name+'_'+bandL[0]        
+    
     if out_type=='hdf':
         df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
     elif out_type=='pic':
