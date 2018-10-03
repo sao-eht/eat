@@ -616,10 +616,10 @@ if __name__=='__main__':
 
 
     frotcal = True
-    if "--no-frotcal"  in sys.argv: frotcal = None
+    if "--no-frotcal"  in sys.argv: frotcal = False
 
     extrapolate = True
-    if "--no-extrapolate" in sys.argv: extrapolate = None
+    if "--no-extrapolate" in sys.argv: extrapolate = False
 
     sqrt_gains = False
     if "--sqrt_gains" in sys.argv: sqrt_gains = True
