@@ -8,7 +8,7 @@ from builtins import object
 import numpy as np
 import re
 import os
-import ehtim.observing.jdcal as jdcal
+
 
 import ehtim.array
 
@@ -282,6 +282,7 @@ class Vex(object):
 def vexdate_to_MJD_hr(vexdate):
     """Find the integer MJD and UT hour from vex format date. 
     """
+    import ehtim.observing.jdcal as jdcal
     time = re.findall("[-+]?\d+[\.]?\d*",vexdate)
     year = int(time[0])
     date = int(time[1])
