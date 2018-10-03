@@ -55,7 +55,7 @@ def get_polcal(path_data,path_out,degSMA=3):
         vis.drop(list(vis[vis.baseline.str.contains('R')].index.values),inplace=True)
 
     elif (path_data.endswith('.hdf')) or (path_data.endswith('.h5')):
-        vis=pd.read_hdf(path+filen,filen.split('.')[0])
+        vis=pd.read_hdf(path_data)
         vis.drop(list(vis[vis.baseline.str.contains('R')].index.values),inplace=True)
 
     else: raise Exception('Use .pic or .h5 or .hdf files!')
