@@ -246,7 +246,6 @@ def get_polcal(path_data,path_out,degSMA=3):
                         'mjd_stop': mjd_stop,
                         'ratio_amp': "%.3f" % wam, 
                         'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef[1], "%.3f" % -fit_coef[0])}])],ignore_index=True)
-                        'ratio_phas': "%.3f" % -wph}])],ignore_index=True)
         
     corrected = apply_correction(corrected,ratios,'X')
 
