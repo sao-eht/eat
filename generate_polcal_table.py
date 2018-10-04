@@ -30,12 +30,12 @@ def apply_correction(corrected,ratios,station):
             corrected_foo1=corrected[(corrected.mjd>=row.mjd_start)&(corrected.mjd<=row.mjd_stop)&(corrected.baseline.str[0]==row.station)].copy()
             corrected_foo2=corrected[(corrected.mjd>=row.mjd_start)&(corrected.mjd<=row.mjd_stop)&(corrected.baseline.str[1]==row.station)].copy()
             corrected_rest=corrected[~((corrected.mjd>=row.mjd_start)&(corrected.mjd<=row.mjd_stop)&(corrected.baseline.str.contains(row.station)))].copy()
-            polyf = poly_from_str(row.ratio_phas)
+            polyf = poly_from_str(str(row.ratio_phas))
             delta_phas1 = polyf(corrected_foo1['mjd'] - row.mjd_start)
             delta_phas2 = polyf(corrected_foo2['mjd'] - row.mjd_start)
             corrected_foo1['phaseL'] = corrected_foo1['phaseL'] +delta_phas1 
             corrected_foo2['phaseL'] = corrected_foo2['phaseL'] -delta_phas2
-            polyamp = poly_from_str(row.ratio_amp)
+            polyamp = poly_from_str(str(row.ratio_amp))
             delta_amp1 = polyamp(corrected_foo1['mjd'] - row.mjd_start)
             delta_amp2 = polyamp(corrected_foo2['mjd'] - row.mjd_start)
             corrected_foo1['ampL'] = corrected_foo1['ampL']*delta_amp1
@@ -135,7 +135,7 @@ def get_polcal(path_data,path_out,degSMA=3):
     foo = visRR2[(visRR2['baseline']==base)&(visRR2.expt_no!=3597)]
     wph =ws.weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
     wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
-    print(wam)
+    #print(wam)
     ratios = pd.concat([ratios,pd.DataFrame([{'station':'Y', 
                                     'mjd_start': foo.mjd.min() - toff, 
                                     'mjd_stop': foo.mjd.max() + toff, 
@@ -145,11 +145,13 @@ def get_polcal(path_data,path_out,degSMA=3):
     foo = visRR2[(visRR2['baseline']==base)&(visRR2.expt_no==3597)]
     wph =ws.weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
     wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    doo = float(ratios[(ratios.station=='L')].ratio_phas)
+    goo = -wph+float(doo)
     ratios = pd.concat([ratios,pd.DataFrame([{'station':'Y', 
                                     'mjd_start': foo.mjd.min() - toff, 
                                     'mjd_stop': foo.mjd.max() + toff, 
                                     'ratio_amp': "%.3f" % wam, 
-                                    'ratio_phas': "%.3f" % -wph}])],ignore_index=True)
+                                    'ratio_phas': "%.3f" % goo}])],ignore_index=True)
     corrected = apply_correction(corrected,ratios,'Y')
     ##-------------------------------------------------------
     #SMT is calibrated with single value per night, from ALMA-SMT baseline
@@ -159,16 +161,28 @@ def get_polcal(path_data,path_out,degSMA=3):
     foo = visRR2[visRR2['baseline']==base]
     wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
     for expt in exptL:
-        foo2 = foo[foo.expt_no==expt]
-        foo_for_mjd = visRR2[(visRR2['expt_no']==expt)]
+        foo2 = foo[(foo.expt_no==expt)&(foo.mjd<57854.368)]
+        foo_for_mjd = visRR2[(visRR2['expt_no']==expt)&(visRR2.mjd<57854.368)]
         wph =ws.weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr)) 
         mjd_start = foo_for_mjd.mjd.min() - toff
-        mjd_stop = foo_for_mjd.mjd.max() + toff
+        mjd_stop = np.minimum(foo_for_mjd.mjd.max() + toff,57854.368)
         ratios = pd.concat([ratios,pd.DataFrame([{'station':'Z', 
                             'mjd_start': mjd_start, 
                             'mjd_stop': mjd_stop, 
                             'ratio_amp': "%.3f" % wam, 
                             'ratio_phas': "%.3f" % -wph}])],ignore_index=True)
+    
+    foo2 = foo[(foo.mjd>57854.368)]
+    foo_for_mjd = visRR2[(visRR2.mjd>57854.368)]
+    wph =ws.weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr)) 
+    mjd_start = 57854.368
+    mjd_stop = foo_for_mjd.mjd.max() + toff
+    fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_start, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=1, full=False, w=1./np.asarray(foo2['RLphaseErr']))
+    ratios = pd.concat([ratios,pd.DataFrame([{'station':'Z', 
+                        'mjd_start': mjd_start, 
+                        'mjd_stop': mjd_stop, 
+                        'ratio_amp': "%.3f" % wam, 
+                        'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef[1], "%.3f" % -fit_coef[0])}])],ignore_index=True)
     corrected = apply_correction(corrected,ratios,'Z')
 
     ##-------------------------------------------------------
@@ -176,11 +190,19 @@ def get_polcal(path_data,path_out,degSMA=3):
     #but on last night it's 4 different linear functions
     sourLX = list(vis[vis.baseline.str.contains('X')].source.unique())
     exptL = list(vis.expt_no.unique())
+
     base='AX'
+    otherB='L'
     fooAX = visRR2[visRR2['baseline']==base]
-    fooXL = visRR2[visRR2['baseline']=='XL']
-    fooXL['RLphase'] = -fooXL['RLphase']
-    foo=pd.concat([fooAX,fooXL],ignore_index=True)
+    fooXL = visRR2[visRR2['baseline']=='X'+otherB].copy()
+    fooLX=fooXL.copy()
+    fooLX['RLphase'] = -fooXL['RLphase']
+    foo=pd.concat([fooAX,fooLX],ignore_index=True)
+    
+    #fooAX = visRR2[visRR2['baseline']==base]
+    #fooXL = visRR2[visRR2['baseline']=='XL']
+    #fooXL['RLphase'] = -fooXL['RLphase']
+    #foo=pd.concat([fooAX,fooXL],ignore_index=True)
     foo = foo[foo.amp==foo.amp]
     foo = foo[foo.phase==foo.phase]
 
@@ -210,6 +232,10 @@ def get_polcal(path_data,path_out,degSMA=3):
             fit_coef_c = np.polyfit(np.asarray(foo2c.mjd) - mjd_start_c, np.unwrap(np.asarray(foo2c.RLphase)*np.pi/180)*180/np.pi, deg=1, full=False, w=1./np.asarray(foo2c['RLphaseErr']))
             fit_coef_d = np.polyfit(np.asarray(foo2d.mjd) - mjd_start_d, np.unwrap(np.asarray(foo2d.RLphase)*np.pi/180)*180/np.pi, deg=1, full=False, w=1./np.asarray(foo2d['RLphaseErr']))
             
+            wph_d = ws.weighted_median(foo2d.RLphase, weights=1./np.asarray(foo2d.RLphaseErr))
+            #foo=-fit_coef_d[1]#+float(ratios[ratios.station=='L'].ratio_phas)
+            foo = -wph_d + float(ratios[(ratios.station==otherB)&(ratios.mjd_stop>57854.58368287)].ratio_phas)
+
             #hacky, it calibrates to LMT
             #foo=-fit_coef_d[1]+float(ratios[ratios.station=='L'].ratio_phas)
 
@@ -232,8 +258,9 @@ def get_polcal(path_data,path_out,degSMA=3):
                                 'mjd_start': mjd_start_d, 
                                 'mjd_stop': mjd_stop_d,
                                 'ratio_amp': "%.3f" % wam, 
-                                'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef_d[1], "%.3f" % -fit_coef_d[0]  )}])],ignore_index=True)
-
+                                #'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef_d[1], "%.3f" % -fit_coef_d[0]  )
+                                'ratio_phas': "%.3f" % foo  
+                                }])],ignore_index=True)
         else:
             foo_for_mjd = visRR2[(visRR2['expt_no']==expt)]
             mjd_start = foo_for_mjd.mjd.min() - toff
