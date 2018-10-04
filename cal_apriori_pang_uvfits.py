@@ -365,20 +365,20 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             rscale1 = lscale1 = np.array(1.)
         else:
             if frotcal==False:
-                rscale1 = rinterp[t1](time_mjd)*err_scale
-                lscale1 = linterp[t1](time_mjd)*err_scale
+                rscale1 = rinterp[t1](time_mjd)
+                lscale1 = linterp[t1](time_mjd)
             else:
-                rscale1 = rinterp[t1](time_mjd)*fran_R1*err_scale
-                lscale1 = linterp[t1](time_mjd)*fran_L1*err_scale
+                rscale1 = rinterp[t1](time_mjd)*fran_R1
+                lscale1 = linterp[t1](time_mjd)*fran_L1
         if t2 in skipsites:
             rscale2 = lscale2 = np.array(1.)
         else:
             if frotcal==False:
-                rscale2 = rinterp[t2](time_mjd)*err_scale
-                lscale2 = linterp[t2](time_mjd)*err_scale
+                rscale2 = rinterp[t2](time_mjd)
+                lscale2 = linterp[t2](time_mjd)
             else:
-                rscale2 = rinterp[t2](time_mjd)*fran_R2*err_scale
-                lscale2 = linterp[t2](time_mjd)*fran_L2*err_scale
+                rscale2 = rinterp[t2](time_mjd)*fran_R2
+                lscale2 = linterp[t2](time_mjd)*fran_L2
 
 
 #        if force_singlepol == 'R':
