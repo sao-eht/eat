@@ -147,10 +147,10 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out,cal_amp=False):
     gains = gains0[(gains0.mjd_start<=mjd_mean)&(gains0.mjd_stop>=mjd_mean)].reset_index(drop=True).copy()
 
     for cou, row in gains.iterrows():
-        polygain[row.station] = poly_from_str(row.ratio_phas)
+        polygain[row.station] = poly_from_str(str(row.ratio_phas))
         mjd_start[row.station] = row.mjd_start
         if cal_amp==True:
-            polyamp[row.station] = poly_from_str(row.ratio_amp)
+            polyamp[row.station] = poly_from_str(str(row.ratio_amp))
         else:
             polyamp[row.station] = poly_from_str('1.0')
 
