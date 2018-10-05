@@ -322,7 +322,10 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
 
     deg=degSMA
     strratio = ('{}, '*(deg+1))[:-2]
+    #################
     foo=corrected[corrected.baseline.str[1]=='S']
+    #only use ALMA, LMT, SMT
+    foo=foo[(foo.baseline=='AS')|(foo.baseline=='LS')|(foo.baseline=='ZS')]
     foo=foo.sort_values('mjd').copy()
     wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
     for cou, mjd_sta in enumerate(mjd_startV):
