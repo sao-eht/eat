@@ -302,7 +302,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     for cou, mjd_sta in enumerate(mjd_startAP):
         try:
             mjd_sto=mjd_stopAP[cou]
-            print([mjd_sta,mjd_sto])
+            #print([mjd_sta,mjd_sto])
             foo2=foo[(foo.mjd>mjd_sta)&(foo.mjd<=mjd_sto)]
             fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_sta, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=deg, full=False, w=1./np.asarray(foo2['RLphaseErr']))
             listcoef = ["%.3f" % -fit_coef[cou] for cou in range(deg,-1,-1)]      
