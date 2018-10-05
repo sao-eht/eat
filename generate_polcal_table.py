@@ -48,7 +48,7 @@ def apply_correction(corrected,ratios,station):
     return corrected
 
 
-def get_polcal(path_data,path_out,degSMA=3):
+def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
 
     if path_data.endswith('.pic'):
         vis = pd.read_pickle(path_data)
@@ -61,6 +61,7 @@ def get_polcal(path_data,path_out,degSMA=3):
     else: raise Exception('Use .pic or .h5 or .hdf files!')
 
     #PREPARE DATASET FOR POLCAL GAINS CALCULATION
+    vis=vis[vis.snr>snr_cut].copy()
     vis = vis[vis.polarization.str[0]==vis.polarization.str[1]]
     #vis = vis[vis.band==band]
     visRR = vis[vis.polarization=='RR']
@@ -155,6 +156,8 @@ def get_polcal(path_data,path_out,degSMA=3):
     corrected = apply_correction(corrected,ratios,'Y')
     ##-------------------------------------------------------
     #SMT is calibrated with single value per night, from ALMA-SMT baseline
+    #05/Oct/2018 SMT 3601 end of SGRA track added linear slope fit
+    #
     sourLZ = list(vis[vis.baseline.str.contains('Z')].source.unique())
     exptL = list(vis.expt_no.unique())
     base='AZ'
@@ -184,10 +187,12 @@ def get_polcal(path_data,path_out,degSMA=3):
                         'ratio_amp': "%.3f" % wam, 
                         'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef[1], "%.3f" % -fit_coef[0])}])],ignore_index=True)
     corrected = apply_correction(corrected,ratios,'Z')
-
     ##-------------------------------------------------------
-    #APEX is calibrated with linear function per night from baselines to ALMA and LMT,
-    #but on last night it's 4 different linear functions
+    #APEX is calibrated with linear functions on predefined time intervals
+    #it's often just 1 interval per night, but e.g. 3601 is 4 segments
+
+    '''
+    #OLD APEX CALIBRATION, I KEEP IT HERE FOR NOW - MW 05/Oct/2018
     sourLX = list(vis[vis.baseline.str.contains('X')].source.unique())
     exptL = list(vis.expt_no.unique())
 
@@ -271,57 +276,67 @@ def get_polcal(path_data,path_out,degSMA=3):
                         'mjd_stop': mjd_stop,
                         'ratio_amp': "%.3f" % wam, 
                         'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef[1], "%.3f" % -fit_coef[0])}])],ignore_index=True)
-        
+    ''' 
+
+    mjd_startAP = [57847.92,57848.06,57848.25,57849.00,57850.15,57852.95,57853.90,57854.02,57854.37]
+    mjd_stopAP =  [57848.06,57848.25,57848.68,57849.64,57850.85,57853.65,57854.02,57854.37,57854.66]
+
+    deg=degAPEX
+    strratio = ('{}, '*(deg+1))[:-2]
+
+    foo=corrected
+    fooAX = foo[foo['baseline']=='AX'].copy()
+    if 'XL' in list(foo.baseline.unique()):
+        fooXL = foo[foo['baseline']=='XL'].copy()
+        fooLX=fooXL.copy()
+        fooLX['RLphase'] = -fooXL['RLphase']
+        fooLX['baseline'] = 'LX'
+        foo=pd.concat([fooAX,fooLX],ignore_index=True)
+    elif 'LX' in list(foo.baseline.unique()):
+        fooXL = foo[foo['baseline']=='XL'].copy()
+        foo=pd.concat([fooAX,fooLX],ignore_index=True)
+    else:
+        foo=fooAX
+    foo=foo.sort_values('mjd').copy()
+    wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    for cou, mjd_sta in enumerate(mjd_startAP):
+        try:
+            mjd_sto=mjd_stopAP[cou]
+            print([mjd_sta,mjd_sto])
+            foo2=foo[(foo.mjd>mjd_sta)&(foo.mjd<=mjd_sto)]
+            fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_sta, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=deg, full=False, w=1./np.asarray(foo2['RLphaseErr']))
+            listcoef = ["%.3f" % -fit_coef[cou] for cou in range(deg,-1,-1)]      
+            ratios = pd.concat([ratios,pd.DataFrame([{'station':'X', 
+                                    'mjd_start': mjd_sta, 
+                                    'mjd_stop': mjd_sto,
+                                    'ratio_amp': "%.3f" % wam, 
+                                    'ratio_phas': strratio.format(*listcoef) }])],ignore_index=True)
+        except: continue
     corrected = apply_correction(corrected,ratios,'X')
 
     ##-------------------------------------------------------
-    #SMA is n-th order polynomial (n=3 by default), separate for each night, and separate in 2 tracks, using 
-    #baselines to ALMA, LMT, SMT
-    # ALSO, FLAG 3600 CENA and OJ287
+    #For SMA we manually specify mjd ranges for the 3rd order polynomial fitting
 
-    sourLS = list(vis[vis.baseline.str.contains('S')].source.unique())
-    exptL = list(vis.expt_no.unique())
-    fooASLS = corrected[((corrected['baseline']=='AS')|(corrected['baseline']=='LS'))]
-    fooZS = corrected[(corrected['baseline']=='ZS')]
-    foo=pd.concat([fooASLS,fooZS],ignore_index=True)
-    foo=foo.sort_values('mjd').copy()
+    mjd_startV = [57848.02,57848.42,57849.10,57849.40,57850.40,57853.00,57853.07,57853.18,57853.42,57854.10,57854.40]
+    mjd_stopV =  [57848.42,57848.80,57849.40,57849.70,57850.90,57853.07,57853.18,57853.42,57853.70,57854.40,57854.70]
+
     deg=degSMA
     strratio = ('{}, '*(deg+1))[:-2]
-
-    sourcesB=['M87','3C279','CENA','3C273','1055+018','OJ287']
-    sourcesA=['SGRA','J1924-2914','J1733-1304','1921-293','1749+096','BLLAC']
-
+    foo=corrected[corrected.baseline.str[1]=='S']
+    foo=foo.sort_values('mjd').copy()
     wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
-    for expt in exptL:
-        if expt==3600:
-            foo2 = foo[(foo.expt_no==expt)&(foo.source!='OJ287')&(foo.source!='CENA')]  
-        else:
-            foo2 = foo[foo.expt_no==expt]    
+    for cou, mjd_sta in enumerate(mjd_startV):
         try:
-            foo2a = foo2[list(map(lambda x: x in sourcesA, foo2.source))]
-            mjd_start_a = foo2a.mjd.min() - 0.005
-            mjd_stop_a = foo2a.mjd.max() + 0.005
-            fit_coef_a = np.polyfit(np.asarray(foo2a.mjd) - mjd_start_a, np.unwrap(np.asarray(foo2a.RLphase)*np.pi/180)*180/np.pi, deg=deg, full=False, w=1./np.asarray(foo2a['RLphaseErr']))
-            listcoef_a = ["%.3f" % -fit_coef_a[cou] for cou in range(deg,-1,-1)]
+            mjd_sto=mjd_stopV[cou]
+            foo2=foo[(foo.mjd>mjd_sta)&(foo.mjd<=mjd_sto)]
+            fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_sta, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=deg, full=False, 1./np.asarray(foo2['RLphaseErr']))
+            listcoef = ["%.3f" % -fit_coef[cou] for cou in range(deg,-1,-1)]      
             ratios = pd.concat([ratios,pd.DataFrame([{'station':'S', 
-                                'mjd_start': mjd_start_a, 
-                                'mjd_stop': mjd_stop_a,
-                                'ratio_amp': "%.3f" % wam, 
-                                'ratio_phas': strratio.format(*listcoef_a) }])],ignore_index=True)
-        except TypeError: pass
-        try:
-            foo2b = foo2[list(map(lambda x: x in sourcesB, foo2.source))]
-            mjd_start_b = foo2b.mjd.min() - 0.005
-            mjd_stop_b = foo2b.mjd.max() + 0.005
-            fit_coef_b = np.polyfit(np.asarray(foo2b.mjd) - mjd_start_b, np.unwrap(np.asarray(foo2b.RLphase)*np.pi/180)*180/np.pi, deg=deg, full=False, w=1./np.asarray(foo2b['RLphaseErr']))
-            listcoef_b = ["%.3f" % -fit_coef_b[cou] for cou in range(deg,-1,-1)]      
-            ratios = pd.concat([ratios,pd.DataFrame([{'station':'S', 
-                            'mjd_start': mjd_start_b, 
-                            'mjd_stop': mjd_stop_b,
-                            'ratio_amp': "%.3f" % wam, 
-                            'ratio_phas': strratio.format(*listcoef_b) }])],ignore_index=True)
-        except TypeError: pass
-
+                                    'mjd_start': mjd_sta, 
+                                    'mjd_stop': mjd_sto,
+                                    'ratio_amp': "%.3f" % wam, 
+                                    'ratio_phas': strratio.format(*listcoef) }])],ignore_index=True)
+        except: continue
     corrected = apply_correction(corrected,ratios,'S')
 
     ##-------------------------------------------------------
@@ -346,7 +361,7 @@ def get_polcal(path_data,path_out,degSMA=3):
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
-def main(path_data,path_out,degSMA=3):
+def main(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     print("********************************************************")
     print("******************GENERATE POLCAL***********************")
     print("********************************************************")
@@ -379,4 +394,16 @@ if __name__=='__main__':
                 degSMA = int(sys.argv[a+1])
     else: degSMA = 3
 
-    main(path_data,path_out,degSMA=degSMA)
+    if "--degAPEX" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--degAPEX'):
+                degAPEX = int(sys.argv[a+1])
+    else: degAPEX = 1
+
+    if "--snr_cut" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--snr_cut'):
+                snr_cut = float(sys.argv[a+1])
+    else: snr_cut = 1.
+
+    main(path_data,path_out,degSMA=degSMA,degAPEX=degAPEX,snr_cut=snr_cut)
