@@ -164,6 +164,25 @@ def obsdata_2_df(obs):
     df['fmjd'] = df['time']/24.
     df['mjd'] = obs.mjd + df['fmjd']
     telescopes = list(zip(df['t1'],df['t2']))
+    #reorder stations alphabetically
+    df['is_alphabetic'] = df['t1']<df['t2']
+    df_alphabetic = df[df.is_alphabetic==True].copy()
+    df_non_alphabetic = df[df.is_alphabetic==False].copy()
+    fooT1 = df_non_alphabetic['t1']
+    fooT2= df_non_alphabetic['t2']
+    df_non_alphabetic['t1'] = fooT2
+    df_non_alphabetic['t2'] = fooT1
+    if 'rrvis' in df.columns:
+        df_non_alphabetic['rrvis'] = np.conjugate(df_non_alphabetic['rrvis'])
+        df_non_alphabetic['llvis'] = np.conjugate(df_non_alphabetic['llvis'])
+        df_non_alphabetic['rlvis'] = np.conjugate(df_non_alphabetic['lrvis'])#conj+transpose!
+        df_non_alphabetic['lrvis'] = np.conjugate(df_non_alphabetic['rlvis'])#conj+transpose!
+    if 'vis' in df.columns:
+        df_non_alphabetic['vis'] = np.conjugate(df_non_alphabetic['vis'])
+    if 'phase' in df.columns:
+        df_non_alphabetic['phase'] = - df_non_alphabetic['phase']
+    df = pd.concat([df_alphabetic,df_non_alphabetic],ignore_index=True)
+    #---------------------------------
     try:
         telescopes = [(x[0].decode('unicode_escape'),x[1].decode('unicode_escape') ) for x in telescopes]
     except AttributeError:
@@ -184,6 +203,7 @@ def obsdata_2_df(obs):
     if 'sigma' not in df.columns:
         try: df['sigma'] = df['rrsigma']
         except: pass
+
     return df
 
 
