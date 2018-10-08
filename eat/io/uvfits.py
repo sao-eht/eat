@@ -270,6 +270,11 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         if rescale_noise==True:
             rsc = obsXX.estimate_noise_rescale_factor()
             df['sigma']=rsc*df['sigma']
+            if 'rrsigma' in df.columns:
+                df['rrsigma'] = rsc*df['rrsigma']
+                df['llsigma'] = rsc*df['llsigma']
+                df['rlsigma'] = rsc*df['rlsigma']
+                df['lrsigma'] = rsc*df['lrsigma']
 
     elif force_singlepol=='':
         if polrep in ['circ','stokes']:
