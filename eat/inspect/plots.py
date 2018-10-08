@@ -1183,6 +1183,11 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange
         plt.savefig(tit+'.pdf')
     plt.show()
 
+def merge_two_dicts(x, y):
+    z = x.copy()   # start with x's keys and values
+    z.update(y)    # modifies z with y's keys and values & returns None
+    return z
+
 def plot_uv_coverage_publ(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','RR'],data=[],savefig=False,custom_title='',snrCut=2.,redundant=False,sc=1e6,all_baselines=False,locsourlabel=[6,8.5]):
     import matplotlib.transforms as mt
     data=data[data.snr>snrCut]
@@ -1238,7 +1243,8 @@ def plot_uv_coverage_publ(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=
     'SMT-SPT':'salmon', 'IRAM30-SPT':'saddlebrown','IRAM30-SMA':'tan','JCMT-IRAM30':'tan',
     'SMT-IRAM30':'dodgerblue'}
     palette_dict_inv = {k.split('-')[1]+'-'+k.split('-')[0] : v for k, v in palette_dict.items()}
-    current_palette={**palette_dict, **palette_dict_inv}
+    #current_palette={**palette_dict, **palette_dict_inv}
+    palette_dict = merge_two_dicts(palette_dict, palette_dict_rev)
     #current_palette={'AX':'k','AZ':'b'}
     #current_palette = sns.color_palette("Dark2", Nb)
     #sns.set_palette(current_palette)
