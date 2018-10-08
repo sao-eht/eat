@@ -1,5 +1,6 @@
 # Maciek Wielgus 02/Oct/2018
 
+from __future__ import division
 import numpy as np
 import pandas as pd
 import sys,os
@@ -12,9 +13,99 @@ import ehtim as eh
 import datetime
 from astropy.time import Time
 from eat.polcal import polcal
-import weightedstats as ws
+#import weightedstats as ws
 
 Z2AZ = {'Z':'AZ', 'P':'PV', 'S':'SM', 'R':'SR','J':'JC', 'A':'AA','X':'AP', 'L':'LM','Y':'SP'}
+
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""Mean, weighted mean, median, and weighted median.
+WeightedStats includes four functions (mean, weighted_mean, median,
+weighted_median) which accept lists as arguments, and two functions
+(numpy_weighted_mean, numpy weighted_median) which accept either lists
+or numpy arrays.
+Example:
+    import weightedstats as ws
+    my_data = [1, 2, 3, 4, 5]
+    my_weights = [10, 1, 1, 1, 9]
+    # Ordinary (unweighted) mean and median
+    ws.mean(my_data)    # equivalent to ws.weighted_mean(my_data)
+    ws.median(my_data)  # equivalent to ws.weighted_median(my_data)
+    
+    # Weighted mean and median
+    ws.weighted_mean(my_data, weights=my_weights)
+    ws.weighted_median(my_data, weights=my_weights)
+    # Special weighted mean and median functions for use with numpy arrays
+    ws.numpy_weighted_mean(my_data, weights=my_weights)
+    ws.numpy_weighted_median(my_data, weights=my_weights)
+"""
+
+def mean(data):
+    """Calculate the mean of a list."""
+    return sum(data) / float(len(data))
+
+def weighted_mean(data, weights=None):
+    """Calculate the weighted mean of a list."""
+    if weights is None:
+        return mean(data)
+    total_weight = float(sum(weights))
+    weights = [weight / total_weight for weight in weights]
+    w_mean = 0
+    for i, weight in enumerate(weights):
+        w_mean += weight * data[i]
+    return w_mean
+
+def numpy_weighted_mean(data, weights=None):
+    """Calculate the weighted mean of an array/list using numpy."""
+    import numpy as np
+    weights = np.array(weights).flatten() / float(sum(weights))
+    return np.dot(np.array(data), weights)
+
+def median(data):
+    """Calculate the median of a list."""
+    data.sort()
+    num_values = len(data)
+    half = num_values // 2
+    if num_values % 2:
+        return data[half]
+    return 0.5 * (data[half-1] + data[half])
+
+def weighted_median(data, weights=None):
+    """Calculate the weighted median of a list."""
+    if weights is None:
+        return median(data)
+    midpoint = 0.5 * sum(weights)
+    if any([j > midpoint for j in weights]):
+        return data[weights.index(max(weights))]
+    if any([j > 0 for j in weights]):
+        sorted_data, sorted_weights = zip(*sorted(zip(data, weights)))
+        cumulative_weight = 0
+        below_midpoint_index = 0
+        while cumulative_weight <= midpoint:
+            below_midpoint_index += 1
+            cumulative_weight += sorted_weights[below_midpoint_index-1]
+        cumulative_weight -= sorted_weights[below_midpoint_index-1]
+        if cumulative_weight - midpoint < sys.float_info.epsilon:
+            bounds = sorted_data[below_midpoint_index-2:below_midpoint_index]
+            return sum(bounds) / float(len(bounds))
+        return sorted_data[below_midpoint_index-1]
+
+def numpy_weighted_median(data, weights=None):
+    """Calculate the weighted median of an array/list using numpy."""
+    import numpy as np
+    if weights is None:
+        return np.median(np.array(data).flatten())
+    data, weights = np.array(data).flatten(), np.array(weights).flatten()
+    if any(weights > 0):
+        sorted_data, sorted_weights = map(np.array, zip(*sorted(zip(data, weights))))
+        midpoint = 0.5 * sum(sorted_weights)
+        if any(weights > midpoint):
+            return (data[weights == np.max(weights)])[0]
+        cumulative_weight = np.cumsum(sorted_weights)
+        below_midpoint_index = np.where(cumulative_weight <= midpoint)[0][-1]
+        if cumulative_weight[below_midpoint_index] - midpoint < sys.float_info.epsilon:
+            return np.mean(sorted_data[below_midpoint_index:below_midpoint_index+2])
+        return sorted_data[below_midpoint_index+1]
 
 def poly_from_str(strcoeffs):   
     '''from string with coefficients to polynomial
@@ -106,8 +197,8 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     sourLL = list(vis[vis.baseline.str.contains('L')].source.unique())
     base='AL'
     foo = visRR2[visRR2['baseline']==base]
-    wph =ws.weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
-    wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    wph =weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
+    wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
     ratios = pd.concat([ratios,pd.DataFrame([{'station':'L', 
                                     'mjd_start': vis.mjd.min() - toff, 
                                     'mjd_stop': vis.mjd.max() + toff,
@@ -120,8 +211,8 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     sourLP = list(vis[vis.baseline.str.contains('P')].source.unique())
     base='AP'
     foo = visRR2[visRR2['baseline']==base]
-    wph =ws.weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
-    wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    wph =weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
+    wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
     ratios = pd.concat([ratios,pd.DataFrame([{'station':'P', 
                                     'mjd_start': vis.mjd.min() - toff, 
                                     'mjd_stop': vis.mjd.max() + toff, 
@@ -134,8 +225,8 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     sourLY = list(vis[vis.baseline.str.contains('Y')].source.unique())
     base='AY'
     foo = visRR2[(visRR2['baseline']==base)&(visRR2.expt_no!=3597)]
-    wph =ws.weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
-    wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    wph =weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
+    wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
     #print(wam)
     ratios = pd.concat([ratios,pd.DataFrame([{'station':'Y', 
                                     'mjd_start': foo.mjd.min() - toff, 
@@ -144,8 +235,8 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
                                     'ratio_phas': "%.3f" % -wph}])],ignore_index=True)
     base='LY'
     foo = visRR2[(visRR2['baseline']==base)&(visRR2.expt_no==3597)]
-    wph =ws.weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
-    wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    wph =weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
+    wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
     doo = float(ratios[(ratios.station=='L')].ratio_phas)
     goo = -wph+float(doo)
     ratios = pd.concat([ratios,pd.DataFrame([{'station':'Y', 
@@ -162,11 +253,11 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     exptL = list(vis.expt_no.unique())
     base='AZ'
     foo = visRR2[visRR2['baseline']==base]
-    wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
     for expt in exptL:
         foo2 = foo[(foo.expt_no==expt)&(foo.mjd<57854.368)]
         foo_for_mjd = visRR2[(visRR2['expt_no']==expt)&(visRR2.mjd<57854.368)]
-        wph =ws.weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr)) 
+        wph =weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr)) 
         mjd_start = foo_for_mjd.mjd.min() - toff
         mjd_stop = np.minimum(foo_for_mjd.mjd.max() + toff,57854.368)
         ratios = pd.concat([ratios,pd.DataFrame([{'station':'Z', 
@@ -177,7 +268,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     
     foo2 = foo[(foo.mjd>57854.368)]
     foo_for_mjd = visRR2[(visRR2.mjd>57854.368)]
-    wph =ws.weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr)) 
+    wph =weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr)) 
     mjd_start = 57854.368
     mjd_stop = foo_for_mjd.mjd.max() + toff
     fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_start, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=1, full=False, w=1./np.asarray(foo2['RLphaseErr']))
@@ -298,7 +389,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     else:
         foo=fooAX
     foo=foo.sort_values('mjd').copy()
-    wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
     for cou, mjd_sta in enumerate(mjd_startAP):
         try:
             mjd_sto=mjd_stopAP[cou]
@@ -327,7 +418,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     #only use ALMA, LMT, SMT
     foo=foo[(foo.baseline=='AS')|(foo.baseline=='LS')|(foo.baseline=='ZS')]
     foo=foo.sort_values('mjd').copy()
-    wam =ws.weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
     for cou, mjd_sta in enumerate(mjd_startV):
         try:
             mjd_sto=mjd_stopV[cou]
