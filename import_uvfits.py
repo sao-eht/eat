@@ -75,11 +75,15 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         bsp_sc = ut.coh_avg_bsp(bsp,tavg=tavg_closures)
         out_name_cp = 'cp_sc_'+out_name
         if out_type=='hdf':
+            print('Saving file: '+path_out+out_name_cp+'.h5')
             bsp_sc.to_hdf(path_out+out_name_cp+'.h5', key=out_name_cp, mode='w',format='table')
         elif out_type=='pic':
+            print('Saving file: '+path_out+out_name_cp+'.pic')
             bsp_sc.to_pickle(path_out+out_name_cp+'.pic')
         elif out_type=='both':
+            print('Saving file: '+path_out+out_name_cp+'.h5')
             bsp_sc.to_hdf(path_out+out_name_cp+'.h5', key=out_name_cp, mode='w',format='table')
+            print('Saving file: '+path_out+out_name_cp+'.pic')
             bsp_sc.to_pickle(path_out+out_name_cp+'.pic')
         
         print("Saving scan-averaged log closure amplitudes...")
@@ -90,19 +94,27 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         out_name_lca= 'lca_sc_'+out_name
         quad_sc['scan_id'] = list(map(np.int64,quad_sc.scan_id))
         if out_type=='hdf':
+            print('Saving file: '+path_out+out_name_lca+'.h5')
             quad_sc.to_hdf(path_out+out_name_lca+'.h5', key=out_name_lca, mode='w',format='table')
         elif out_type=='pic':
+            print('Saving file: '+path_out+out_name_lca+'.pic')
             quad_sc.to_pickle(path_out+out_name_lca+'.pic')
         elif out_type=='both':
+            print('Saving file: '+path_out+out_name_lca+'.h5')
             quad_sc.to_hdf(path_out+out_name_lca+'.h5', key=out_name_lca, mode='w',format='table')
+            print('Saving file: '+path_out+out_name_lca+'.pic')
             quad_sc.to_pickle(path_out+out_name_lca+'.pic')
     
     if out_type=='hdf':
+        print('Saving file: '+path_out+out_name+'.h5')
         df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
     elif out_type=='pic':
+        print('Saving file: '+path_out+out_name+'.pic')
         df.to_pickle(path_out+out_name+'.pic')
     elif out_type=='both':
+        print('Saving file: '+path_out+out_name+'.h5')
         df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
+        print('Saving file: '+path_out+out_name+'.pic')
         df.to_pickle(path_out+out_name+'.pic')
     else: return df
 
