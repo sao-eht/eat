@@ -1,5 +1,8 @@
+#!/usr/bin/env python2
+#
 # Maciek Wielgus 02/Oct/2018
 
+from __future__ import division
 import pandas as pd
 import numpy as np
 from eat.io import uvfits
@@ -10,7 +13,7 @@ import os,sys,importlib,glob
 VEX_DEFAULT='/home/maciek/VEX/'
 
 def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name='hops',tavg='scan',
-    only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', 
+    only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ',
     old_format=True,path_ehtim='',closure='',tavg_closures='scan'):
     '''
     Imports whole dataset of uvfits with HOPS folder structure, or even without structure
@@ -22,9 +25,9 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
     print('pipeline_name= ', pipeline_name)
     print('tavg = ', tavg)
     if not os.path.exists(path_out):
-        os.makedirs(path_out) 
+        os.makedirs(path_out)
     df = pd.DataFrame({})
- 
+
     path0a = glob.glob(path_data_0+'/*/*'+filend)
     path0b = glob.glob(path_data_0+'/*'+filend)
     path0 = sorted(path0a+path0b)
@@ -33,16 +36,16 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
     # VISIBILITIES
     ###########################################################################
     for filen in path0:
-        print("********************************************************") 
+        print("********************************************************")
         print('processing ', filen)
         print("********************************************************")
         try:
             df_foo = uvfits.get_df_from_uvfit(filen,path_vex=path_vex,force_singlepol='no',band=bandname,round_s=0.1,
             only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
-            
+
             if old_format:
                 df_foo = ut.old_format(df_foo)
-            
+
             if 'std_by_mean' in df_foo.columns:
                 df_foo.drop('std_by_mean',axis=1,inplace=True)
             df_foo['std_by_mean'] = df_foo['amp']
@@ -55,8 +58,9 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
             df = pd.concat([df,df_scan.copy()],ignore_index=True)
             df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
         except: pass
-    df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
+    #df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
     df['source'] = list(map(str,df['source']))
+    df.dropna(subset=['snr'],inplace=True)
 
     ###########################################################################
     # CLOSURES
@@ -75,13 +79,17 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         bsp_sc = ut.coh_avg_bsp(bsp,tavg=tavg_closures)
         out_name_cp = 'cp_sc_'+out_name
         if out_type=='hdf':
+            print('Saving file: '+path_out+out_name_cp+'.h5')
             bsp_sc.to_hdf(path_out+out_name_cp+'.h5', key=out_name_cp, mode='w',format='table')
         elif out_type=='pic':
+            print('Saving file: '+path_out+out_name_cp+'.pic')
             bsp_sc.to_pickle(path_out+out_name_cp+'.pic')
         elif out_type=='both':
+            print('Saving file: '+path_out+out_name_cp+'.h5')
             bsp_sc.to_hdf(path_out+out_name_cp+'.h5', key=out_name_cp, mode='w',format='table')
+            print('Saving file: '+path_out+out_name_cp+'.pic')
             bsp_sc.to_pickle(path_out+out_name_cp+'.pic')
-        
+
         print("Saving scan-averaged log closure amplitudes...")
         quad=cl.all_quadruples_new(df,ctype='logcamp',debias='camp')
         quad.drop('snrs',axis=1,inplace=True)
@@ -90,19 +98,27 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         out_name_lca= 'lca_sc_'+out_name
         quad_sc['scan_id'] = list(map(np.int64,quad_sc.scan_id))
         if out_type=='hdf':
+            print('Saving file: '+path_out+out_name_lca+'.h5')
             quad_sc.to_hdf(path_out+out_name_lca+'.h5', key=out_name_lca, mode='w',format='table')
         elif out_type=='pic':
+            print('Saving file: '+path_out+out_name_lca+'.pic')
             quad_sc.to_pickle(path_out+out_name_lca+'.pic')
         elif out_type=='both':
+            print('Saving file: '+path_out+out_name_lca+'.h5')
             quad_sc.to_hdf(path_out+out_name_lca+'.h5', key=out_name_lca, mode='w',format='table')
+            print('Saving file: '+path_out+out_name_lca+'.pic')
             quad_sc.to_pickle(path_out+out_name_lca+'.pic')
-    
+
     if out_type=='hdf':
+        print('Saving file: '+path_out+out_name+'.h5')
         df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
     elif out_type=='pic':
+        print('Saving file: '+path_out+out_name+'.pic')
         df.to_pickle(path_out+out_name+'.pic')
     elif out_type=='both':
+        print('Saving file: '+path_out+out_name+'.h5')
         df.to_hdf(path_out+out_name+'.h5', key=out_name, mode='w',format='table')
+        print('Saving file: '+path_out+out_name+'.pic')
         df.to_pickle(path_out+out_name+'.pic')
     else: return df
 
@@ -127,7 +143,7 @@ if __name__=='__main__':
     if ("-h" in sys.argv) or ("--h" in sys.argv):
         print("importing data")
         sys.exit()
-    
+
     if "--datadir" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--datadir'):
@@ -157,7 +173,7 @@ if __name__=='__main__':
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--ehtdir'):
                 path_ehtim = sys.argv[a+1]
-    
+
     if "--bandname" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--bandname'):
@@ -176,7 +192,7 @@ if __name__=='__main__':
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--out_type'):
                 out_type = sys.argv[a+1]
-    else: 
+    else:
         out_type='hdf'
 
     if "--path_vex" in sys.argv:
@@ -192,7 +208,7 @@ if __name__=='__main__':
                 if(sys.argv[a+1]=='scan'):
                     tavg='scan'
                 else: tavg=float(sys.argv[a+1])
-    
+
     tavg_closures='scan'
     if "--tavg_closures" in sys.argv:
         for a in range(0, len(sys.argv)):
@@ -212,7 +228,7 @@ if __name__=='__main__':
     if "--cphase" in sys.argv:
         closure='cphase'
     else: closure=''
-    
+
     if "--polrep" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--polrep'):
