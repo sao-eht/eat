@@ -4,6 +4,7 @@ and remodels them into pandas dataframes
 Maciek Wielgus 06/07/2018
 maciek.wielgus@gmail.com
 '''
+from __future__ import division
 import pandas as pd
 import os,sys
 import numpy as np
@@ -268,7 +269,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         df = dfXX.copy()
         df['band'] = band
         if rescale_noise==True:
-            
+
             rsc = obsXX.estimate_noise_rescale_factor()
             print('Applying noise rescaling to data, factor is: ', rsc)
             df['sigma']=rsc*df['sigma']
