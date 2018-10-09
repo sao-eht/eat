@@ -911,6 +911,14 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     if 'sigma' not in frame.columns:
         frame['sigma'] = frame['amp']/frame['snr']
 
+    meanF = lambda x: np.nanmean(np.asarray(x))
+    def meanerrF(x):
+        x = np.asarray(x)
+        x = x[x==x]
+        try: ret = np.sqrt(np.sum(x**2)/len(x)**2)
+        except: ret = np.nan +1j*np.nan
+        return ret
+
     #if 'snr' not in frame.columns:
     #    frame['snr'] = frame['amp']/frame['sigma']
 
@@ -926,9 +934,11 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
     'datetime': min,
-    'vis': np.mean,
+    #'vis': np.mean,
+    'vis': meanF,
     #'snr': lambda x: np.sqrt(np.sum(x**2)),
-    'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
+    'sigma': meanerrF,
+    #'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
     'number': len}
 
     if 'u' in frame.columns:
@@ -940,25 +950,25 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
 
     if 'rrvis' in frame.columns:
         #polrep='circ' stuff
-        aggregating['rrvis'] = np.mean
+        aggregating['rrvis'] = meanF
         columns_out0 += ['rrvis']
-        aggregating['llvis'] = np.mean
+        aggregating['llvis'] = meanF
         columns_out0 += ['llvis']
-        aggregating['lrvis'] = np.mean
+        aggregating['lrvis'] = meanF
         columns_out0 += ['lrvis']
-        aggregating['rlvis'] = np.mean
+        aggregating['rlvis'] = meanF
         columns_out0 += ['rlvis']
-        aggregating['rrsigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
+        aggregating['rrsigma'] = meanerrF
         columns_out0 += ['rrsigma']
-        aggregating['llsigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
+        aggregating['llsigma'] = meanerrF
         columns_out0 += ['llsigma']
-        aggregating['lrsigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
+        aggregating['lrsigma'] = meanerrF
         columns_out0 += ['lrsigma']
-        aggregating['rlsigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
+        aggregating['rlsigma'] = meanerrF
         columns_out0 += ['rlsigma']
 
     if 'EB_sigma' in frame.columns:
-        aggregating['EB_sigma'] = lambda x: np.mean(x)/np.sqrt(len(x))
+        aggregating['EB_sigma'] = meanerrF
         columns_out0 += ['EB_sigma']
 
     if 'fracpol' in frame.columns:
