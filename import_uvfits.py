@@ -56,8 +56,9 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
             df = pd.concat([df,df_scan.copy()],ignore_index=True)
             df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
         except: pass
-    df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
+    #df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
     df['source'] = list(map(str,df['source']))
+    df.dropna(subset=['snr'],inplace=True)
 
     ###########################################################################
     # CLOSURES
