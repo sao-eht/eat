@@ -932,9 +932,9 @@ ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerang
     exptL = [3597,3598,3599,3600,3601]
     
     if sour=='any':
-        fooG = data[(data.triangle==triangle)&(data.snr>snr_treshold)]
+        fooG = data[(data.triangle==triangle)&(data.snr>snr_treshold)].copy()
     else:
-        fooG = data[(data.source==sour)&(data.triangle==triangle)&(data.snr>snr_treshold)]
+        fooG = data[(data.source==sour)&(data.triangle==triangle)&(data.snr>snr_treshold)].copy()
 
     fig, ax = plt.subplots(2,2,sharex=True,sharey=True,figsize=(14,10))
     Nights = sorted(list(fooG.Night.unique()))
@@ -950,7 +950,7 @@ ms=7,line=False,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerang
             for cou in range(Ni):
 
                 LocNight = Nights[cou]
-                fooNi = fooG[(fooG.Night==LocNight)&(fooG.band==bands[couB])&(fooG.polarization==pols[couP])]
+                fooNi = fooG[(fooG.Night==LocNight)&(fooG.band==bands[couB])&(fooG.polarization==pols[couP])].copy()
                 fmtloc = markers[cou]
                 #cphaseLoc = np.asarray(fooNi[phase_type])[:,1]
                 cphaseLoc = np.asarray(fooNi[phase_type])
