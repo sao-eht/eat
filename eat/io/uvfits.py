@@ -64,7 +64,8 @@ def make_scan_list_EHT2017(fpath):
 
     for fi in list_files:#loop over vex files in folder
         track_loc = fi[3].upper()
-        vpath = fpath+fi
+        #vpath = fpath+fi
+        vpath=fi
         aa = vex.Vex(vpath)
         dec = []
         for cou in range(len(aa.source)):
