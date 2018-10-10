@@ -45,7 +45,7 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         print('Found datapoints: ',np.shape(df_foo)[0])
         #CONVERT TO OLD DF FORMATTING (SEPARATE DATA RECORD FOR EACH POLARIZATION)
         if old_format:
-            df = ut.old_format(df)
+            df_foo = ut.old_format(df_foo)
         if 'std_by_mean' in df_foo.columns:
             df_foo.drop('std_by_mean',axis=1,inplace=True)
             df_foo['std_by_mean'] = df_foo['amp']
