@@ -46,28 +46,28 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
             df = pd.concat([df,df_foo.copy()],ignore_index=True)
         except: print('Nothing from this file...')
 
-        #CONVERT TO OLD DF FORMATTING (SEPARATE DATA RECORD FOR EACH POLARIZATION)
-        if old_format:
-            df = ut.old_format(df)
+    #CONVERT TO OLD DF FORMATTING (SEPARATE DATA RECORD FOR EACH POLARIZATION)
+    if old_format:
+        df = ut.old_format(df)
 
-        if 'std_by_mean' in df.columns:
-            df.drop('std_by_mean',axis=1,inplace=True)
-        df['std_by_mean'] = df['amp']
+    if 'std_by_mean' in df.columns:
+        df.drop('std_by_mean',axis=1,inplace=True)
+    df['std_by_mean'] = df['amp']
 
-        print('Averaging entire dataset...')
-        if incoh_avg==False:
-            print('Averaging coherently for ', str(tavg))
-            df_scan = ut.coh_avg_vis(df.copy(),tavg=tavg,phase_type='phase')
-        else:      
-            if precoh_avg_time > 0:
-                print('Averaging coherently for ', str(precoh_avg_time))
-                df_coh = ut.coh_avg_vis(df.copy(),tavg=precoh_avg_time,phase_type='phase')
-                print('Averaging incoherently for ', str(tavg))
-                df_scan = ut.incoh_avg_vis(df_coh.copy(),tavg=tavg,phase_type='phase')
-            else:
-                print('Averaging incoherently for ', str(tavg))
-                df_scan = ut.incoh_avg_vis(df.copy(),tavg=tavg,phase_type='phase')
-        df = df_scan.copy()
+    print('Averaging entire dataset...')
+    if incoh_avg==False:
+        print('Averaging coherently for ', str(tavg))
+        df_scan = ut.coh_avg_vis(df.copy(),tavg=tavg,phase_type='phase')
+    else:      
+        if precoh_avg_time > 0:
+            print('Averaging coherently for ', str(precoh_avg_time))
+            df_coh = ut.coh_avg_vis(df.copy(),tavg=precoh_avg_time,phase_type='phase')
+            print('Averaging incoherently for ', str(tavg))
+            df_scan = ut.incoh_avg_vis(df_coh.copy(),tavg=tavg,phase_type='phase')
+        else:
+            print('Averaging incoherently for ', str(tavg))
+            df_scan = ut.incoh_avg_vis(df.copy(),tavg=tavg,phase_type='phase')
+    df = df_scan.copy()
     try: df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
     except: pass
     try: df['source'] = list(map(str,df['source']))
