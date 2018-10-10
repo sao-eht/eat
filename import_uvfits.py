@@ -1,5 +1,5 @@
 # Maciek Wielgus 02/Oct/2018
-
+from __future__ import print_function
 from __future__ import division
 import pandas as pd
 import numpy as np
@@ -40,7 +40,7 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         try:
             df_foo = uvfits.get_df_from_uvfit(filen,path_vex=path_vex,force_singlepol='no',band=bandname,round_s=0.1,
             only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
-            
+            print('Found datapoints: ',np.shape(df_foo)[0])
             if old_format:
                 df_foo = ut.old_format(df_foo)
             
@@ -64,8 +64,10 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
             df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
         except: pass
     #df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
-    df['source'] = list(map(str,df['source']))
-    df.dropna(subset=['snr'],inplace=True)
+    try:
+        df['source'] = list(map(str,df['source']))
+        df.dropna(subset=['snr'],inplace=True)
+    except: pass
 
     ###########################################################################
     # CLOSURES
