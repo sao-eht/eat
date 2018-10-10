@@ -58,14 +58,13 @@ def make_scan_list_EHT2017(fpath):
     import ehtim.vex as vex
     nam2lett = {'ALMA':'A','APEX':'X','LMT':'L','PICOVEL':'P','SMTO':'Z','SPT':'T','JCMT':'J','SMAP':'S'}
     track2expt ={'D':3597,'B':3598, 'C':3599,'A':3600,'E':3601}
-    list_files = glob.glob(fpath+'/*.vex')
+    list_files = [x.split('/')[-1] for x in glob.glob(fpath+'/*.vex')]
     #list_files = os.listdir(fpath)
     scans = pd.DataFrame({'source' : []})
 
     for fi in list_files:#loop over vex files in folder
         track_loc = fi[3].upper()
-        #vpath = fpath+fi
-        vpath=fi
+        vpath = fpath+fi
         aa = vex.Vex(vpath)
         dec = []
         for cou in range(len(aa.source)):
