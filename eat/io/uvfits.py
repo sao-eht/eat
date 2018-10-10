@@ -7,7 +7,7 @@ maciek.wielgus@gmail.com
 from __future__ import print_function
 from __future__ import division
 import pandas as pd
-import os,sys
+import os,sys,glob
 import numpy as np
 from astropy.time import Time, TimeDelta
 import datetime as datetime
@@ -58,7 +58,8 @@ def make_scan_list_EHT2017(fpath):
     import ehtim.vex as vex
     nam2lett = {'ALMA':'A','APEX':'X','LMT':'L','PICOVEL':'P','SMTO':'Z','SPT':'T','JCMT':'J','SMAP':'S'}
     track2expt ={'D':3597,'B':3598, 'C':3599,'A':3600,'E':3601}
-    list_files = os.listdir(fpath)
+    list_files = glob.glob(fpath+'/*.vex')
+    #list_files = os.listdir(fpath)
     scans = pd.DataFrame({'source' : []})
 
     for fi in list_files:#loop over vex files in folder
