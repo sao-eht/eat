@@ -333,7 +333,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         df['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0].decode('unicode_escape')]+stations_2lett_1lett[x[1].decode('unicode_escape')],zip(df['t1'],df['t2'])))
     except AttributeError:
         df['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0]]+stations_2lett_1lett[x[1]],zip(df['t1'],df['t2'])))
-
+    df = df[df.baseline.str[0]!=df.baseline.str[1]]
     #is_alphabetic = list(map(lambda x: float(x== ''.join(sorted([x[0],x[1]]))),df['baseline']))
     #df['baseline'] = list(map(lambda x: ''.join(sorted([x[0],x[1]])),df['baseline']))
     if 'vis' in df.columns:
