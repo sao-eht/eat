@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 #
 # Maciek Wielgus 02/Oct/2018
-
+from __future__ import print_function
 from __future__ import division
 import pandas as pd
 import numpy as np
@@ -13,8 +13,8 @@ import os,sys,importlib,glob
 VEX_DEFAULT='/home/maciek/VEX/'
 
 def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name='hops',tavg='scan',
-    only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ',
-    old_format=True,path_ehtim='',closure='',tavg_closures='scan'):
+    only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', 
+    old_format=True,path_ehtim='',closure='',tavg_closures='scan',precoh_avg_time=0.):
     '''
     Imports whole dataset of uvfits with HOPS folder structure, or even without structure
     '''
@@ -42,7 +42,7 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         try:
             df_foo = uvfits.get_df_from_uvfit(filen,path_vex=path_vex,force_singlepol='no',band=bandname,round_s=0.1,
             only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
-
+            print('Found datapoints: ',np.shape(df_foo)[0])
             if old_format:
                 df_foo = ut.old_format(df_foo)
 
@@ -53,14 +53,23 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
                 print('Averaging coherently for ', str(tavg))
                 df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
             else:
-                print('Averaging incoherently for ', str(tavg))
-                df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
+                
+                if precoh_avg_time > 0:
+                    print('Averaging coherently for ', str(precoh_avg_time))
+                    df_coh = ut.coh_avg_vis(df_foo.copy(),tavg=precoh_avg_time,phase_type='phase')
+                    print('Averaging incoherently for ', str(tavg))
+                    df_scan = ut.incoh_avg_vis(df_coh.copy(),tavg=tavg,phase_type='phase')
+                else:
+                    print('Averaging incoherently for ', str(tavg))
+                    df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
             df = pd.concat([df,df_scan.copy()],ignore_index=True)
             df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
         except: pass
     #df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
-    df['source'] = list(map(str,df['source']))
-    df.dropna(subset=['snr'],inplace=True)
+    try:
+        df['source'] = list(map(str,df['source']))
+        df.dropna(subset=['snr'],inplace=True)
+    except: pass
 
     ###########################################################################
     # CLOSURES
@@ -127,7 +136,7 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
 def main(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name='hops',tavg='scan',
-    only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True,path_ehtim='',closure='',tavg_closures='scan'):
+    only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True,path_ehtim='',closure='',tavg_closures='scan',precoh_avg_time=0.):
 
     print("********************************************************")
     print("*********************IMPORT DATA************************")
@@ -135,7 +144,7 @@ def main(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name='hops',ta
 
     import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name=pipeline_name,tavg=tavg,
     only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type=out_type,rescale_noise=rescale_noise,polrep=polrep, old_format=old_format,
-    path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures)
+    path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures,precoh_avg_time=precoh_avg_time)
     return 0
 
 if __name__=='__main__':
@@ -225,6 +234,12 @@ if __name__=='__main__':
     if "--incoh_avg" in sys.argv:
         incoh_avg=True
 
+    precoh_avg_time=0
+    if "--incoh_avg_time" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--precoh_avg_time'):
+                precoh_avg_time=float(sys.argv[a+1])
+
     if "--cphase" in sys.argv:
         closure='cphase'
     else: closure=''
@@ -247,4 +262,5 @@ if __name__=='__main__':
     print('tavg = ', tavg)
     print('out_type = ', out_type)
     main(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name=pipeline_name,tavg=tavg,
-    only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type=out_type,rescale_noise=rescale_noise,polrep=polrep, old_format=True,path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures)
+    only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type=out_type,rescale_noise=rescale_noise,polrep=polrep, 
+    old_format=True,path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures,precoh_avg_time=precoh_avg_time)
