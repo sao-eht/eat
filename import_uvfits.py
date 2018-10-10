@@ -41,19 +41,17 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         print("********************************************************")
         #try:
         df_foo = uvfits.get_df_from_uvfit(filen,path_vex=path_vex,force_singlepol='no',band=bandname,round_s=0.1,
-        only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
+    only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
         print('Found datapoints: ',np.shape(df_foo)[0])
-        if old_format:
-            df_foo = ut.old_format(df_foo)
 
         if 'std_by_mean' in df_foo.columns:
             df_foo.drop('std_by_mean',axis=1,inplace=True)
-        df_foo['std_by_mean'] = df_foo['amp']
+            df_foo['std_by_mean'] = df_foo['amp']
+        print('Averaging this file...')
         if incoh_avg==False:
             print('Averaging coherently for ', str(tavg))
             df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
-        else:
-            
+        else:      
             if precoh_avg_time > 0:
                 print('Averaging coherently for ', str(precoh_avg_time))
                 df_coh = ut.coh_avg_vis(df_foo.copy(),tavg=precoh_avg_time,phase_type='phase')
@@ -63,14 +61,18 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
                 print('Averaging incoherently for ', str(tavg))
                 df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
         df = pd.concat([df,df_scan.copy()],ignore_index=True)
-        df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
-        #except: pass
-    #df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
-    try:
-        df['source'] = list(map(str,df['source']))
-        df.dropna(subset=['snr'],inplace=True)
-    except: pass
+        #except: print('Nothing from this file...')
 
+    #CONVERT TO OLD DF FORMATTING (SEPARATE DATA RECORD FOR EACH POLARIZATION)
+    if old_format:
+        df = ut.old_format(df)
+    try: df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
+    except: pass
+    try: df['source'] = list(map(str,df['source']))
+    except: pass
+    try: df.dropna(subset=['snr'],inplace=True)
+    except: pass
+   
     ###########################################################################
     # CLOSURES
     ###########################################################################
