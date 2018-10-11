@@ -1757,7 +1757,7 @@ def prepare_polgains(vis,band=None,snr_cut=None):
         
     visRR = vis[vis.polarization=='RR']
     visLL = vis[vis.polarization=='LL']
-    visRR2,visLL2 = ut.match_frames(visRR.copy(),visLL.copy(),['scan_id','band','baseline'])
+    visRR2,visLL2 = match_frames(visRR.copy(),visLL.copy(),['scan_id','band','baseline'])
     visRR2['ampR'] = visRR2['amp']
     visRR2['ampL'] = visLL2['amp']
     visRR2['phaseR'] = visRR2['phase']
