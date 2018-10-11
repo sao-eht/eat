@@ -208,16 +208,19 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     sourLL = list(vis[vis.baseline.str.contains('L')].source.unique())
     base='AL'
     foo = visRR2[visRR2['baseline']==base]
-    wph =numpy_weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
-    if wph is None: wph = 0.
-    wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
-    if wam is None: wam = 1.
+    NumScans=np.shape(foo)[0]
+    print("LMT estimated from "+str(NumScans)+" scans")
+    if NumScans > 0:
+        wph =numpy_weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
+        if wph is None: wph = 0.
+        wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+        if wam is None: wam = 1.
+    else: wph = 0.; wam = 1.
     LINE={'station':'L',
             'mjd_start': vis.mjd.min() - toff,
             'mjd_stop': vis.mjd.max() + toff,
             'ratio_amp': "%.3f" % wam,
             'ratio_phas': "%.3f" % -wph}
-    print("LMT estimated from "+str(np.shape(foo)[0])+" scans")
     print(LINE)
     ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
     corrected = apply_correction(corrected,ratios,'L')
@@ -227,16 +230,19 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     sourLP = list(vis[vis.baseline.str.contains('P')].source.unique())
     base='AP'
     foo = visRR2[visRR2['baseline']==base]
-    wph =numpy_weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
-    if wph is None: wph = 0.
-    wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
-    if wam is None: wam = 1.
+    NumScans=np.shape(foo)[0]
+    print("PV estimated from "+str(NumScans)+" scans")
+    if NumScans > 0:
+        wph =numpy_weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
+        if wph is None: wph = 0.
+        wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+        if wam is None: wam = 1.
+    else: wph = 0.; wam = 1.
     LINE={'station':'P',
             'mjd_start': vis.mjd.min() - toff,
             'mjd_stop': vis.mjd.max() + toff,
             'ratio_amp': "%.3f" % wam,
             'ratio_phas': "%.3f" % -wph}
-    print("PV estimated from "+str(np.shape(foo)[0])+" scans")
     print(LINE)
     ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
     corrected = apply_correction(corrected,ratios,'P')
@@ -246,24 +252,31 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     sourLY = list(vis[vis.baseline.str.contains('Y')].source.unique())
     base='AY'
     foo = visRR2[(visRR2['baseline']==base)&(visRR2.expt_no!=3597)]
-    wph =numpy_weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
-    if wph is None: wph = 0.
-    wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
-    if wam is None: wam = 1.
+    NumScans=np.shape(foo)[0]
+    print("SPT estimated from "+str(NumScans)+" scans")
+    if NumScans>0:
+        wph =numpy_weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
+        if wph is None: wph = 0.
+        wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+        if wam is None: wam = 1.
+    else: wph = 0.; wam = 1. 
     LINE={'station':'Y',
             'mjd_start': foo.mjd.min() - toff,
             'mjd_stop': foo.mjd.max() + toff,
             'ratio_amp': "%.3f" % wam,
             'ratio_phas': "%.3f" % -wph}
-    print("SPT estimated from "+str(np.shape(foo)[0])+" scans")
     print(LINE)
     ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
     base='LY'
     foo = visRR2[(visRR2['baseline']==base)&(visRR2.expt_no==3597)]
-    wph =numpy_weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
-    if wph is None: wph = 0.
-    wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
-    if wam is None: wam = 1.
+    NumScans=np.shape(foo)[0]
+    print("SPT estimated from "+str(NumScans)+" scans")
+    if NumScans>0:
+        wph =numpy_weighted_median(foo.RLphase, weights=1./np.asarray(foo.RLphaseErr))
+        if wph is None: wph = 0.
+        wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+        if wam is None: wam = 1.
+    else: wph = 0.; wam = 1. 
     doo = float(ratios[(ratios.station=='L')].ratio_phas)
     goo = -wph+float(doo)
     if goo is None: goo = 0.
@@ -272,7 +285,6 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
             'mjd_stop': foo.mjd.max() + toff,
             'ratio_amp': "%.3f" % wam,
             'ratio_phas': "%.3f" % goo}
-    print("PV estimated from "+str(np.shape(foo)[0])+" scans")
     print(LINE)
     ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
     corrected = apply_correction(corrected,ratios,'Y')
@@ -284,13 +296,22 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     exptL = list(vis.expt_no.unique())
     base='AZ'
     foo = visRR2[visRR2['baseline']==base]
-    wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
-    if wam is None: wam = 1.
+    NumScans=np.shape(foo)[0]
+    print("SMT amp estimated from "+str(NumScans)+" scans")
+    if NumScans>0:
+        wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+        if wam is None: wam = 1.
+    else: wam=1.
+
     for expt in exptL:
         foo2 = foo[(foo.expt_no==expt)&(foo.mjd<57854.368)]
         foo_for_mjd = visRR2[(visRR2['expt_no']==expt)&(visRR2.mjd<57854.368)]
-        wph =numpy_weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr))
-        if wph is None: wph = 0.
+        NumScans=np.shape(foo2)[0]
+        print("SMT phase estimated from "+str(NumScans)+" scans")
+        if NumScans>0:
+            wph =numpy_weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr))
+            if wph is None: wph = 0.
+        else: wph = 0.
         mjd_start = foo_for_mjd.mjd.min() - toff
         mjd_stop = np.minimum(foo_for_mjd.mjd.max() + toff,57854.368)
         LINE={'station':'Z',
@@ -298,24 +319,33 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
                 'mjd_stop': mjd_stop,
                 'ratio_amp': "%.3f" % wam,
                 'ratio_phas': "%.3f" % -wph}
-        print("SMT estimated from "+str(np.shape(foo2)[0])+" scans")
         print(LINE)
         ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
 
+    #### FIXING LINEAR DRIFT ON SMT, 3601, SGRA
     foo2 = foo[(foo.mjd>57854.368)]
-    foo_for_mjd = visRR2[(visRR2.mjd>57854.368)]
-    wph =numpy_weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr))
-    if wph is None: wph = 0.
-    mjd_start = 57854.368
-    mjd_stop = foo_for_mjd.mjd.max() + toff
-    fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_start, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=1, full=False, w=1./np.asarray(foo2['RLphaseErr']))
+    NumScans=np.shape(foo2)[0]
+    print("SMT phase estimated from "+str(NumScans)+" scans")
+    if NumScans>0:
+        foo_for_mjd = visRR2[(visRR2.mjd>57854.368)]
+        mjd_start = 57854.368
+        mjd_stop = foo_for_mjd.mjd.max() + toff
+        wph =numpy_weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr))
+        fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_start, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=1, full=False, w=1./np.asarray(foo2['RLphaseErr']))
+        if wph is None: wph = 0.
+    else: 
+        wph = 0.
+        wam = 1.
+        mjd_start = 57854.368
+        mjd_stop = 57855.0
+        fit_coef=[0.,0.]
+
     LINE={'station':'Z',
-            'mjd_start': mjd_start,
-            'mjd_stop': mjd_stop,
-            'ratio_amp': "%.3f" % wam,
-            'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef[1], "%.3f" % -fit_coef[0])}
+        'mjd_start': mjd_start,
+        'mjd_stop': mjd_stop,
+        'ratio_amp': "%.3f" % wam,
+        'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef[1], "%.3f" % -fit_coef[0])}
     ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
-    print("SMT estimated from "+str(np.shape(foo2)[0])+" scans")
     print(LINE)
     corrected = apply_correction(corrected,ratios,'Z')
     ##-------------------------------------------------------
@@ -429,21 +459,29 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     else:
         foo=fooAX
     foo=foo.sort_values('mjd').copy()
-    wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    NumScans=np.shape(foo)[0]
+    print("APEX amp estimated from "+str(NumScans)+" scans")
+    if NumScans>0:
+        wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+        if wam is None: wam = 1.
+    else: wam=1.
     for cou, mjd_sta in enumerate(mjd_startAP):
         try:
             mjd_sto=mjd_stopAP[cou]
             #print([mjd_sta,mjd_sto])
             foo2=foo[(foo.mjd>mjd_sta)&(foo.mjd<=mjd_sto)]
-            fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_sta, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=deg, full=False, w=1./np.asarray(foo2['RLphaseErr']))
-            listcoef = ["%.3f" % -fit_coef[cou] for cou in range(deg,-1,-1)]
+            NumScans=np.shape(foo2)[0]
+            print("APEX phase estimated from "+str(NumScans)+" scans")
+            if NumScans>deg:
+                fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_sta, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=deg, full=False, w=1./np.asarray(foo2['RLphaseErr']))
+                listcoef = ["%.3f" % -fit_coef[cou] for cou in range(deg,-1,-1)]
+            else: listcoef = ["0."]*(deg+1)
             LINE={'station':'X',
                     'mjd_start': mjd_sta,
                     'mjd_stop': mjd_sto,
                     'ratio_amp': "%.3f" % wam,
                     'ratio_phas': strratio.format(*listcoef) }
             ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
-            print("APEX estimated from "+str(np.shape(foo2)[0])+" scans")
             print(LINE)
         except: continue
     corrected = apply_correction(corrected,ratios,'X')
@@ -461,20 +499,27 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
     #only use ALMA, LMT, SMT
     foo=foo[(foo.baseline=='AS')|(foo.baseline=='LS')|(foo.baseline=='ZS')]
     foo=foo.sort_values('mjd').copy()
-    wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+    NumScans=np.shape(foo)[0]
+    if NumScans>0:
+        wam =weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
+        if wam is None: wam = 1.
+    else: wam=1.
     for cou, mjd_sta in enumerate(mjd_startV):
         try:
             mjd_sto=mjd_stopV[cou]
             foo2=foo[(foo.mjd>mjd_sta)&(foo.mjd<=mjd_sto)]
-            fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_sta, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=deg, full=False, w=1./np.asarray(foo2['RLphaseErr']))
-            listcoef = ["%.3f" % -fit_coef[cou] for cou in range(deg,-1,-1)]
+            NumScans=np.shape(foo2)[0]
+            print("SMA estimated from "+str(NumScans)+" scans")
+            if NumScans>deg:
+                fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_sta, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=deg, full=False, w=1./np.asarray(foo2['RLphaseErr']))
+                listcoef = ["%.3f" % -fit_coef[cou] for cou in range(deg,-1,-1)]
+            else: listcoef = ["0."]*(deg+1)
             LINE={'station':'S',
                     'mjd_start': mjd_sta,
                     'mjd_stop': mjd_sto,
                     'ratio_amp': "%.3f" % wam,
                     'ratio_phas': strratio.format(*listcoef) }
             ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
-            print("SMA estimated from "+str(np.shape(foo2)[0])+" scans")
             print(LINE)
         except: continue
     corrected = apply_correction(corrected,ratios,'S')
