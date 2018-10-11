@@ -74,8 +74,10 @@ def median(data):
 
 def weighted_median(data, weights=None):
     """Calculate the weighted median of a list."""
+    data=list(data)
     if weights is None:
         return median(data)
+    else: weights=list(weights)
     midpoint = 0.5 * sum(weights)
     if any([j > midpoint for j in weights]):
         return data[weights.index(max(weights))]
