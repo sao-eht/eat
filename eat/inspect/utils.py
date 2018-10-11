@@ -1743,3 +1743,36 @@ def old_format(df):
     df_old['snr'] = df_old['amp']/df_old['sigma']
 
     return df_old
+
+
+def prepare_polgains(vis,band=None,snr_cut=None):
+    '''
+    Adds columns related to polcal gains inspection
+    '''
+    vis = vis[vis.polarization.str[0]==vis.polarization.str[1]]
+    if snr_cut is None: pass
+    else: vis=vis[vis.snr>snr_cut]
+    if band is None: pass
+    else: vis = vis[vis.band==band]
+        
+    visRR = vis[vis.polarization=='RR']
+    visLL = vis[vis.polarization=='LL']
+    visRR2,visLL2 = ut.match_frames(visRR.copy(),visLL.copy(),['scan_id','band','baseline'])
+    visRR2['ampR'] = visRR2['amp']
+    visRR2['ampL'] = visLL2['amp']
+    visRR2['phaseR'] = visRR2['phase']
+    visRR2['phaseL'] = visLL2['phase']
+    visRR2['sigmaR'] = visRR2['sigma']
+    visRR2['sigmaL'] = visLL2['sigma']
+    visRR2['snrL'] = visLL2['snr']
+    visRR2['snrR'] = visRR2['snr']
+
+    visRR2['RLphase'] = np.mod(visRR2['phaseR'] - visRR2['phaseL'] +180,360)-180
+    visRR2['RLphaseErr'] = np.sqrt(1./np.asarray(visRR2['snr'])**2 + 1./np.asarray(visLL2['snr'])**2)*180./np.pi
+    visRR2['AmpRatio'] = np.asarray(visRR2.ampR)/np.asarray(visRR2.ampL)
+    visRR2['AmpRatioErr'] = visRR2['AmpRatio']*np.sqrt(np.asarray(1./visRR2['snrL'])**2 + np.asarray(1./visRR2['snrR'])**2)
+
+    visRR2['baseline'] = list(map(str,visRR2['baseline']))
+    visRR2=visRR2.dropna(subset=['ampR','ampL','phaseR','phaseL','sigmaR','sigmaL'])
+    polgains = visRR2.copy()
+    return polgains
