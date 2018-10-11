@@ -307,9 +307,8 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         foo2 = foo[(foo.expt_no==expt)&(foo.mjd<57854.368)]
         foo_for_mjd = visRR2[(visRR2['expt_no']==expt)&(visRR2.mjd<57854.368)]
         NumScans=np.shape(foo2)[0]
-        print('NumScans=',NumScans)
         print("SMT phase estimated from "+str(NumScans)+" scans")
-        if (NumScans>0) or (NumScans is None):
+        if NumScans>0:
             wph =numpy_weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr))
             if wph is None: wph = 0.
         else: wph = 0.
