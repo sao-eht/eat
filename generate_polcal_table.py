@@ -76,11 +76,15 @@ def weighted_median(data, weights=None):
     """Calculate the weighted median of a list."""
     data=list(data)
     if weights is None:
-        return median(data)
+        ret = median(data)
+        if ret is None: return 1.
+        else: return ret
     else: weights=list(weights)
     midpoint = 0.5 * sum(weights)
     if any([j > midpoint for j in weights]):
-        return data[weights.index(max(weights))]
+        ret = data[weights.index(max(weights))]
+        if ret is None: return 1.
+        else: return ret
     if any([j > 0 for j in weights]):
         sorted_data, sorted_weights = zip(*sorted(zip(data, weights)))
         cumulative_weight = 0
@@ -91,8 +95,12 @@ def weighted_median(data, weights=None):
         cumulative_weight -= sorted_weights[below_midpoint_index-1]
         if cumulative_weight - midpoint < sys.float_info.epsilon:
             bounds = sorted_data[below_midpoint_index-2:below_midpoint_index]
-            return sum(bounds) / float(len(bounds))
-        return sorted_data[below_midpoint_index-1]
+            ret = sum(bounds) / float(len(bounds))
+            if ret is None: return 1.
+            else: return ret
+        ret = sorted_data[below_midpoint_index-1]
+        if ret is None: return 1.
+        else: return ret
 
 def numpy_weighted_median(data, weights=None):
     """Calculate the weighted median of an array/list using numpy."""
