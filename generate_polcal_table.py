@@ -215,15 +215,17 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         if wph is None: wph = 0.
         wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
         if wam is None: wam = 1.
-    else: wph = 0.; wam = 1.
-    LINE={'station':'L',
-            'mjd_start': vis.mjd.min() - toff,
-            'mjd_stop': vis.mjd.max() + toff,
-            'ratio_amp': "%.3f" % wam,
-            'ratio_phas': "%.3f" % -wph}
-    print(LINE)
-    ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
-    corrected = apply_correction(corrected,ratios,'L')
+        LINE={'station':'L',
+                'mjd_start': vis.mjd.min() - toff,
+                'mjd_stop': vis.mjd.max() + toff,
+                'ratio_amp': "%.3f" % wam,
+                'ratio_phas': "%.3f" % -wph}
+        print(LINE)
+        ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
+        corrected = apply_correction(corrected,ratios,'L')
+    else: 
+        print(str(NumScans)+" scans found for LMT")
+        wph = 0.; wam = 1.
     ##-------------------------------------------------------
     #PV CALIBRATION
     #PV is calibrated with a single value for all nights from ALMA-PV baseline
@@ -237,15 +239,18 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         if wph is None: wph = 0.
         wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
         if wam is None: wam = 1.
-    else: wph = 0.; wam = 1.
-    LINE={'station':'P',
-            'mjd_start': vis.mjd.min() - toff,
-            'mjd_stop': vis.mjd.max() + toff,
-            'ratio_amp': "%.3f" % wam,
-            'ratio_phas': "%.3f" % -wph}
-    print(LINE)
-    ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
-    corrected = apply_correction(corrected,ratios,'P')
+
+        LINE={'station':'P',
+                'mjd_start': vis.mjd.min() - toff,
+                'mjd_stop': vis.mjd.max() + toff,
+                'ratio_amp': "%.3f" % wam,
+                'ratio_phas': "%.3f" % -wph}
+        print(LINE)
+        ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
+        corrected = apply_correction(corrected,ratios,'P')
+    else: 
+        print(str(NumScans)+" scans found for PV")
+        wph = 0.; wam = 1.
     ##-------------------------------------------------------
     #SPT CALIBRATION
     #SPT is calibrated with single value from ALMA baseline, but on night 3597 LMT is used instead
@@ -259,14 +264,20 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         if wph is None: wph = 0.
         wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
         if wam is None: wam = 1.
-    else: wph = 0.; wam = 1. 
-    LINE={'station':'Y',
-            'mjd_start': foo.mjd.min() - toff,
-            'mjd_stop': foo.mjd.max() + toff,
-            'ratio_amp': "%.3f" % wam,
-            'ratio_phas': "%.3f" % -wph}
-    print(LINE)
-    ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
+    
+        LINE={'station':'Y',
+                'mjd_start': foo.mjd.min() - toff,
+                'mjd_stop': foo.mjd.max() + toff,
+                'ratio_amp': "%.3f" % wam,
+                'ratio_phas': "%.3f" % -wph}
+        print(LINE)
+        ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
+    else:
+        print(str(NumScans)+" scans found for SPT on 3598-3601") 
+        wph = 0.; wam = 1.
+
+    ###ON FIRST NIGHT SPT IS CALIBRATED WITHOUT ALMA, WITH LMT
+    
     base='LY'
     foo = visRR2[(visRR2['baseline']==base)&(visRR2.expt_no==3597)]
     NumScans=np.shape(foo)[0]
@@ -276,17 +287,20 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         if wph is None: wph = 0.
         wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
         if wam is None: wam = 1.
-    else: wph = 0.; wam = 1. 
-    doo = float(ratios[(ratios.station=='L')].ratio_phas)
-    goo = -wph+float(doo)
-    if goo is None: goo = 0.
-    LINE={'station':'Y',
-            'mjd_start': foo.mjd.min() - toff,
-            'mjd_stop': foo.mjd.max() + toff,
-            'ratio_amp': "%.3f" % wam,
-            'ratio_phas': "%.3f" % goo}
-    print(LINE)
-    ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
+    
+        doo = float(ratios[(ratios.station=='L')].ratio_phas)
+        goo = -wph+float(doo)
+        if goo is None: goo = 0.
+        LINE={'station':'Y',
+                'mjd_start': foo.mjd.min() - toff,
+                'mjd_stop': foo.mjd.max() + toff,
+                'ratio_amp': "%.3f" % wam,
+                'ratio_phas': "%.3f" % goo}
+        print(LINE)
+        ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
+    else: 
+        print(str(NumScans)+" scans found for SPT on 3597")
+        wph = 0.; wam = 1. 
     corrected = apply_correction(corrected,ratios,'Y')
     ##-------------------------------------------------------
     #SMT is calibrated with single value per night, from ALMA-SMT baseline
@@ -311,16 +325,19 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         if NumScans>0:
             wph =numpy_weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr))
             if wph is None: wph = 0.
-        else: wph = 0.
-        mjd_start = foo_for_mjd.mjd.min() - toff
-        mjd_stop = np.minimum(foo_for_mjd.mjd.max() + toff,57854.368)
-        LINE={'station':'Z',
-                'mjd_start': mjd_start,
-                'mjd_stop': mjd_stop,
-                'ratio_amp': "%.3f" % wam,
-                'ratio_phas': "%.3f" % -wph}
-        print(LINE)
-        ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
+        
+            mjd_start = foo_for_mjd.mjd.min() - toff
+            mjd_stop = np.minimum(foo_for_mjd.mjd.max() + toff,57854.368)
+            LINE={'station':'Z',
+                    'mjd_start': mjd_start,
+                    'mjd_stop': mjd_stop,
+                    'ratio_amp': "%.3f" % wam,
+                    'ratio_phas': "%.3f" % -wph}
+            print(LINE)
+            ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
+        else: 
+            print(str(NumScans)+" scans found for SMT on expt "+str(expt))
+            wph = 0.
 
     #### FIXING LINEAR DRIFT ON SMT, 3601, SGRA
     foo2 = foo[(foo.mjd>57854.368)]
@@ -333,20 +350,16 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         wph =numpy_weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr))
         fit_coef = np.polyfit(np.asarray(foo2.mjd) - mjd_start, np.unwrap(np.asarray(foo2.RLphase)*np.pi/180)*180/np.pi, deg=1, full=False, w=1./np.asarray(foo2['RLphaseErr']))
         if wph is None: wph = 0.
-    else: 
-        wph = 0.
-        wam = 1.
-        mjd_start = 57854.368
-        mjd_stop = 57855.0
-        fit_coef=[0.,0.]
 
-    LINE={'station':'Z',
-        'mjd_start': mjd_start,
-        'mjd_stop': mjd_stop,
-        'ratio_amp': "%.3f" % wam,
-        'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef[1], "%.3f" % -fit_coef[0])}
-    ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
-    print(LINE)
+        LINE={'station':'Z',
+            'mjd_start': mjd_start,
+            'mjd_stop': mjd_stop,
+            'ratio_amp': "%.3f" % wam,
+            'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef[1], "%.3f" % -fit_coef[0])}
+    
+        ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
+        print(LINE)
+    else: wph = 0.; wam = 1.
     corrected = apply_correction(corrected,ratios,'Z')
     ##-------------------------------------------------------
     #APEX is calibrated with linear functions on predefined time intervals
