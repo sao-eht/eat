@@ -601,14 +601,26 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
         print(' ')
         print("A priori calibrating: ", uvfitsfile)
 
+        tok = uvfitsfile.replace('.uvfits', '').split('_', 2)
+        print("pipeline: "+tok[0])
+        print("expr no:  "+tok[1])
+        print("source:   "+tok[2])
+
         datastruct_ehtim = load_and_convert_hops_uvfits(uvfitsfile)
+
         source = datastruct_ehtim.obs_info.src
+        if source < 8 and source != tok[2]:
+            print('WARNING: source specified inside the uvfits file, "'+
+                  source+'", does not match file name "'+tok[2]+'"')
+            print('Guess real source name by using the file name')
+            source = tok[2]
+            datastruct_ehtim.obs_info.src = tok[2]
+
         tarr = datastruct_ehtim.antenna_info
         caltable = load_caltable_ds(datastruct_ehtim, caldir,sqrt_gains=sqrt_gains)
         if caltable==False:
             print("couldn't find caltable in " + caldir + " for " + source + "!!")
             continue
-
 
         outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.apriori.uvfits'
         apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=err_scale)
