@@ -635,8 +635,10 @@ def load_hops_uvfits(filename):
     # load the scan information
     refdate_str = hdulist['AIPS AN'].header['RDATE'] # in iso
     refdate = Time(refdate_str, format='isot', scale='utc').jd
-    scan_starts = hdulist['AIPS NX'].data['TIME'] #in days since reference date
-    scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
+    try: scan_starts = hdulist['AIPS NX'].data['TIME'] #in days since reference date
+    except KeyError: scan_starts=[]
+    try: scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
+    except KeyError: scan_durs=[]
     scan_arr = []
     for kk in range(len(scan_starts)):
         scan_start = scan_starts[kk]
