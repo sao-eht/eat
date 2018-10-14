@@ -139,11 +139,23 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
     for s in range(0, len(tarr)):
 
         site = tarr[s]['site']
-        filename = tabledir + "/" + source + '_' + site + '.txt'
-        try:
-            data = np.loadtxt(filename, dtype=bytes).astype(str)
-        except IOError:
-            print("NO FILE: " + filename)
+
+        # AIPS can only handle 8-character source name so "source" may
+        # be truncated.  Therefore, we match a pattern (note the "*")
+        # and proceed only if there is one match
+        pattern   = tabledir + "/" + source + '*_' + site + '.txt'
+        filenames = glob.glob(pattern)
+        if len(filenames) == 1:
+            try:
+                data = np.loadtxt(filenames[0], dtype=bytes).astype(str)
+            except IOError:
+                print("CORRUPTED FILE: " + filenames[0])
+                continue
+        elif len(filenames) == 0:
+            print("NO FILE MATCHING: " + pattern)
+            continue
+        elif
+            print("MULTIPLE FILES MATCHING: " + pattern)
             continue
 
         datatable = []
