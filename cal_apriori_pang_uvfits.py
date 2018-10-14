@@ -596,7 +596,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
     print("to uvfits files in directory: ", datadir)
     print(' ')
 
-    uvfitsfiles = glob.glob(datadir + '/*.uvfits')
+    uvfitsfiles = glob.glob(datadir + '/*.uvfits')+glob.glob(datadir + '/*.uvf')
     for uvfitsfile in sorted(uvfitsfiles):
         print(' ')
         print("A priori calibrating: ", uvfitsfile)
