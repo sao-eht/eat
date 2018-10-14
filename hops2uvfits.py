@@ -654,8 +654,12 @@ def load_hops_uvfits(filename):
 
     # Load the random group parameters and the visibility data
     # Convert uv in lightsec to lambda by multiplying by rf
-    u = data['UU---SIN'] * rf
-    v = data['VV---SIN'] * rf
+    try: 
+        u = data['UU---SIN'] * rf
+        v = data['VV---SIN'] * rf
+    except KeyError:
+        u = data['UU'] * rf
+        v = data['VV'] * rf       
     baselines = data['BASELINE']
     jds = data['DATE'].astype('d') + data['_DATE'].astype('d')
     tints = data['INTTIM']
