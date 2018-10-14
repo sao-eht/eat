@@ -19,8 +19,6 @@ from eat.polcal import polcal
 
 Z2AZ = {'Z':'AZ', 'P':'PV', 'S':'SM', 'R':'SR','J':'JC', 'A':'AA','X':'AP', 'L':'LM','Y':'SP'}
 
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """Mean, weighted mean, median, and weighted median.
 WeightedStats includes four functions (mean, weighted_mean, median,
 weighted_median) which accept lists as arguments, and two functions
@@ -223,7 +221,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         print(LINE)
         ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
         corrected = apply_correction(corrected,ratios,'L')
-    else: 
+    else:
         print(str(NumScans)+" scans found for LMT")
         wph = 0.; wam = 1.
     ##-------------------------------------------------------
@@ -248,7 +246,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         print(LINE)
         ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
         corrected = apply_correction(corrected,ratios,'P')
-    else: 
+    else:
         print(str(NumScans)+" scans found for PV")
         wph = 0.; wam = 1.
     ##-------------------------------------------------------
@@ -264,7 +262,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         if wph is None: wph = 0.
         wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
         if wam is None: wam = 1.
-    
+
         LINE={'station':'Y',
                 'mjd_start': foo.mjd.min() - toff,
                 'mjd_stop': foo.mjd.max() + toff,
@@ -273,11 +271,11 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         print(LINE)
         ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
     else:
-        print(str(NumScans)+" scans found for SPT on 3598-3601") 
+        print(str(NumScans)+" scans found for SPT on 3598-3601")
         wph = 0.; wam = 1.
 
     ###ON FIRST NIGHT SPT IS CALIBRATED WITHOUT ALMA, WITH LMT
-    
+
     base='LY'
     foo = visRR2[(visRR2['baseline']==base)&(visRR2.expt_no==3597)]
     NumScans=np.shape(foo)[0]
@@ -287,7 +285,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         if wph is None: wph = 0.
         wam = numpy_weighted_median(foo.AmpRatio, weights=1./np.asarray(foo.AmpRatioErr))
         if wam is None: wam = 1.
-    
+
         doo = float(ratios[(ratios.station=='L')].ratio_phas)
         goo = -wph+float(doo)
         if goo is None: goo = 0.
@@ -298,9 +296,9 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
                 'ratio_phas': "%.3f" % goo}
         print(LINE)
         ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
-    else: 
+    else:
         print(str(NumScans)+" scans found for SPT on 3597")
-        wph = 0.; wam = 1. 
+        wph = 0.; wam = 1.
     corrected = apply_correction(corrected,ratios,'Y')
     ##-------------------------------------------------------
     #SMT is calibrated with single value per night, from ALMA-SMT baseline
@@ -325,7 +323,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
         if NumScans>0:
             wph =numpy_weighted_median(foo2.RLphase, weights=1./np.asarray(foo2.RLphaseErr))
             if wph is None: wph = 0.
-        
+
             mjd_start = foo_for_mjd.mjd.min() - toff
             mjd_stop = np.minimum(foo_for_mjd.mjd.max() + toff,57854.368)
             LINE={'station':'Z',
@@ -335,7 +333,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
                     'ratio_phas': "%.3f" % -wph}
             print(LINE)
             ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
-        else: 
+        else:
             print(str(NumScans)+" scans found for SMT on expt "+str(expt))
             wph = 0.
 
@@ -356,7 +354,7 @@ def get_polcal(path_data,path_out,degSMA=3,degAPEX=1,snr_cut=1.):
             'mjd_stop': mjd_stop,
             'ratio_amp': "%.3f" % wam,
             'ratio_phas': "{}, {}".format( "%.3f" % -fit_coef[1], "%.3f" % -fit_coef[0])}
-    
+
         ratios = pd.concat([ratios,pd.DataFrame([LINE])],ignore_index=True)
         print(LINE)
     else: wph = 0.; wam = 1.
