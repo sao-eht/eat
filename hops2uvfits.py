@@ -610,7 +610,9 @@ def load_hops_uvfits(filename):
     antennainfo = Antenna_info(tnames, tnums, xyz)
 
     # Load the various observing header parameters
+    if 'OBSRA' not in header.keys(): header['OBSRA'] = header['CRVAL6']
     ra = header['OBSRA'] * 12./180.
+    if 'OBSDEC' not in header.keys(): header['OBSDEC'] = header['CRVAL7']
     dec = header['OBSDEC']
     src = header['OBJECT']
 
