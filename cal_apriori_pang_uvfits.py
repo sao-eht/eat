@@ -154,7 +154,7 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
         elif len(filenames) == 0:
             print("NO FILE MATCHING: " + pattern)
             continue
-        elif
+        else:
             print("MULTIPLE FILES MATCHING: " + pattern)
             continue
 
