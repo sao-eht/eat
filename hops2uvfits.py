@@ -662,7 +662,10 @@ def load_hops_uvfits(filename):
         v = data['VV'] * rf       
     baselines = data['BASELINE']
     jds = data['DATE'].astype('d') + data['_DATE'].astype('d')
-    tints = data['INTTIM']
+
+    
+    try: tints = data['INTTIM']
+    except KeyError: tints = np.array([1]*np.shape(data)[0], dtype='float32')
     obsdata = data['DATA']
 
     alldata = Uvfits_data(u,v,baselines,jds, tints, obsdata)
