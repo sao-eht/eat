@@ -610,7 +610,9 @@ def load_hops_uvfits(filename):
     antennainfo = Antenna_info(tnames, tnums, xyz)
 
     # Load the various observing header parameters
+    if 'OBSRA' not in header.keys(): header['OBSRA'] = header['CRVAL6']
     ra = header['OBSRA'] * 12./180.
+    if 'OBSDEC' not in header.keys(): header['OBSDEC'] = header['CRVAL7']
     dec = header['OBSDEC']
     src = header['OBJECT']
 
@@ -633,8 +635,10 @@ def load_hops_uvfits(filename):
     # load the scan information
     refdate_str = hdulist['AIPS AN'].header['RDATE'] # in iso
     refdate = Time(refdate_str, format='isot', scale='utc').jd
-    scan_starts = hdulist['AIPS NX'].data['TIME'] #in days since reference date
-    scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
+    try: scan_starts = hdulist['AIPS NX'].data['TIME'] #in days since reference date
+    except KeyError: scan_starts=[]
+    try: scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
+    except KeyError: scan_durs=[]
     scan_arr = []
     for kk in range(len(scan_starts)):
         scan_start = scan_starts[kk]
@@ -650,11 +654,18 @@ def load_hops_uvfits(filename):
 
     # Load the random group parameters and the visibility data
     # Convert uv in lightsec to lambda by multiplying by rf
-    u = data['UU---SIN'] * rf
-    v = data['VV---SIN'] * rf
+    try: 
+        u = data['UU---SIN'] * rf
+        v = data['VV---SIN'] * rf
+    except KeyError:
+        u = data['UU'] * rf
+        v = data['VV'] * rf       
     baselines = data['BASELINE']
     jds = data['DATE'].astype('d') + data['_DATE'].astype('d')
-    tints = data['INTTIM']
+
+    
+    try: tints = data['INTTIM']
+    except KeyError: tints = np.array([1]*np.shape(data)[0], dtype='float32')
     obsdata = data['DATA']
 
     alldata = Uvfits_data(u,v,baselines,jds, tints, obsdata)
