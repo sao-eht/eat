@@ -477,7 +477,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
             # get the complex visibilities
             visibilities = eat.hops.util.pop212(a)
-            if antennas[ant2] < antennas[ant1]: 
+            if antennas[ant2] < antennas[ant1]:
                 visibilities =  visibilities.conj() #TODO ???? Is this right ???
 
             amplitude = b.t208[0].amplitude * 10000. * scalingFac
@@ -646,7 +646,7 @@ def load_hops_uvfits(filename):
         # TODO AIPS MEMO 117 says scan_times should be midpoint!, but AIPS data looks likes it's at the start?
         #scan_arr.append([scan_start + refdate,
         #                  scan_start + scan_dur + refdate])
-        scan_arr.append([scan_start - 0.5*scan_dur + refdate, 
+        scan_arr.append([scan_start - 0.5*scan_dur + refdate,
                          scan_start + 0.5*scan_dur + refdate])
 
     scan_arr = np.array(scan_arr)
@@ -654,16 +654,16 @@ def load_hops_uvfits(filename):
 
     # Load the random group parameters and the visibility data
     # Convert uv in lightsec to lambda by multiplying by rf
-    try: 
+    try:
         u = data['UU---SIN'] * rf
         v = data['VV---SIN'] * rf
     except KeyError:
         u = data['UU'] * rf
-        v = data['VV'] * rf       
+        v = data['VV'] * rf
     baselines = data['BASELINE']
     jds = data['DATE'].astype('d') + data['_DATE'].astype('d')
 
-    
+
     try: tints = data['INTTIM']
     except KeyError: tints = np.array([1]*np.shape(data)[0], dtype='float32')
     obsdata = data['DATA']
@@ -1276,8 +1276,11 @@ def save_uvfits(datastruct, fname):
             continue
 
     if jj < len(jds):
-        print(scan_arr[-1])
-        print(round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT))
+        if len(scan_arr) == 0:
+            print("len(scan_arr) == 0")
+        else:
+            print(scan_arr[-1])
+            print(round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT))
         print(jj, len(jds), round(jds[jj], ROUND_SCAN_INT))
         print("WARNING!!!: in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
         #raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
