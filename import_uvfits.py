@@ -236,7 +236,7 @@ if __name__=='__main__':
         incoh_avg=True
 
     precoh_avg_time=0
-    if "--incoh_avg_time" in sys.argv:
+    if "--precoh_avg_time" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--precoh_avg_time'):
                 precoh_avg_time=float(sys.argv[a+1])
