@@ -1276,8 +1276,11 @@ def save_uvfits(datastruct, fname):
             continue
 
     if jj < len(jds):
-        print(scan_arr[-1])
-        print(round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT))
+        if len(scan_arr) == 0:
+            print("len(scan_arr) == 0")
+        else:
+            print(scan_arr[-1])
+            print(round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT))
         print(jj, len(jds), round(jds[jj], ROUND_SCAN_INT))
         print("WARNING!!!: in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
         #raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
