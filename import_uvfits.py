@@ -49,6 +49,12 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
             if 'std_by_mean' in df_foo.columns:
                 df_foo.drop('std_by_mean',axis=1,inplace=True)
                 df_foo['std_by_mean'] = df_foo['amp']
+            if 'amp_moments' in df_foo.columns:
+                df_foo.drop('amp_moments',axis=1,inplace=True)
+                df_foo['amp_moments'] = df_foo['amp']
+            if 'sig_moments' in df_foo.columns:
+                df_foo.drop('sig_moments',axis=1,inplace=True)
+                df_foo['sig_moments'] = df_foo['amp']
             print('Averaging this file...')
             if incoh_avg==False:
                 print('Averaging coherently for ', str(tavg))
@@ -236,7 +242,7 @@ if __name__=='__main__':
         incoh_avg=True
 
     precoh_avg_time=0
-    if "--incoh_avg_time" in sys.argv:
+    if "--precoh_avg_time" in sys.argv:
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--precoh_avg_time'):
                 precoh_avg_time=float(sys.argv[a+1])
