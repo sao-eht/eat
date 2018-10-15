@@ -157,7 +157,7 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
                 replace('_'+site+'.txt', '')
             if source != filename_source:
                 print('WARNING: the filename indicates a different source name')
-                if filename_source.tartswith(source):
+                if filename_source.startswith(source):
                     print('which is probably due to AIPS source name truncation,'+
                           ' use the full name "'+filename_source+'"instead')
                     source = filename_source
