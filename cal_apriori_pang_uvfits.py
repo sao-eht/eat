@@ -610,7 +610,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
         datastruct_ehtim = load_and_convert_hops_uvfits(uvfitsfile)
 
         source = datastruct_ehtim.obs_info.src
-        if uvfitsfile.endswith('.uvfits') and source < 8 and source != tok[2]:
+        if uvfitsfile.endswith('.uvfits') and source <= 8 and source != tok[2]:
             print('WARNING: source specified inside the uvfits file, "'+
                   source+'", does not match file name "'+tok[2]+'"')
             print('Guess real source name by using the file name')
