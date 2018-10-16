@@ -272,7 +272,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         df['band'] = band
         if rescale_noise==True:
             obsXX10 = obsXX.avg_coherent(10.)
-            rsc = obsXX10.estimate_noise_rescale_factor()
+            rsc = obsXX10.estimate_noise_rescale_factor(max_diff_sec=1000.)
             print('Applying noise rescaling to data, factor is: ', rsc)
             df['sigma']=rsc*df['sigma']
             if 'rrsigma' in df.columns:
