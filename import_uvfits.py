@@ -48,13 +48,13 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
                 df_foo = ut.old_format(df_foo)
             if 'std_by_mean' in df_foo.columns:
                 df_foo.drop('std_by_mean',axis=1,inplace=True)
-                df_foo['std_by_mean'] = df_foo['amp']
+            df_foo['std_by_mean'] = df_foo['amp']
             if 'amp_moments' in df_foo.columns:
                 df_foo.drop('amp_moments',axis=1,inplace=True)
-                df_foo['amp_moments'] = df_foo['amp']
+            df_foo['amp_moments'] = df_foo['amp']
             if 'sig_moments' in df_foo.columns:
                 df_foo.drop('sig_moments',axis=1,inplace=True)
-                df_foo['sig_moments'] = df_foo['amp']
+            df_foo['sig_moments'] = df_foo['amp']
             print('Averaging this file...')
             if incoh_avg==False:
                 print('Averaging coherently for ', str(tavg))
