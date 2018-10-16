@@ -979,6 +979,17 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
         #if it is there, we assume that it's filled with amplitudes
         aggregating['std_by_mean'] = lambda x: np.std(x)/np.mean(x)
         columns_out0 += ['std_by_mean']
+
+    if 'amp_moments' in frame.columns:
+        #if it is there, we assume that it's filled with amplitudes
+        aggregating['amp_moments'] = unbiased_amp
+        columns_out0 += ['amp_moments']
+
+    if 'sig_moments' in frame.columns:
+        #if it is there, we assume that it's filled with amplitudes
+        aggregating['sig_moments'] =  unbiased_std
+        columns_out0 += ['sig_moments']
+
         
     if tavg=='scan': #average for entire scan
         frame_avg = frame.groupby(groupingSc).agg(aggregating)
