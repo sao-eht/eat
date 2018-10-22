@@ -638,8 +638,8 @@ def load_hops_uvfits(filename):
         refdate_str = hdulist['AIPS AN'].header['RDATE'] # in iso
         refdate = Time(refdate_str, format='isot', scale='utc').jd
     except ValueError: 
-        print('ValueError in reading AIPS AN RDATE! Using dummy value')
-        refdate_str='2017-04-06T00:52:00.200000'
+        print('ValueError in reading AIPS AN RDATE! Using PRIMARY DATE-OBS value')
+        refdate_str = hdulist['PRIMARY'].header['DATE-OBS'] # in iso
         refdate = Time(refdate_str, format='isot', scale='utc').jd
 
     try: scan_starts = hdulist['AIPS NX'].data['TIME'] #in days since reference date
