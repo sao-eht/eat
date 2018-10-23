@@ -622,7 +622,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
             print("couldn't find caltable in " + caldir + " for " + source + "!!")
             continue
 
-        outname = outdir + '/' + uvfitsfile.replace('.uvfits', '.apriori.uvfits')
+        outname = outdir + '/' + uvfitsfile.replace('.uvfits', ident+'.apriori.uvfits')
         apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=err_scale)
         print("Saved calibrated data to ", outname)
     print("---------------------------------------------------------")
