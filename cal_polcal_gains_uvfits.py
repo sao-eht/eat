@@ -312,7 +312,7 @@ def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT
         source = datastruct_ehtim.obs_info.src
         tarr = datastruct_ehtim.antenna_info
 
-        outname = outdir + '/' + uvfitsfile.replace('.apriori.uvfits', ident+'.polcal.uvfits')
+        outname = outdir + '/' + os.path.basename(uvfitsfile).replace('.apriori.uvfits', ident+'.polcal.uvfits')
         apply_caltable_uvfits(calfile, datastruct_ehtim, outname, cal_amp=False)
         print("Saved calibrated data to ", outname)
     print("---------------------------------------------------------")
