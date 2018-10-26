@@ -145,6 +145,7 @@ def wrapped_std(theta):
     return wrstd
 
 def unbiased_amp(amp):
+    amp=amp[amp==amp]
     amp2 = np.asarray(amp, dtype=np.float32)**2
     m = np.mean(amp2)
     s = np.std(amp2)
@@ -169,6 +170,7 @@ def unbiased_amp_boot(amp):
     return a0
 
 def unbiased_std(amp):
+    amp=amp[amp==amp]
     amp = np.asarray(amp, dtype=np.float32)
     amp2 = amp**2
     m = np.mean(amp2)
