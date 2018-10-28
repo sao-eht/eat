@@ -1591,6 +1591,7 @@ def prep_df_for_dterms(alist):
 
 
     #alist_out = alist.groupby('scan_id').agg({'datetime': 'min'}).reset_index()
+    alist['scan_id'] = list(alist['scan_id'])
     alist_out = alist.groupby('scan_id').agg({'datetime': 'min','gr1':np.mean, 'gr2': np.mean, 'phasor_fra1': np.mean, 'phasor_fra2': np.mean,'phasor_tot_fra': np.mean}).reset_index()
     gr1 = np.asarray(alist_out.gr1)
     gr2 = np.asarray(alist_out.gr2)
