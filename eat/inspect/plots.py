@@ -310,7 +310,7 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange
 
 
 
-def err_cphase_single_night_multiple_triangles(data,sour='3C279',triangles=['ALX'],,expt=3601,band='lo',polar=['RR'],shift=0,errscale=1,
+def err_cphase_single_night_multiple_triangles_old(data,sour='3C279',triangles=['ALX'],expt=3601,band='lo',polar=['RR'],shift=0,errscale=1,
 savefig=False,time_type='gmst',phase_type='cphase_fix_amp',error_type='sigmaCP',snr_treshold=1,conj=False,
 ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange=''):
     fonts=16
