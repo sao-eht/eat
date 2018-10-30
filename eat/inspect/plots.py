@@ -309,6 +309,132 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange
         plt.show()
 
 
+
+def err_cphase_single_night_multiple_triangles(data,sour='3C279',triangles=['ALX'],,expt=3601,band='lo',polar=['RR'],shift=0,errscale=1,
+savefig=False,time_type='gmst',phase_type='cphase_fix_amp',error_type='sigmaCP',snr_treshold=1,conj=False,
+ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange=''):
+    fonts=16
+
+    if time_type=='gmst':
+        util.add_gmst(data)
+    elif time_type=='fmjd':
+        data = ut.add_mjd(data)
+        data = ut.add_fmjd(data)
+
+    if line==True:   
+        markers=["bo-", "rd-","go-","md-","co-","cd-"]
+    else:
+        markers=["bo", "rd","go","md","co","cd"]
+
+    if sour=='any':
+        fooG = data[(data.triangle==triangle)&(data.snr>snr_treshold)]
+    else:
+        fooG = data[(data.source==sour)&(data.triangle==triangle)&(data.snr>snr_treshold)]
+
+    Nrow=len(polar)
+    if Nrow>1:
+        fig, ax = plt.subplots(Nrow,figsize=(10,1+5*Nrow))
+        for couP in range(Nrow):
+            foo = fooG[(fooG.band==band)&(fooG.polarization==polar[couP])]
+            Nights = sorted(list(foo.Night.unique()))
+            Ni = len(Nights)
+            for cou in range(Ni):
+                LocNight = Nights[cou]
+                fooNi = foo[(foo.Night==LocNight)]
+                fmtloc = markers[cou]
+                cphaseLoc = np.asarray(fooNi[phase_type])
+                if conj==True:
+                    cphaseLoc= -cphaseLoc
+                cphaseLoc = np.mod(cphaseLoc + shift,360) - shift
+                ax[couP].errorbar(fooNi.gmst,cphaseLoc,errscale*fooNi[error_type],fmt=fmtloc,capsize=5,label=LocNight,markersize=ms)
+            plt.grid()
+            [x1,x2,y1,y2]=ax[couP].axis()
+            if y_range==[]:
+                ax[couP].axis([x1,x2,y1,y2])
+            else:
+                ax[couP].axis([x1,x2]+y_range)
+            ax[couP].axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
+            ax[couP].set_xlabel('GMST [h]',fontsize=14)
+            ax[couP].set_ylabel('closure phase [deg]',fontsize=14)
+            ax[couP].set_title(sour+', '+Z2SMT[triangle[0]]+'-'+Z2SMT[triangle[1]]+'-'+Z2SMT[triangle[2]]+', '+band+' band'+', '+polar[couP],fontsize=13)
+    
+            ax[couP].legend()
+            plt.tight_layout()
+            if savefig==True:
+                tit= sour+'_'+Z2SMT[triangle[0]]+'_'+Z2SMT[triangle[1]]+'_'+Z2SMT[triangle[2]]+'_'+band+'_'+polar[couP]
+                plt.savefig(tit+'.pdf')
+        plt.show()
+    else:
+        fig, ax = plt.subplots(Nrow,figsize=(10,1+5*Nrow))
+        couP=0
+        foo = fooG[(fooG.band==band)&(fooG.polarization==polar[couP])]
+        if show_both_pol==True:
+            if polar[0]=='RR': antyPol='LL'
+            else: antyPol='RR'
+            foo2 = fooG[(fooG.band==band)&(fooG.polarization==antyPol)]
+
+        Nights = sorted(list(foo.Night.unique()))
+        Ni = len(Nights)
+        for cou in range(Ni):
+            LocNight = Nights[cou]
+            fooNi = foo[(foo.Night==LocNight)]
+            fmtloc = markers[cou]
+            #cphaseLoc = np.asarray(fooNi[phase_type])[:,1]
+            cphaseLoc = np.asarray(fooNi[phase_type])
+            #print([np.shape(cphaseLoc),np.shape(fooNi.gmst),np.shape(fooNi.sigmaCP)])
+            if conj==True:
+                cphaseLoc= -cphaseLoc
+            cphaseLoc = np.mod(cphaseLoc + shift,360) - shift
+
+            gtime = np.mod(np.asarray(fooNi.gmst)+tshift,24)-tshift
+            ax.errorbar(gtime,cphaseLoc,errscale*fooNi[error_type],fmt=fmtloc,capsize=5,label=LocNight,markersize=ms)
+            
+            if timerange!='':
+                xtime = timerange
+            if show_both_pol==True:
+                fooNi2 = foo2[(foo2.Night==LocNight)&(foo2.snr>snr_treshold)]
+                cphaseLoc = np.asarray(fooNi2.cphase)
+                if conj==True:
+                    cphaseLoc= -cphaseLoc
+                cphaseLoc = np.mod(cphaseLoc + shift,360) - shift
+                ax.errorbar(fooNi2.gmst,cphaseLoc,errscale*fooNi2.sigmaCP,fmt=fmtloc,capsize=5,label=LocNight+' '+antyPol,markersize=ms,mfc='None')
+            try:
+                ax.legend()
+            except IndexError:
+                pass
+        plt.grid()
+        [x1,x2,y1,y2]=ax.axis()
+        if y_range==[]:
+            ax.axis([x1,x2,y1,y2])
+        else:
+            ax.axis([x1,x2]+y_range)
+        [x1,x2,y1,y2]=ax.axis()
+        if timerange=='':
+            pass
+        else:
+            ax.axis(timerange+[y1,y2])
+        ax.axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
+        ax.set_xlabel('GMST [h]',fontsize=fonts)
+        ax.set_ylabel('closure phase [deg]',fontsize=fonts)
+        #ax.set_title(sour+', '+Z2SMT[triangle[0]]+'-'+Z2SMT[triangle[1]]+'-'+Z2SMT[triangle[2]]+', '+band+' band'+', '+polar[couP],fontsize=13)
+        ax.set_title(sour+', '+Z2SMT[triangle[0]]+'-'+Z2SMT[triangle[1]]+'-'+Z2SMT[triangle[2]]+', '+band+' band'+', '+polar[couP],fontsize=fonts)
+        plt.tick_params(axis='both', labelsize=fonts-1)
+        plt.grid()
+        try:     
+            #ax.legend(fontsize=fonts-1,bbox_to_anchor=(1.0, 1.0))
+            ax.legend(fontsize=fonts-1)
+
+
+        except IndexError:
+            pass
+        plt.tight_layout()
+        if savefig==True:
+            tit= sour+'_'+Z2SMT[triangle[0]]+'_'+Z2SMT[triangle[1]]+'_'+Z2SMT[triangle[2]]+'_'+band+'_'+polar[couP]+custom_title
+            plt.savefig(tit+'.pdf')
+        plt.show()
+
+
+
 baseL = ['AL','AZ','AP','AS','AX','ZL','LP','LS','ZP','ZS','PS','AY','LY','PY','SY','ZY']  
 #Fourth TYPE OF PLOT: u-v coverage by baseline
 def plot_uv_coverage(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','RR'],data=[],savefig=False,custom_title='',snrCut=2.,redundant=False,sc=1e6):
@@ -1394,11 +1520,7 @@ def plot_snr_hist_publ_M87_SGRA(data,ymax=250,xmax=15000,deltasource=[0.3,0.93],
 
 
 
-    
-
-
-
-    #baseL = ['AL','AZ','AP','AS','AX','ZL','LP','LS','ZP','ZS','PS','AY','LY','PY','SY','ZY']  
+#baseL = ['AL','AZ','AP','AS','AX','ZL','LP','LS','ZP','ZS','PS','AY','LY','PY','SY','ZY']  
 #Fourth TYPE OF PLOT: u-v coverage by baseline
 def plot_coverage_2(sour = '3C279',baseL = baseL,bandL=['lo','hi'],polarL=['LL','RR'],data=[],savefig=False,custom_title='',y_range='',red=False,onlyred=False,loglog=False,alphabet_bsl=False,
 alpha=0.25):
@@ -1501,3 +1623,145 @@ alpha=0.25):
     plt.grid()
     plt.show()
 
+
+
+
+def err_cphase_single_night_multiple_triangles(data,sour='3C279',triangles=['ALX'],expt=3601,band='lo',polar='RR',shift=0,errscale=1,
+savefig=False,time_type='gmst',phase_type='cphase',error_type='sigmaCP',snr_treshold=1,conj=False,
+ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange=''):
+    fonts=16
+    Nrow=1
+
+    if time_type=='gmst':
+        util.add_gmst(data)
+    elif time_type=='fmjd':
+        data = ut.add_mjd(data)
+        data = ut.add_fmjd(data)
+
+    if line==True:   
+        markers=["bo-", "rd-","go-","md-","co-","cd-"]
+    else:
+        markers=["bo", "rd","go","md","co","cd"]
+
+    fooG = data[(data.source==sour)&(data.snr>snr_treshold)&(data.expt_no==expt)]
+
+    fig, ax = plt.subplots(Nrow,figsize=(10,1+5*Nrow))
+    foo = fooG[(fooG.band==band)&(fooG.polarization==polar)]
+
+
+    #Nights = sorted(list(foo.Night.unique()))
+    Ni = len(triangles)
+    for cou in range(Ni):
+        LocTriangle = triangles[cou]
+        triangle=LocTriangle
+        fooNi = foo[(foo.triangle==LocTriangle)]
+        fmtloc = markers[cou]
+        cphaseLoc = np.asarray(fooNi[phase_type])
+        if conj==True:
+            cphaseLoc=-cphaseLoc
+        cphaseLoc = np.mod(cphaseLoc + shift,360) - shift
+
+        gtime = np.mod(np.asarray(fooNi.gmst)+tshift,24)-tshift
+        ax.errorbar(gtime,cphaseLoc,errscale*fooNi[error_type],fmt=fmtloc,capsize=5,label=triangle,markersize=ms)
+        if timerange!='':
+            xtime = timerange
+    plt.grid()
+    [x1,x2,y1,y2]=ax.axis()
+    if y_range==[]:
+        ax.axis([x1,x2,y1,y2])
+    else:
+        ax.axis([x1,x2]+y_range)
+    [x1,x2,y1,y2]=ax.axis()
+    if timerange=='':
+        pass
+    else:
+        ax.axis(timerange+[y1,y2])
+    ax.axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
+    ax.set_xlabel('GMST [h]',fontsize=fonts)
+    ax.set_ylabel('closure phase [deg]',fontsize=fonts)
+    #ax.set_title(sour+', '+Z2SMT[triangle[0]]+'-'+Z2SMT[triangle[1]]+'-'+Z2SMT[triangle[2]]+', '+band+' band'+', '+polar[couP],fontsize=13)
+    ax.set_title(sour+', '+str(expt)+', '+band+' band'+', '+polar,fontsize=fonts)
+    plt.tick_params(axis='both', labelsize=fonts-1)
+    plt.grid()
+    try:     
+        #ax.legend(fontsize=fonts-1,bbox_to_anchor=(1.0, 1.0))
+        ax.legend(fontsize=fonts-1)
+
+
+    except IndexError:
+        pass
+    plt.tight_layout()
+    if savefig==True:
+        tit= sour+'_'+Z2SMT[triangle[0]]+'_'+Z2SMT[triangle[1]]+'_'+Z2SMT[triangle[2]]+'_'+band+'_'+polar+custom_title
+        plt.savefig(tit+'.pdf')
+    plt.grid()
+    plt.show()
+
+
+
+def err_lcamp_single_night_multiple_quadrangles(data,sour='3C279',quadrangles=['ALXZ'],expt=3601,band='lo',polar='RR',shift=0,errscale=1,
+savefig=False,time_type='gmst',
+ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange=''):
+    fonts=16
+    Nrow=1
+
+    if time_type=='gmst':
+        util.add_gmst(data)
+    elif time_type=='fmjd':
+        data = ut.add_mjd(data)
+        data = ut.add_fmjd(data)
+
+    if line==True:   
+        markers=["bo-", "rd-","go-","md-","co-","cd-"]
+    else:
+        markers=["bo", "rd","go","md","co","cd"]
+
+    fooG = data[(data.source==sour)&(data.expt_no==expt)]
+
+    fig, ax = plt.subplots(Nrow,figsize=(10,1+5*Nrow))
+    foo = fooG[(fooG.band==band)&(fooG.polarization==polar)]
+
+
+    #Nights = sorted(list(foo.Night.unique()))
+    Ni = len(quadrangles)
+    for cou in range(Ni):
+        LocQuadrangle = quadrangles[cou]
+        quadrangle=LocQuadrangle
+        fooNi = foo[(foo.quadrangle==LocQuadrangle)]
+        fmtloc = markers[cou]
+        lcampLoc = np.asarray(fooNi['camp'])
+        
+        gtime = np.mod(np.asarray(fooNi.gmst)+tshift,24)-tshift
+        ax.errorbar(gtime,lcampLoc,errscale*fooNi['sigmaCA'],fmt=fmtloc,capsize=5,label=quadrangle,markersize=ms)
+        if timerange!='':
+            xtime = timerange
+    plt.grid()
+    [x1,x2,y1,y2]=ax.axis()
+    if y_range==[]:
+        ax.axis([x1,x2,y1,y2])
+    else:
+        ax.axis([x1,x2]+y_range)
+    [x1,x2,y1,y2]=ax.axis()
+    if timerange=='':
+        pass
+    else:
+        ax.axis(timerange+[y1,y2])
+    ax.axhline(0,linestyle='--',color= (0.25, 0.25, 0.25))
+    ax.set_xlabel('GMST [h]',fontsize=fonts)
+    ax.set_ylabel('log closure amp',fontsize=fonts)
+    #ax.set_title(sour+', '+Z2SMT[triangle[0]]+'-'+Z2SMT[triangle[1]]+'-'+Z2SMT[triangle[2]]+', '+band+' band'+', '+polar[couP],fontsize=13)
+    ax.set_title(sour+', '+str(expt)+', '+band+' band'+', '+polar,fontsize=fonts)
+    plt.tick_params(axis='both', labelsize=fonts-1)
+    plt.grid()
+    try:     
+        #ax.legend(fontsize=fonts-1,bbox_to_anchor=(1.0, 1.0))
+        ax.legend(fontsize=fonts-1)
+
+    except IndexError:
+        pass
+    plt.tight_layout()
+    if savefig==True:
+        tit= sour+'_'+Z2SMT[quadrangles[0]]+'_'+Z2SMT[quadrangles[1]]+'_'+Z2SMT[quadrangles[2]]+'_'+Z2SMT[quadrangles[3]]+'_'+band+'_'+polar+custom_title
+        plt.savefig(tit+'.pdf')
+    plt.grid()
+    plt.show()
