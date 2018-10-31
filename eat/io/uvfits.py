@@ -171,8 +171,8 @@ def obsdata_2_df(obs):
     df['is_alphabetic'] = df['t1']<df['t2']
     df_alphabetic = df[df.is_alphabetic==True].copy()
     df_non_alphabetic = df[df.is_alphabetic==False].copy()
-    fooT1 = df_non_alphabetic['t1']
-    fooT2= df_non_alphabetic['t2']
+    fooT1 = list(df_non_alphabetic['t1'])
+    fooT2= list(df_non_alphabetic['t2'])
     df_non_alphabetic['t1'] = fooT2
     df_non_alphabetic['t2'] = fooT1
     if 'rrvis' in df.columns:
