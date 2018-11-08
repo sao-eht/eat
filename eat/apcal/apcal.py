@@ -33,7 +33,8 @@ from astropy import units as u
 from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
 from astropy.time import Time, TimeDelta
 #import vex as vex
-from eat.aips import vex
+from eat.apcal import vex
+#from eat.aips import vex
 import scipy.interpolate as si
 
 AZ2Z = {'AZ': 'Z', 'PV': 'P', 'SM':'S', 'SR':'R','JC':'J', 'AA':'A','AP':'X', 'LM':'L','SP':'Y'}
@@ -535,7 +536,13 @@ def prepare_Tsys_data_separate(folder_path):
                 if RCP_first==True:
                     data_loc = [datetime_loc,Tsys_R_loc,Tsys_L_loc,band_loc]
                 else:
-                    data_loc = [datetime_loc,Tsys_L_loc,Tsys_R_loc,band_loc]    
+                    data_loc = [datetime_loc,Tsys_L_loc,Tsys_R_loc,band_loc] 
+                ############################
+                #FORCE L R order for APEX
+                #if antena=='X':
+                #    print('MANUALLY REVERSING APEX!!!')
+                #    data_loc = [datetime_loc,Tsys_L_loc,Tsys_R_loc,band_loc] 
+                ############################
                 #data_loc = [datetime_loc,Tsys_R_loc,Tsys_L_loc,band_loc]
                 if np.sum(np.isnan(data_loc[1:3]))==0:
                     line_df = pd.DataFrame([data_loc], columns = cols)
@@ -875,6 +882,11 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
                         Tsys_local.loc[:,'foo_Imag_2'] = 0.*Tsys_local['sefd_R']
                         SEFDS = Tsys_local.loc[:,['mjd','sefd_R','foo_Imag_1','sefd_L','foo_Imag_2']]
                         SEFDS = SEFDS.sort_values('mjd')
+                        ######
+                        #RENAME '1921-293' to 'J1924-2914'
+                        if sour=='1921-293': sour='J1924-2914'
+                        #####################################
+                        
                         NameF = dir_expt+'/'+sour+'_'+Z2AZ[ant]+'.txt'
                         ###APPLY AD HOC FIXES
 
