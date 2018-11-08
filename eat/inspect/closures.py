@@ -373,13 +373,15 @@ def debias_A_sig(A,sigma):
 #def all_quads(alist,tavg='scan',debias=True):
 
 
-def all_quadruples_new(alist,ctype='camp',debias='no'):
+def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False):
     '''
     ctype = 'camp' or 'logcamp'
     debias = 'no'/whatever , 'amp', 'camp'
     '''
     alist = alist[(alist['polarization']=='LL')|(alist['polarization']=='RR')]
-    
+    if debias_snr==True:
+        foo = np.maximum(np.asarray(alist['snr'])**2 - 1,0)
+        alist['snr'] = np.sqrt(foo)
     if 'band' not in alist.columns:
         alist.loc[:,'band'] = 'unknown'
     if 'scan_id' not in alist.columns:
