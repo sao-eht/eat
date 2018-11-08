@@ -162,15 +162,15 @@ def baselines2triangles(basel):
     tri = [''.join(sorted(list(set(''.join(x))))) for x in basel]
     return tri
 
-def all_bispectra(alist,phase_type='resid_phas'):
+def all_bispectra(alist,phase_type='resid_phas',debias_snr=False):
     polars=[]
     if phase_type in alist.columns:
         try:
-            bsp_LL = all_bispectra_polar(alist,'LL',phase_type)
+            bsp_LL = all_bispectra_polar(alist,'LL',phase_type,debias_snr=debias_snr)
             polars=polars+['LL']
         except: pass
         try:
-            bsp_RR = all_bispectra_polar(alist,'RR',phase_type)
+            bsp_RR = all_bispectra_polar(alist,'RR',phase_type,debias_snr=debias_snr)
             polars=polars+['RR']
         except: pass
         print('polarz', polars)
@@ -183,9 +183,12 @@ def all_bispectra(alist,phase_type='resid_phas'):
     else:
         print('Wrong name for the phase column!')
 
-def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.):
+def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_snr=False):
     if 'snr' not in alist.columns:
         alist.loc[:,'snr'] = alist.loc[:,'amp']/alist.loc[:,'sigma']
+    if debias_snr==True:
+        foo = np.maximum(np.asarray(alist['snr'])**2 - 1,0)
+        alist['snr'] = np.sqrt(foo)
     alist.drop(list(alist[alist.snr<snr_cut].index.values),inplace=True)
     #print(alist)
     alist = alist[alist['polarization']==polar]
