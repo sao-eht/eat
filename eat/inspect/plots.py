@@ -1648,7 +1648,7 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange
     fig, ax = plt.subplots(Nrow,figsize=(10,1+5*Nrow))
     foo = fooG[(fooG.band==band)&(fooG.polarization==polar)]
 
-
+    plt.grid()
     #Nights = sorted(list(foo.Night.unique()))
     Ni = len(triangles)
     for cou in range(Ni):
@@ -1721,7 +1721,7 @@ ms=7,line=True,show_both_pol=False,y_range=[],custom_title='',tshift=0,timerange
     fig, ax = plt.subplots(Nrow,figsize=(10,1+5*Nrow))
     foo = fooG[(fooG.band==band)&(fooG.polarization==polar)]
 
-
+    plt.grid()
     #Nights = sorted(list(foo.Night.unique()))
     Ni = len(quadrangles)
     for cou in range(Ni):
