@@ -1814,9 +1814,9 @@ def prepare_bandgains(vis,pol=None,snr_cut=None):
     visLO2['snrHI'] = visHI2['snr']
 
     visLO2['LOHIphase'] = np.mod(visLO2['phaseLO'] - visLO2['phaseHI'] +180,360)-180
-    visLO2['LOHIphaseErr'] = np.sqrt(1./np.asarray(visLO2['snrLO'])**2 + 1./np.asarray(visHI2['snrHI'])**2)*180./np.pi
+    visLO2['LOHIphaseErr'] = np.sqrt(1./np.asarray(visLO2['snrLO'])**2 + 1./np.asarray(visLO2['snrHI'])**2)*180./np.pi
     visLO2['AmpRatio'] = np.asarray(visLO2.ampLO)/np.asarray(visLO2.ampHI)
-    visLO2['AmpRatioErr'] = visLO2['AmpRatio']*np.sqrt(np.asarray(1./visLO2['snrLO'])**2 + np.asarray(1./visRR2['snrHI'])**2)
+    visLO2['AmpRatioErr'] = visLO2['AmpRatio']*np.sqrt(np.asarray(1./visLO2['snrLO'])**2 + np.asarray(1./visLO2['snrHI'])**2)
 
     visLO2['baseline'] = list(map(str,visLO2['baseline']))
     visLO2=visLO2.dropna(subset=['ampLO','ampHI','phaseLO','phaseHI','sigmaLO','sigmaHI','snrLO','snrHI'])
