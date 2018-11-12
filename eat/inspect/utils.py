@@ -1809,7 +1809,7 @@ def prepare_bandgains(vis,pol=None,snr_cut=None):
     visLO2['phaseLO'] = visLO2['phase']
     visLO2['phaseHI'] = visHI2['phase']
     visLO2['sigmaLO'] = visLO2['sigma']
-    visHI2['sigmaHI'] = visHI2['sigma']
+    visLO2['sigmaHI'] = visHI2['sigma']
     visLO2['snrLO'] = visLO2['snr']
     visLO2['snrHI'] = visHI2['snr']
 
