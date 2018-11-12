@@ -1798,8 +1798,8 @@ def prepare_bandgains(vis,pol=None,snr_cut=None):
     vis = vis[vis.polarization.str[0]==vis.polarization.str[1]]
     if snr_cut is None: pass
     else: vis=vis[vis.snr>snr_cut]
-    if band is None: pass
-    else: vis = vis[vis.band==band]
+    if pol is None: pass
+    else: vis = vis[vis.polarization==pol]
         
     visLO = vis[vis.band=='lo']
     visHI = vis[vis.band=='hi']
