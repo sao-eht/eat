@@ -221,8 +221,9 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out,cal_amp=False):
                 rscale2 = 1./np.sqrt(polyamp[t2](time_mjd))*np.exp(-1j*polygain[t2](time_mjd - mjd_start[t2])*np.pi/180.)
                 lscale2 = np.sqrt(polyamp[t2](time_mjd))
             except KeyError:
-                rscale2 = lscale2 = np.array(1.) 
+                rscale2 = lscale2 = np.array(1.)
 ###########################################################################################################################
+
 
         rrscale = rscale1 * rscale2.conj()
         llscale = lscale1 * lscale2.conj()
@@ -337,8 +338,8 @@ def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT
         source = datastruct_ehtim.obs_info.src
         tarr = datastruct_ehtim.antenna_info
 
-        outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.polcal.uvfits'
-        apply_caltable_uvfits(calfile, datastruct_ehtim, outname,cal_amp=False)
+        outname = outdir + '/' + os.path.basename(uvfitsfile).replace('.apriori.uvfits', ident+'.polcal.uvfits')
+        apply_caltable_uvfits(calfile, datastruct_ehtim, outname, cal_amp=False)
         print("Saved calibrated data to ", outname)
     print("---------------------------------------------------------")
     print("---------------------------------------------------------")

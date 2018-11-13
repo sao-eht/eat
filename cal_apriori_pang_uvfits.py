@@ -596,21 +596,20 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
     print("to uvfits files in directory: ", datadir)
     print(' ')
 
-    uvfitsfiles = glob.glob(datadir + '/*.uvfits')+glob.glob(datadir + '/*.uvf')
+    uvfitsfiles = glob.glob(datadir + '/*.uvfits')
     for uvfitsfile in sorted(uvfitsfiles):
         print(' ')
         print("A priori calibrating: ", uvfitsfile)
 
-        if uvfitsfile.endswith('.uvfits'):
-            tok = uvfitsfile.replace('.uvfits', '').split('_', 2)
-            print("pipeline: "+tok[0])
-            print("expr no:  "+tok[1])
-            print("source:   "+tok[2])
+        tok = uvfitsfile.replace('.uvfits', '').split('_', 2)
+        print("pipeline: "+tok[0])
+        print("expr no:  "+tok[1])
+        print("source:   "+tok[2])
 
         datastruct_ehtim = load_and_convert_hops_uvfits(uvfitsfile)
 
         source = datastruct_ehtim.obs_info.src
-        if uvfitsfile.endswith('.uvfits') and len(source) <= 8 and source != tok[2]:
+        if len(source) <= 8 and source != tok[2]:
             print('WARNING: source specified inside the uvfits file, "'+
                   source+'", does not match file name "'+tok[2]+'"')
             print('Guess real source name by using the file name')
@@ -623,7 +622,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
             print("couldn't find caltable in " + caldir + " for " + source + "!!")
             continue
 
-        outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.apriori.uvfits'
+        outname = outdir + '/' + os.path.basename(uvfitsfile).replace('.uvfits', ident+'.apriori.uvfits')
         apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=err_scale)
         print("Saved calibrated data to ", outname)
     print("---------------------------------------------------------")
