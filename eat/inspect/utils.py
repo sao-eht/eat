@@ -1795,7 +1795,7 @@ def prepare_bandgains(vis,pol=None,snr_cut=None):
     '''
     Adds columns related to polcal gains inspection
     '''
-    vis = vis[vis.polarization.str[0]==vis.polarization.str[1]]
+    #vis = vis[vis.polarization.str[0]==vis.polarization.str[1]]
     if snr_cut is None: pass
     else: vis=vis[vis.snr>snr_cut]
     if pol is None: pass
