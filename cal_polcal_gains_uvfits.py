@@ -181,12 +181,36 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out,cal_amp=False):
         print('Calibrating {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
         time_mjd = bl_obs['time'] - MJD_0 #dates are in mjd in Datastruct
 
+
+###########################################################################################################################
+#OLD VERSION WHERE LCP IS SHIFTED TO RCP
+#        if t1 in skipsites:
+#            rscale1 = lscale1 = np.array(1.)
+#       else:
+#            try:
+#                rscale1 = 1./np.sqrt(polyamp[t1](time_mjd))
+#                lscale1 = np.sqrt(polyamp[t1](time_mjd))*np.exp(1j*polygain[t1](time_mjd - mjd_start[t1])*np.pi/180.)
+#            except KeyError:
+#                rscale1 = lscale1 = np.array(1.)
+#
+#        if t2 in skipsites:
+#            rscale2 = lscale2 = np.array(1.)
+#        else:
+#            try:
+#                rscale2 = 1./np.sqrt(polyamp[t2](time_mjd))
+#                lscale2 = np.sqrt(polyamp[t2](time_mjd))*np.exp(1j*polygain[t2](time_mjd - mjd_start[t2])*np.pi/180.)
+#            except KeyError:
+#                rscale2 = lscale2 = np.array(1.) 
+###########################################################################################################################
+
+###########################################################################################################################
+#NEW VERSION WHERE RCP IS SHIFTED TO LCP // MW 2018/NOV/13
         if t1 in skipsites:
             rscale1 = lscale1 = np.array(1.)
         else:
             try:
-                rscale1 = 1./np.sqrt(polyamp[t1](time_mjd))
-                lscale1 = np.sqrt(polyamp[t1](time_mjd))*np.exp(1j*polygain[t1](time_mjd - mjd_start[t1])*np.pi/180.)
+                rscale1 = 1./np.sqrt(polyamp[t1](time_mjd))*np.exp(-1j*polygain[t1](time_mjd - mjd_start[t1])*np.pi/180.)
+                lscale1 = np.sqrt(polyamp[t1](time_mjd))
             except KeyError:
                 rscale1 = lscale1 = np.array(1.)
 
@@ -194,10 +218,12 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out,cal_amp=False):
             rscale2 = lscale2 = np.array(1.)
         else:
             try:
-                rscale2 = 1./np.sqrt(polyamp[t2](time_mjd))
-                lscale2 = np.sqrt(polyamp[t2](time_mjd))*np.exp(1j*polygain[t2](time_mjd - mjd_start[t2])*np.pi/180.)
+                rscale2 = 1./np.sqrt(polyamp[t2](time_mjd))*np.exp(-1j*polygain[t2](time_mjd - mjd_start[t2])*np.pi/180.)
+                lscale2 = np.sqrt(polyamp[t2](time_mjd))
             except KeyError:
                 rscale2 = lscale2 = np.array(1.)
+###########################################################################################################################
+
 
         rrscale = rscale1 * rscale2.conj()
         llscale = lscale1 * lscale2.conj()

@@ -647,6 +647,7 @@ def load_hops_uvfits(filename):
     try: scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
     except KeyError: scan_durs=[]
     scan_arr = []
+    
     for kk in range(len(scan_starts)):
         scan_start = scan_starts[kk]
         scan_dur = scan_durs[kk]
