@@ -1,0 +1,9 @@
+The field rotation angle (FRA) information in "sites.csv" is meant to
+be consistent with the memo "pol-foci-v4.pdf" on the EHT wiki.
+
+Note that the FRA for APEX changed in 2017: "... the field rotation
+angle was the parallactic angle *minus* the elevation angle for 2016
+and before. ... Starting in 2017, the PI230 receiver was used instead.
+This is installed at the right Nasmyth focus, resulting in a field
+rotation angle that is the parallactic angle *plus* the elevation
+angle."
