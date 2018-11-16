@@ -378,7 +378,7 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False):
     ctype = 'camp' or 'logcamp'
     debias = 'no'/whatever , 'amp', 'camp'
     '''
-    alist = alist[(alist['polarization']=='LL')|(alist['polarization']=='RR')]
+    alist = alist[(alist['polarization']=='LL')|(alist['polarization']=='RR')|(alist['polarization']=='I')]
     if debias_snr==True:
         foo = np.maximum(np.asarray(alist['snr'])**2 - 1,0)
         alist['snr'] = np.sqrt(foo)
