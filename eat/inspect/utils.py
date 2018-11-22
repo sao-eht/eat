@@ -1117,6 +1117,7 @@ def incoh_avg_band(frame,singleband='keep',add_same=[],columns_out0=[],phase_typ
         except: pass
     frame_avg_out = add_mjd(frame_avg_out)
     frame_avg_out = add_fmjd(frame_avg_out)
+    frame_avg_out['band']='LH'
 
     frame_avg_out = frame_avg_out.loc[:,~frame_avg_out.columns.duplicated()]
     return frame_avg_out
