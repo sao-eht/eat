@@ -1185,7 +1185,7 @@ def avg_Stokes(frame,singlepol=[],add_same=[],columns_out0=[],phase_type='phase'
     frame_avg = frame.groupby(grouping).agg(aggregating).reset_index()
     frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
     frame_avg['phase']=frame_avg['vis'].apply(lambda x: np.angle(x)*180./np.pi)
-    frame_avg['snr'] = frame_avg['amp']/frame['sigma']
+    frame_avg['snr'] = frame_avg['amp']/frame_avg['sigma']
     columns_out = list(set(columns_out0)&set(frame_avg.columns))+list(grouping)+list(set(['source','datetime','amp',phase_type,'snr','sigma','number'])&set(frame_avg.columns))
     columns_out = list(set(columns_out))
     frame_avg_out = frame_avg[columns_out].copy()
