@@ -1122,7 +1122,7 @@ def incoh_avg_band(frame,singleband='keep',add_same=[],columns_out0=[],phase_typ
     return frame_avg_out
 
 
-def avg_Stokes(frame,singlepol='keep',add_same=[],columns_out0=[],phase_type='phase'):
+def avg_Stokes(frame,singlepol=[],add_same=[],columns_out0=[],phase_type='phase'):
     
     frame = frame[frame.polarization.str[0]==frame.polarization.str[1]].copy()
     if 'scan_id' not in frame.columns:
@@ -1139,10 +1139,13 @@ def avg_Stokes(frame,singlepol='keep',add_same=[],columns_out0=[],phase_type='ph
     same =['scan_id','baseline','band']+add_same
     grouping = list(set(same+['expt_no','source','sbdelay',
                  'mbdelay','delay_rate','total_rate','total_mbdelay','total_sbresid','ref_elev','rem_elev'])&set(frame.columns))  
-    if singlepol=='drop':
+    
+    if singlepol==[]:
         frame = frame.groupby(grouping).filter(lambda x: len(x)==2).copy()
     else:
-        frame = frame.groupby(grouping).filter(lambda x: len(x)<=2).copy()
+        is_in_singlepol_list = lambda x: any([y in x for y in singlepol])
+        frame['singlepol']=list(map(is_in_singlepol_list,frame.baseline))
+        frame = frame.groupby(grouping+['singlepol']).filter(lambda x: (len(x)==2)|(x.singlepol==True)).copy()
     frame=frame.reset_index()
     
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
