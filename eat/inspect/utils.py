@@ -1033,6 +1033,167 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     frame_avg_out = frame_avg_out.loc[:,~frame_avg_out.columns.duplicated()]
     return frame_avg_out
 
+
+def incoh_avg_band(frame,singleband='keep',add_same=[],columns_out0=[],phase_type='phase'):
+    
+    if 'scan_id' not in frame.columns:
+        frame['scan_id'] = frame['scan_no_tot']
+    if 'sigma' not in frame.columns:
+        frame['sigma'] = frame['amp']/frame['snr']
+    if 'number' not in frame.columns:
+        frame['number'] = 1
+        
+    same =['scan_id','baseline','polarization']+add_same
+    grouping = list(set(same+['expt_no','source','sbdelay',
+                 'mbdelay','delay_rate','total_rate','total_mbdelay','total_sbresid','ref_elev','rem_elev'])&set(frame.columns))
+            
+    if singleband=='drop':
+        frame = frame.groupby(grouping).filter(lambda x: len(x)==2).copy()
+        print(frame.baseline.unique())
+    else:
+        frame = frame.groupby(grouping).filter(lambda x: len(x)<=2).copy()
+    frame=frame.reset_index()
+    
+    aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
+    'amp': np.mean,
+    'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
+    phase_type: circular_mean,
+    'number': np.sum}
+    if 'datetime' not in same: aggregating['datetime'] = min
+    if 'u' in frame.columns:
+        aggregating['u'] = np.mean
+        columns_out0 += ['u']
+    if 'v' in frame.columns:
+        aggregating['v'] = np.mean
+        columns_out0 += ['v']
+    if 'rrvis' in frame.columns:
+        #polrep='circ' stuff
+        aggregating['rrvis'] = np.mean
+        columns_out0 += ['rrvis']
+        aggregating['llvis'] = np.mean
+        columns_out0 += ['llvis']
+        aggregating['lrvis'] = np.mean
+        columns_out0 += ['lrvis']
+        aggregating['rlvis'] = np.mean
+        columns_out0 += ['rlvis']
+        aggregating['rrsigma'] = np.mean
+        columns_out0 += ['rrsigma']
+        aggregating['llsigma'] = np.mean
+        columns_out0 += ['llsigma']
+        aggregating['lrsigma'] = np.mean
+        columns_out0 += ['lrsigma']
+        aggregating['rlsigma'] = np.mean
+        columns_out0 += ['rlsigma']
+    if 'EB_sigma' in frame.columns:
+        aggregating['EB_sigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
+        columns_out0 += ['EB_sigma']
+
+    if 'fracpol' in frame.columns:
+        aggregating['fracpol'] = lambda x: np.mean(x)
+        columns_out0 += ['fracpol']
+
+    if 'std_by_mean' in frame.columns:
+        #if it is there, we assume that it's filled with amplitudes
+        aggregating['std_by_mean'] = np.mean
+        columns_out0 += ['std_by_mean']
+       
+    if 'amp_moments' in frame.columns:
+        #if it is there, we assume that it's filled with amplitudes
+        aggregating['amp_moments'] = np.mean
+        columns_out0 += ['amp_moments']
+     
+    if 'sig_moments' in frame.columns:
+        #if it is there, we assume that it's filled with amplitudes
+        aggregating['sig_moments'] =  np.mean
+        columns_out0 += ['sig_moments']        
+    frame_avg = frame.groupby(grouping).agg(aggregating).reset_index()
+    frame_avg['snr'] = frame_avg['amp']/frame_avg['sigma']
+
+    columns_out = list(set(columns_out0)&set(frame_avg.columns))+list(grouping)+list(set(['source','datetime','amp',phase_type,'snr','sigma','number'])&set(frame_avg.columns))
+    columns_out = list(set(columns_out))
+    frame_avg_out = frame_avg[columns_out].copy()
+    if 'gmst' not in frame_avg_out.columns:
+        try: util.add_gmst(frame_avg_out)
+        except: pass
+    frame_avg_out = add_mjd(frame_avg_out)
+    frame_avg_out = add_fmjd(frame_avg_out)
+
+    frame_avg_out = frame_avg_out.loc[:,~frame_avg_out.columns.duplicated()]
+    return frame_avg_out
+
+
+def avg_Stokes(frame,singlepol='keep',add_same=[],columns_out0=[],phase_type='phase'):
+    
+    frame = frame[frame.polarization.str[0]==frame.polarization.str[1]].copy()
+    if 'scan_id' not in frame.columns:
+        frame['scan_id'] = frame['scan_no_tot']
+    if 'sigma' not in frame.columns:
+        frame['sigma'] = frame['amp']/frame['snr']
+    if 'number' not in frame.columns:
+        frame['number'] = 1
+    if 'band' not in frame.columns:
+        frame['band'] = 'dummy'
+    if 'vis' not in frame.columns:
+        frame['vis']=frame['amp']*np.exp(1j*frame[phase_type]*np.pi/180.)
+        
+    same =['scan_id','baseline','band']+add_same
+    grouping = list(set(same+['expt_no','source','sbdelay',
+                 'mbdelay','delay_rate','total_rate','total_mbdelay','total_sbresid','ref_elev','rem_elev'])&set(frame.columns))  
+    if singlepol=='drop':
+        frame = frame.groupby(grouping).filter(lambda x: len(x)==2).copy()
+    else:
+        frame = frame.groupby(grouping).filter(lambda x: len(x)<=2).copy()
+    frame=frame.reset_index()
+    
+    aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
+    'vis': np.mean,
+    'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
+    'number': np.sum}
+    if 'datetime' not in same: aggregating['datetime'] = min
+    if 'u' in frame.columns:
+        aggregating['u'] = np.mean
+        columns_out0 += ['u']
+    if 'v' in frame.columns:
+        aggregating['v'] = np.mean
+        columns_out0 += ['v']
+    if 'EB_sigma' in frame.columns: 
+        aggregating['EB_sigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
+        columns_out0 += ['EB_sigma']
+
+    if 'fracpol' in frame.columns:
+        aggregating['fracpol'] = lambda x: np.mean(x)
+        columns_out0 += ['fracpol']
+
+    if 'std_by_mean' in frame.columns:
+        #if it is there, we assume that it's filled with amplitudes
+        aggregating['std_by_mean'] = np.mean
+        columns_out0 += ['std_by_mean']
+       
+    if 'amp_moments' in frame.columns:
+        #if it is there, we assume that it's filled with amplitudes
+        aggregating['amp_moments'] = np.mean
+        columns_out0 += ['amp_moments']
+    
+    if 'sig_moments' in frame.columns:
+        #if it is there, we assume that it's filled with amplitudes
+        aggregating['sig_moments'] =  np.mean
+        columns_out0 += ['sig_moments'] 
+    frame_avg = frame.groupby(grouping).agg(aggregating).reset_index()
+    frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
+    frame_avg['phase']=frame_avg['vis'].apply(lambda x: np.angle(x)*180./np.pi)
+    frame_avg['snr'] = frame_avg['amp']/frame['sigma']
+    columns_out = list(set(columns_out0)&set(frame_avg.columns))+list(grouping)+list(set(['source','datetime','amp',phase_type,'snr','sigma','number'])&set(frame_avg.columns))
+    columns_out = list(set(columns_out))
+    frame_avg_out = frame_avg[columns_out].copy()
+    if 'gmst' not in frame_avg_out.columns:
+        try: util.add_gmst(frame_avg_out)
+        except: pass
+    frame_avg_out = add_mjd(frame_avg_out)
+    frame_avg_out = add_fmjd(frame_avg_out)
+
+    frame_avg_out = frame_avg_out.loc[:,~frame_avg_out.columns.duplicated()]
+    return frame_avg_out
+
 def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
     if 'band' not in frame.columns:
         frame['band'] = np.nan
