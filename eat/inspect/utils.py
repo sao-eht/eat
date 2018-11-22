@@ -1146,7 +1146,7 @@ def avg_Stokes(frame,singlepol=[],add_same=[],columns_out0=[],phase_type='phase'
     else:
         is_in_singlepol_list = lambda x: any([y in x for y in singlepol])
         frame['singlepol']=list(map(is_in_singlepol_list,frame.baseline))
-        frame = frame.groupby(grouping+['singlepol']).filter(lambda x: (len(x)==2)|(x.singlepol==True)).copy()
+        frame = frame.groupby(grouping+['singlepol']).filter(lambda x: (len(x)==2)|(all(x.singlepol==True))).copy()
     frame=frame.reset_index()
     
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
