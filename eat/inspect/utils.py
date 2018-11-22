@@ -1049,7 +1049,7 @@ def incoh_avg_band(frame,singleband='keep',add_same=[],columns_out0=[],phase_typ
             
     if singleband=='drop':
         frame = frame.groupby(grouping).filter(lambda x: len(x)==2).copy()
-        print(frame.baseline.unique())
+        #print(frame.baseline.unique())
     else:
         frame = frame.groupby(grouping).filter(lambda x: len(x)<=2).copy()
     frame=frame.reset_index()
