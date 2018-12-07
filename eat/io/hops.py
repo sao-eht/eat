@@ -8,6 +8,9 @@ from __future__ import print_function
 #     range = builtins.range
 from pkg_resources import parse_version
 import pandas as pd
+# allow storing of metadata in attribute "metadata"
+if 'metadata' not in pd.DataFrame._metadata:
+    pd.DataFrame._metadata.append('metadata')
 try:
     assert(parse_version(pd.__version__) >= parse_version('0.15.1dev'))
 except:
