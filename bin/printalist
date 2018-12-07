@@ -144,7 +144,7 @@ if args.expression is not None:
     a = a[[eval(expr, row._asdict()) for row in a.itertuples()]]
 
 if args.sort_by is not None:
-    if type(args.sort_by) is list: # sort columns are defined
+    if type(args.sort_by) is list and len(args.sort_by) > 0: # sort columns are defined
         a = a.sort_values(args.sort_by)
     else:
         a = a.sort_values([col for col in ['expt_no', 'scan_id', 'timetag', 'triangle', 'baseline', 'polarization'] if col in a.columns])
