@@ -254,10 +254,10 @@ else:
 
 if args.graph:
     k = pcf.index.values
-    mkplot(pcf.index.values, pcf.values, slopes,      "pc_phase_f.eps")
+    mkplot(pcf.index.values, pcf.values, slopes,      "pc_phase_f.pdf")
 
     i = [np.where(k == b)[0][0] for b in pcr.index.values]
-    mkplot(pcr.index.values, pcr.values, slopes[i,:], "pc_phase_r.eps")
+    mkplot(pcr.index.values, pcr.values, slopes[i,:], "pc_phase_r.pdf")
 
     i = [np.where(k == b)[0][0] for b in pcl.index.values]
-    mkplot(pcl.index.values, pcl.values, slopes[i,:], "pc_phase_l.eps")
+    mkplot(pcl.index.values, pcl.values, slopes[i,:], "pc_phase_l.pdf")
