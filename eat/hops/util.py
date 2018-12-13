@@ -1087,12 +1087,12 @@ def closefringe(a):
         # but it looks like scipy just supports a single float
         ret = least_squares(errfunc, np.zeros(len(dishes)),
                                 args=(b.idish0, b.idish1, b.mbd_unwrap, b.mbd_err),
-                                loss='soft_l1', f_scale=8, verbose=0, max_nfev=500)
+                                loss='soft_l1', f_scale=8, verbose=0, max_nfev=5000)
         fit_mbd = ret.x
         success_mbd = ret.success
-        fit_rate = least_squares(errfunc, np.zeros(len(dishes)),
+        ret = least_squares(errfunc, np.zeros(len(dishes)),
                                 args=(b.idish0, b.idish1, b.delay_rate, b.rate_err),
-                                loss='soft_l1', f_scale=8, verbose=0, max_nfev=500)
+                                loss='soft_l1', f_scale=8, verbose=0, max_nfev=5000)
         fit_rate = ret.x
         success_rate = ret.success
         cdelay = fit_mbd[b.idish0] - fit_mbd[b.idish1]
