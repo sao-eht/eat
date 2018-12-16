@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+function pack {
+	# For reputability, these are things that we should always include
+	find	hops-$1/{0..5}.*/bin \
+		hops-$1/{0..5}.*/log \
+		hops-$1/{0..5}.*/cf* \
+		hops-$1/{0..5}.*/data/adhoc \
+		-type f > hops-$1-fringes.in
+
+	find	hops-$1/{0..5}.*/data/alist.v6*gz  \
+		hops-$1/{0..5}.*/data/alist.v6*avg \
+		-type f >> hops-$1-fringes.in
+
+	find	hops-$1/{0..5}.*/tests \
+		-type f >> hops-$1-fringes.in
+
+	# Specifically for this package
+	find	hops-$1/5.+close/data/*/ \
+		-type f -o \( -type l -not -name '??\.\.*' \) >> hops-$1-fringes.in
+
+	# Sort and make the list unique
+	sort hops-$1-fringes.in | uniq > hops-$1-fringes.ls && rm hops-$1-fringes.in
+
+	# Actually taring
+	tar	--transform 's/^hops-/er4v2-hops-/g' \
+		-czhf ../er4v2-hops-$1-fringes.tgz \
+		--files-from=hops-$1-fringes.ls
+}
+
+pack hi
+pack lo

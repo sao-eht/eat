@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+function pack {
+	# Specifically for this package
+	find	hops-$1/7.+apriori \
+		-type f | grep -v '\/\.' > hops-$1-apriori.in
+
+	# Sort and make the list unique
+	sort hops-$1-apriori.in | uniq > hops-$1-apriori.ls && rm hops-$1-apriori.in
+
+	# Actually taring
+	tar	--transform 's/^hops-/er4v2-hops-/g' \
+		-czhf ../er4v2-hops-$1-apriori.tgz \
+		--files-from=hops-$1-apriori.ls
+}
+
+pack hi
+pack lo

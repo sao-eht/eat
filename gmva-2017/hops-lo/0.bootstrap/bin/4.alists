@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+echo "3. Creating summary alist"
+echo "	Container work directory: \"$WRKDIR\""
+echo "	Container data output:    \"$DATADIR\""
+
+cd $WRKDIR
+
+# remove old files to prevent hanging
+rm -f $DATADIR/alist.v6*
+
+echo "Creating per-scan resolution alist"
+alist -v6 -o $DATADIR/alist.v6 $DATADIR/*/* \
+	>  log/alist.out \
+	2> log/alist.err &&\
+echo "DONE alist"
+
+# create softlink to fix missing exper_no
+ln -s 9999 $DATADIR/16383
+
+echo "Creating 30s time resolution alist"
+fringex -i30 -r $DATADIR/alist.v6 \
+	>  $DATADIR/alist.v6.30s \
+	2> log/fringex.30.err &&\
+cat $DATADIR/alist.v6.30s | average \
+	>  $DATADIR/alist.v6.30s.avg \
+	2> log/average.30.err &&\
+echo "DONE 30s" &
+
+echo "Creating 8s time resolution alist"
+fringex -i8 -r $DATADIR/alist.v6 \
+	>  $DATADIR/alist.v6.8s \
+	2> log/fringex.8.err &&\
+cat $DATADIR/alist.v6.8s | average \
+	>  $DATADIR/alist.v6.8s.avg \
+	2> log/average.8.err &&\
+echo "DONE 8s" &
+
+echo "Creating 4s time resolution alist"
+fringex -i4 -r $DATADIR/alist.v6 \
+    >  $DATADIR/alist.v6.4s \
+    2> log/fringex.4.err &&\
+cat $DATADIR/alist.v6.4s | average \
+    >  $DATADIR/alist.v6.4s.avg \
+    2> log/average.4.err &&\
+gzip $DATADIR/alist.v6.4s &&\
+echo "DONE 4s" &
+
+echo "Creating 2s time resolution alist"
+fringex -i2 -r $DATADIR/alist.v6 \
+	>  $DATADIR/alist.v6.2s \
+	2> log/fringex.2.err &&\
+cat $DATADIR/alist.v6.2s | average \
+	>  $DATADIR/alist.v6.2s.avg \
+	2> log/average.2.err &&\
+gzip $DATADIR/alist.v6.2s &&\
+echo "DONE 2s" &
+
+wait $(jobs -p)
+
+echo y | aedit -b "polarization LL; read $DATADIR/alist.v6.8s; close; twrite $DATADIR/alist.v6.8s.LL.close"
+echo y | aedit -b "polarization RR; read $DATADIR/alist.v6.8s; close; twrite $DATADIR/alist.v6.8s.RR.close"
+average $DATADIR/alist.v6.8s.LL.close -o $DATADIR/alist.v6.8s.LL.close.avg
+average $DATADIR/alist.v6.8s.RR.close -o $DATADIR/alist.v6.8s.RR.close.avg
+
+echo "DONE aedit close + average"
+
+echo "DONE postproc"

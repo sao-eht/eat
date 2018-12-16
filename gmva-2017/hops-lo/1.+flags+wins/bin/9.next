@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+if [ -f /.dockerenv ]; then
+	echo "This script copies control files to the next stage; \
+avoid running it inside a container"
+	exit 1
+fi
+
+N=$(basename $PWD | sed 's/^\([0-9]*\)\..*/\1/')
+NEXT=$(echo ../$(expr $N + 1).*)
+
+#------------------------------------------------------------------------------
+echo "9. Copying standard scripts to the next stage \"$NEXT\""
+for n in {0..6} 9; do
+	curr=$(echo bin/$n.*)
+	next=$(echo $NEXT/bin/$n.*)
+	if [   -f "$curr" ] &&
+	   [ ! -f "$next" ]; then
+		echo "$curr" "-> $NEXT/bin"
+		cp   "$curr"    "$NEXT/bin"
+	fi
+done
+
+#------------------------------------------------------------------------------
+echo "Copying control files to the next stage"
+echo cf* data/cf* "-> $NEXT"
+cp   cf* data/cf*    "$NEXT"
+
+#------------------------------------------------------------------------------
+if [ -d data/adhoc ]; then
+	echo "Copying adhoc-phase files to the next stage"
+	echo data/adhoc "-> $NEXT/data"
+	mkdir -p           "$NEXT/data"
+	cp -r data/adhoc   "$NEXT/data"
+fi
+
+#------------------------------------------------------------------------------
+echo "DONE"
