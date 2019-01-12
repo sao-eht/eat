@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+echo "2. Running fourfit..."
+echo "	Container work directory: \"$WRKDIR\""
+echo "	Container data output:    \"$DATADIR\""
+
+cd $WRKDIR
+md5sum `which fourfit` > log/fourfit.md5
+
+cat cf* > temp/cf_all
+(time parallel --bar --joblog log/parallel.log \
+	"fourfit -c temp/cf_all {} > {}.out 2> {}.err" \
+	::: "$DATADIR"/*/*/??[A-Z0-9]* 2>&1) 2> log/parallel.time
+
+cat "$DATADIR"/*/*/*.out > log/fourfit.out
+cat "$DATADIR"/*/*/*.err > log/fourfit.err
+
+echo "DONE"

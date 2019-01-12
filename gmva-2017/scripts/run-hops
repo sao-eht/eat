@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# Comment the follow line out if an old docker image is need for running tests
+docker pull eventhorizontelescope/eat-notebook
+
+function run-hops {
+	for d in "./hops-$1"/[0-9].*; do
+		echo $(printf "%.0s-" {1..64})
+		echo "$d"
+		pushd "$d" > /dev/null
+		bin/0.launch --docker bash -lic 'for x in bin/[1-8].*; do $x; done'
+		bin/9.next
+		popd > /dev/null
+	done
+}
+
+run-hops lo
+run-hops hi

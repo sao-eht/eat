@@ -32,6 +32,8 @@ import itertools
 from collections import OrderedDict
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as colors
 from ..plots import util as putil
 from matplotlib.offsetbox import AnchoredText
 from scipy.optimize import least_squares
@@ -598,7 +600,7 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # ret: if True, return spectrum no plot
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
              timeseries=False, centerphase=False, snrweight=True, kind=120, pol=None, grid=True,
-             do_adhoc=True, cf=None, channels=(None,None), ret=False):
+             do_adhoc=True, cf=None, channels=(None,None), ret=False, figwidth=8.):
     if type(bs) is str:
         bs = getfringefile(bs, filelist=True, pol=pol)
     if not hasattr(bs, '__len__'):
@@ -690,7 +692,7 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
             plt.grid()
         plt.xlim(-p.T/2., p.T/2.)
     if figsize is None:
-        plt.setp(plt.gcf(), figwidth=8, figheight=8.*nrow/ncol)
+        plt.setp(plt.gcf(), figwidth=figwidth, figheight=float(figwidth)*nrow/ncol)
     else:
         plt.setp(plt.gcf(), figwidth=figsize[0], figheight=figsize[1])
     plt.subplots_adjust(wspace=0, hspace=0)
@@ -962,6 +964,8 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
 
     # new method balances window length against coherence timescale
     r0 = tcoh / ap # put r0 in units of AP
+    # uh oh why is there a (2pi)^2 here.. mistake in thermal error?
+    # yes mistake, but it's really close to correct factor for a=5./3. (39 vs 38)
     R = (r0**alpha * 4*np.pi**2 * nap/snr**2)**(1./(1+alpha)) # optimal integration time per DOF [in APs]
     if polyorder is None:
         polyorder = 2
@@ -1062,6 +1066,13 @@ def closefringe(a):
     a['idish0'] = [idish[bl[0]] for bl in a.baseline]
     a['idish1'] = [idish[bl[1]] for bl in a.baseline]
 
+    # column for storing fit result
+    a['offset_delay'] = 0.
+    a['offset_rate'] = 0.
+    a['sigmas_delay'] = 0.
+    a['sigmas_rate'] = 0.
+    a['success'] = True
+
     def closescan(scan):
         idx = g.groups[scan]
         # skip if only one baseline (avoid warning)
@@ -1074,14 +1085,25 @@ def closefringe(a):
         # f_scale will be the deviation [in sigma] where the loss function kicks in
         # it should be a function of the SNR of the detection ideally..
         # but it looks like scipy just supports a single float
-        fit_mbd = least_squares(errfunc, np.zeros(len(dishes)),
+        ret = least_squares(errfunc, np.zeros(len(dishes)),
                                 args=(b.idish0, b.idish1, b.mbd_unwrap, b.mbd_err),
-                                loss='soft_l1', f_scale=8).x
-        fit_rate = least_squares(errfunc, np.zeros(len(dishes)),
+                                loss='soft_l1', f_scale=8, verbose=0, max_nfev=5000)
+        fit_mbd = ret.x
+        success_mbd = ret.success
+        ret = least_squares(errfunc, np.zeros(len(dishes)),
                                 args=(b.idish0, b.idish1, b.delay_rate, b.rate_err),
-                                loss='soft_l1', f_scale=8).x
-        a.ix[idx,'mbd_unwrap'] = fit_mbd[b.idish0] - fit_mbd[b.idish1]
-        a.ix[idx,'delay_rate'] = fit_rate[b.idish0] - fit_rate[b.idish1]
+                                loss='soft_l1', f_scale=8, verbose=0, max_nfev=5000)
+        fit_rate = ret.x
+        success_rate = ret.success
+        cdelay = fit_mbd[b.idish0] - fit_mbd[b.idish1]
+        crate = fit_rate[b.idish0] - fit_rate[b.idish1]
+        a.ix[idx,'offset_delay'] = cdelay - b.mbd_unwrap
+        a.ix[idx,'offset_rate'] = crate - b.delay_rate
+        a.ix[idx,'sigmas_delay'] = np.abs(cdelay - b.mbd_unwrap) / b.mbd_err
+        a.ix[idx,'sigmas_rate'] = np.abs(crate - b.delay_rate) / b.rate_err
+        a.ix[idx,'mbd_unwrap'] = cdelay
+        a.ix[idx,'delay_rate'] = crate
+        a.ix[idx,'success'] = success_mbd and success_rate
 
     g = a.groupby('timetag')
     scans = sorted(set(a.timetag))
@@ -1809,7 +1831,23 @@ def fixsqrt2(df):
     df.loc[idx,'snr'] /= np.sqrt(2.0)
     df.loc[idx,'amp'] /= np.sqrt(2.0)
 
-def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5, flip=True):
+# df: alist dataframe
+# source: source to plot
+# bltrans: function that takes baseline and converts to a legend label
+# color: dictionary of baseline to color
+# threshold: threshold for detection, determining global fringe solution
+# ulthreshold: different threshold for upper limit for constrained fringes
+# col: use a specific data frame column (e.g. snr)
+# flip: whether or not to flip x axis (East to West)
+# cmap: use custom colormap
+# vmin, vmax: defines colorbar limits
+# log: log-scale colormap if True
+# tag: custom label for plot (else use col)
+# markerleg: show legend for detections/non-dec and upper limits
+# allscans: additional data frame of all scans to use for plotting non-detections
+def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, flip=True, col=None,
+        ulthreshold=None, cmap=cm.get_cmap('jet', 9), vmin=None, vmax=None, log=True, tag=None,
+        markerleg=True, allscans=None):
     import pandas as pd
     import seaborn as sns
     from ..plots import util as pu
@@ -1818,7 +1856,6 @@ def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5, flip=Tru
         df = df[df.source == source].copy()
     else:
         df = df.copy()
-    util.add_id(df)
     def constrained(df):
         goodbls = fringegroups(df[df.snr > threshold].baseline, baselines=True)
         return df[df.baseline.isin(goodbls)]
@@ -1827,23 +1864,39 @@ def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5, flip=Tru
         return df[~df.baseline.isin(goodbls)]
     nondetections = pd.concat((notconstrained(rows) for (name, rows) in df.groupby('scan_id')), ignore_index=True)
     measurements = pd.concat((constrained(rows) for (name, rows) in df.groupby('scan_id')), ignore_index=True)
-    detections = measurements[measurements.snr >= threshold]
-    upperlimits = measurements[measurements.snr < threshold]
-    if color is None:
-        bls = sorted(set(df.baseline))
-        color = dict(zip(bls, sns.color_palette(sns.hls_palette(len(bls), l=.6, s=.6))))
-    # labels for legend
-    for name in sorted(set(itertools.chain(detections.baseline, upperlimits.baseline))):
-        plt.plot([], [], 'o', mew=1, label=name, alpha=1, color=color[name])
-    for (name, rows) in detections.sort_values('baseline').groupby('baseline'):
-        h = plt.plot(rows.u/1e3, rows.v/1e3, 'o', mew=1, label='_nolegend_', alpha=1, color=color[name], zorder=100)
-        plt.plot(-rows.u/1e3, -rows.v/1e3, 'o', mew=1, label='_nolegend_', alpha=1, color=color[name], zorder=100)
-    for (name, rows) in upperlimits.groupby('baseline'):
-        plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolegend_', alpha=1, color=color[name])
-        plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolegend_', alpha=1, color=color[name])
-    for (name, rows) in nondetections.groupby('baseline'):
-        plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1, mfc='white', label='_nolegend_', alpha=0.5, color='gray', zorder=-100)
-        plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1, mfc='white', label='_nolegend_', alpha=0.5, color='gray', zorder=-100)
+    ulthreshold = ulthreshold or threshold
+    detections = measurements[measurements.snr >= ulthreshold]
+    upperlimits = measurements[measurements.snr < ulthreshold]
+    # add extra non-detections
+    if allscans is not None:
+        util.add_id(df, col=['scan_id', 'baseline'])
+        util.add_id(measurements, col=['scan_id', 'baseline'])
+        util.add_id(nondetections, col=['scan_id', 'baseline'])
+        ids = set(measurements.id).union(nondetections.id)
+        nondetections = pd.concat((allscans[(allscans.source == source) & ~allscans.id.isin(ids)], nondetections), ignore_index=True)
+        nondetections = nondetections.groupby('id').first().reset_index()
+    if col is None: # display detections
+        if color is None:
+            bls = sorted(set(df.baseline))
+            color = dict(zip(bls, sns.color_palette(sns.hls_palette(len(bls), l=.6, s=.6))))
+        # labels for legend
+        for name in sorted(set(itertools.chain(detections.baseline, upperlimits.baseline))):
+            plt.plot([], [], 'o', mew=1, label=bltrans(name), alpha=1, color=color[name])
+        for (name, rows) in detections.sort_values('baseline').groupby('baseline'):
+            h = plt.plot(rows.u/1e3, rows.v/1e3, 'o', mew=1, label='_nolegend_', alpha=1, color=color[name], zorder=100)
+            plt.plot(-rows.u/1e3, -rows.v/1e3, 'o', mew=1, label='_nolegend_', alpha=1, color=color[name], zorder=100)
+        for (name, rows) in upperlimits.groupby('baseline'):
+            plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolegend_', alpha=1, color=color[name])
+            plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1.5, mfc='white', label='_nolegend_', alpha=1, color=color[name])
+        for (name, rows) in nondetections.groupby('baseline'):
+            plt.plot(rows.u/1e3, rows.v/1e3, '.', mew=1, mfc='white', label='_nolegend_', alpha=0.3, color='gray', zorder=-100)
+            plt.plot(-rows.u/1e3, -rows.v/1e3, '.', mew=1, mfc='white', label='_nolegend_', alpha=0.3, color='gray', zorder=-100)
+    else:
+        rows = measurements.sort_values(col)
+        plt.scatter(np.array((rows.u, -rows.u)).T.ravel()/1e3, np.array((rows.v, -rows.v)).T.ravel()/1e3,
+            marker='o', edgecolors='none', c=np.array((rows[col], rows[col])).T.ravel(), cmap=cmap,
+            norm=colors.LogNorm(vmin=vmin, vmax=vmax) if log else None)
+    ax = plt.gca()
     r = 1 / ((2*np.pi/360) * 50e-6 / 3600) / 1e9
     cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
     plt.text(0+.3, r+0.25, '(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
@@ -1861,28 +1914,29 @@ def uvplot(df, source=None, color=None, kind='baseline', threshold=6.5, flip=Tru
     lines = []
     lines.append(plt.Line2D([0], [0], color='k', ls='none', marker='o', mew=1, alpha=1, label='detection'))
     lines.append(plt.Line2D([0], [0], color='k', ls='none', marker='.', mew=1.5, mfc='white', alpha=1, label='upper limit'))
-    lines.append(plt.Line2D([0], [0], color='gray', ls='none', marker='.', mew=1, mfc='white', alpha=0.5, label='non-det'))
-    leg = Legend(plt.gca(), lines, ['detection', 'upper lim', 'non-det'], loc='lower right', ncol=1)
-    if leg is not None:
-        leg.set_zorder(300)
-        plt.gca().add_artist(leg)
+    lines.append(plt.Line2D([0], [0], color='gray', ls='none', marker='.', mew=1, mfc='white', alpha=0.3, label='non-det'))
+    if col is None:
+        if markerleg:
+            if ulthreshold > 0:
+                leg = Legend(plt.gca(), lines, ['detection', 'upper lim', 'non-det'], loc='lower right', ncol=1)
+            else:
+                leg = Legend(plt.gca(), [lines[0], lines[2]], ['measurement', 'non-det'], loc='lower right', ncol=1)
+            if leg is not None:
+                leg.set_zorder(300)
+                plt.gca().add_artist(leg)
         leg = plt.legend(loc='upper right')
         leg.set_zorder(300)
-    pu.wide(6, 6)
-
-def uvsnrplot(df, source=None, color=None, kind='baseline'):
-    import pandas as pd
-    import seaborn as sns
-    from ..plots import util as pu
-    from matplotlib.legend import Legend
-    if source is not None:
-        df = df[df.source == source].copy()
     else:
-        df = df.copy()
-    util.add_id(df)
-    def constrained(df):
-        goodbls = fringegroups(df[df.snr > 6.5].baseline, baselines=True)
-        return df[df.baseline.isin(goodbls)]
-    def notconstrained(df):
-        goodbls = fringegroups(df[df.snr > 6.5].baseline, baselines=True)
-        return df[~df.baseline.isin(goodbls)]
+        from mpl_toolkits.axes_grid1 import inset_locator as il
+        cax = il.inset_axes(ax, width="5%", height="90%", loc='center right')
+        # pos = ax.get_position()
+        # print(pos)
+        # cax = plt.gcf().add_axes([pos.width-0.02, pos.y0+0.02, 0.02, pos.height-0.04])
+        # cax = plt.gcf().add_axes(pos)
+        # cax = plt.gcf().add_axes([pos.x0, pos.y0, pos.width*0.5, pos.height])
+        # cax = plt.gcf().add_axes([pos.width-0.05, pos.y0, pos.width, pos.height])
+        cb = plt.colorbar(cax=cax)
+        cax.yaxis.set_ticks_position('left')
+        tag = tag or col
+        plt.sca(ax)
+        pu.tag(tag, loc='upper left')

@@ -78,7 +78,8 @@ for (scan, b) in g:
         else:
             timetag = c.timetag
         if any((c.baseline[0] in sites and c.baseline[1] in sites for sites in connected)):
-            print("if scan %s and baseline %s sb_win %10.7f %10.7f mb_win %10.7f %10.7f dr_win %15.12f %15.12f * expt_no %d" %
-                (timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate, c.expt_no))
+            print("if scan %s and baseline %s sb_win %10.7f %10.7f mb_win %10.7f %10.7f dr_win %15.12f %15.12f * %s %-4s expt_no %d" %
+                (timetag, c.baseline, c.mbd_unwrap, c.mbd_unwrap, c.mbdelay, c.mbdelay, 1e-6*c.delay_rate, 1e-6*c.delay_rate,
+                 c.source, 'GOOD' if c.success else 'BAD', c.expt_no))
         else:
             print("if scan %s and baseline %s skip true * expt_no %d snr %.1f" % (timetag, c.baseline, c.expt_no, c.snr))
