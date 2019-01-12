@@ -808,7 +808,13 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas',debi
     grouping0 = ('scan_id','expt_no','band','polarization','baseline')
     groupingSc = list(set(['scan_id','expt_no','band','polarization','baseline','source','sbdelay',
                  'mbdelay','delay_rate','total_rate','total_mbdelay','total_sbresid','ref_elev','rem_elev'])&set(frame.columns))
-    
+    if tavg!='scan':
+        if tavg>600:
+            grouping0 = ('expt_no','band','polarization','baseline')
+            groupingSc = list(set(['expt_no','band','polarization','baseline','source','sbdelay',
+                 'mbdelay','delay_rate','total_rate','total_mbdelay','total_sbresid','ref_elev','rem_elev'])&set(frame.columns))
+
+
     frame.drop_duplicates(subset=list(grouping0)+['datetime'], keep='first', inplace=True)
     if 'vis' not in frame.columns:
         frame['vis']=frame['amp']*np.exp(1j*frame[phase_type]*np.pi/180.)
@@ -850,7 +856,7 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas',debi
         grouping = groupingSc+['round_time']
         frame_avg = frame.groupby(grouping).agg(aggregating)
         frame_avg = frame_avg.reset_index()
-        frame_avg['datetime'] =  list(map(lambda x: date0 + datetime.timedelta(seconds= int(dt*x)), frame_avg['round_time']))
+        frame_avg['datetime'] =  list(map(lambda x: date0 + datetime.timedelta(seconds= int(tavg*x)), frame_avg['round_time']))
     
     frame_avg['snr'] = frame_avg['amp']/frame_avg['sigma']
 
