@@ -32,7 +32,6 @@ def get_info(observation='EHT2017',path_vex='VEX/'):
         if path_vex!='':
             scans = make_scan_list_EHT2017(path_vex)  
         else: scans = {}
-    return stations_2lett_1lett, jd_expt, scans
 
     if observation=='GMVA':
 
@@ -41,6 +40,7 @@ def get_info(observation='EHT2017',path_vex='VEX/'):
         if path_vex!='':
             scans = make_scan_list_EHT2017(path_vex)  
         else: scans = {}
+        
     return stations_2lett_1lett, jd_expt, scans
 
 def jd2expt2017(jd):
