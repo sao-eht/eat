@@ -34,6 +34,15 @@ def get_info(observation='EHT2017',path_vex='VEX/'):
         else: scans = {}
     return stations_2lett_1lett, jd_expt, scans
 
+    if observation=='GMVA':
+
+        stations_2lett_1lett = {'ALMA': 'A', 'GBT': 'G', 'FD': 'F', 'LMT':'L', 'PT':'T','LA':'A', 'KP':'K', 'MK':'M', 'BR':'B', 'PV':'P', 'NL':'N','OV':'O','YS':'Y','EB':'E'}
+        jd_expt = jd2expt2017
+        if path_vex!='':
+            scans = make_scan_list_EHT2017(path_vex)  
+        else: scans = {}
+    return stations_2lett_1lett, jd_expt, scans
+
 def jd2expt2017(jd):
     '''
     Function translating from jd to expt for April 2017 EHT
