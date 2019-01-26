@@ -23,6 +23,9 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
     print('path_out = ', path_out)
     print('out_name = ', out_name)
     print('pipeline_name= ', pipeline_name)
+    print('scale_sigma = ', scale_sigma)
+    if fix_sigma>0:
+        print('fix_sigma = ',fix_sigma)
     print('tavg = ', tavg)
     if not os.path.exists(path_out):
         os.makedirs(path_out)
