@@ -229,7 +229,7 @@ def add_vis_df(self,polarization='unknown',band='unknown',round_s=1.):
 
     
 def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='no',band='unknown',
-    round_s=0.1,only_parallel=False,rescale_noise=False,polrep=None,path_ehtim=''):
+    round_s=0.1,only_parallel=False,rescale_noise=False,polrep=None,path_ehtim='',fix_sigma=0):
     """generate DataFrame from uvfits file
     Args:
         pathf: path to uvfits file to import
@@ -279,6 +279,16 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
             dfXX['polarization'] = 'WTF' 
         df = dfXX.copy()
         df['band'] = band
+        
+        if fix_sigma>0:
+            print('Fixing constant sigma: ', fix_sigma)
+            df['sigma']=fix_sigma
+            if 'rrsigma' in df.columns:
+                df['rrsigma'] = fix_sigma
+                df['llsigma'] = fix_sigma
+                df['rlsigma'] = fix_sigma
+                df['lrsigma'] = fix_sigma
+
         if rescale_noise==True:
             obsXX10 = obsXX.avg_coherent(10.)
             rsc = obsXX10.estimate_noise_rescale_factor(max_diff_sec=1000.)
