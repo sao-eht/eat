@@ -229,7 +229,7 @@ def add_vis_df(self,polarization='unknown',band='unknown',round_s=1.):
 
     
 def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='no',band='unknown',
-    round_s=0.1,only_parallel=False,rescale_noise=False,polrep=None,path_ehtim='',fix_sigma=0):
+    round_s=0.1,only_parallel=False,rescale_noise=False,polrep=None,path_ehtim='',fix_sigma=0,scale_sigma=1.):
     """generate DataFrame from uvfits file
     Args:
         pathf: path to uvfits file to import
@@ -279,6 +279,14 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
             dfXX['polarization'] = 'WTF' 
         df = dfXX.copy()
         df['band'] = band
+
+        #Scale sigma
+        df['sigma']=scale_sigma*df['sigma']
+        if 'rrsigma' in df.columns:
+            df['rrsigma'] = scale_sigma*df['rrsigma']
+            df['llsigma'] = scale_sigma*df['llsigma']
+            df['rlsigma'] = scale_sigma*df['rlsigma']
+            df['lrsigma'] = scale_sigma*df['lrsigma']
         
         if fix_sigma>0:
             print('Fixing constant sigma: ', fix_sigma)
