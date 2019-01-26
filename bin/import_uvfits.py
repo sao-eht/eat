@@ -14,7 +14,7 @@ VEX_DEFAULT='/home/maciek/VEX/'
 
 def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name='hops',tavg='scan',
     only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', 
-    old_format=True,path_ehtim='',closure='',tavg_closures='scan',precoh_avg_time=0.):
+    old_format=True,path_ehtim='',closure='',tavg_closures='scan',precoh_avg_time=0.,fix_sigma=0):
     '''
     Imports whole dataset of uvfits with HOPS folder structure, or even without structure
     '''
@@ -41,7 +41,7 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         print("********************************************************")
         try:
             df_foo = uvfits.get_df_from_uvfit(filen,path_vex=path_vex,force_singlepol='no',band=bandname,round_s=0.1,
-        only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim)
+        only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim,fix_sigma=fix_sigma)
             print('Found datapoints: ',np.shape(df_foo)[0])
             #CONVERT TO OLD DF FORMATTING (SEPARATE DATA RECORD FOR EACH POLARIZATION)
             if old_format:
@@ -144,7 +144,7 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
 def main(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name='hops',tavg='scan',
-    only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True,path_ehtim='',closure='',tavg_closures='scan',precoh_avg_time=0.):
+    only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True,path_ehtim='',closure='',tavg_closures='scan',precoh_avg_time=0.,fix_sigma=0):
 
     print("********************************************************")
     print("*********************IMPORT DATA************************")
@@ -152,7 +152,7 @@ def main(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name='hops',ta
 
     import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name=pipeline_name,tavg=tavg,
     only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type=out_type,rescale_noise=rescale_noise,polrep=polrep, old_format=old_format,
-    path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures,precoh_avg_time=precoh_avg_time)
+    path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures,precoh_avg_time=precoh_avg_time,fix_sigma=fix_sigma)
     return 0
 
 if __name__=='__main__':
@@ -247,6 +247,12 @@ if __name__=='__main__':
         for a in range(0, len(sys.argv)):
             if(sys.argv[a] == '--precoh_avg_time'):
                 precoh_avg_time=float(sys.argv[a+1])
+    
+    fix_sigma=0
+    if "--fix_sigma" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--fix_sigma'):
+                fix_sigma=float(sys.argv[a+1])
 
     if "--cphase" in sys.argv:
         closure='cphase'
