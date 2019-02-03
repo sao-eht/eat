@@ -132,17 +132,17 @@ def quadrangles2baselines(quad,alist):
             
         baselines = [base0,base1,base2,base3]
         baselinesbo = [base0,base1,base2bo,base3bo]
-        #baselinesx = [base2bo,bas3bo,base2,base3]
+        baselinesx = [base2bo,bas3bo,base2,base3]
         
         baselinesSTR = list(map(lambda x: type(x)==str,baselines))
         baselinesboSTR = list(map(lambda x: type(x)==str,baselinesbo))
-        #baselinesxSTR = list(map(lambda x: type(x)==str,baselinesx))
+        baselinesxSTR = list(map(lambda x: type(x)==str,baselinesx))
         if all(baselinesSTR):
             foo_base.append(baselines)
         if all(baselinesboSTR):
             foo_base.append(baselinesbo)
-        #if all(baselinesxSTR):
-        #    foo_base.append(baselinesx)
+        if all(baselinesxSTR):
+            foo_base.append(baselinesx)
     return foo_base
 
 def quadrangle2str(quad):
