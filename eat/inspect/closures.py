@@ -132,7 +132,7 @@ def quadrangles2baselines(quad,alist):
             
         baselines = [base0,base1,base2,base3]
         baselinesbo = [base0,base1,base2bo,base3bo]
-        baselinesx = [base2bo,bas3bo,base2,base3]
+        baselinesx = [base2bo,base3bo,base2,base3]
         
         baselinesSTR = list(map(lambda x: type(x)==str,baselines))
         baselinesboSTR = list(map(lambda x: type(x)==str,baselinesbo))
