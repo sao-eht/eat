@@ -166,15 +166,15 @@ def baselines2triangles(basel):
     tri = [''.join(sorted(list(set(''.join(x))))) for x in basel]
     return tri
 
-def all_bispectra(alist,phase_type='resid_phas',debias_snr=False):
+def all_bispectra(alist,phase_type='resid_phas',debias_snr=False,match_by_scan=False):
     polars=[]
     if phase_type in alist.columns:
         try:
-            bsp_LL = all_bispectra_polar(alist,'LL',phase_type,debias_snr=debias_snr)
+            bsp_LL = all_bispectra_polar(alist,'LL',phase_type,debias_snr=debias_snr,match_by_scan=match_by_scan)
             polars=polars+['LL']
         except: pass
         try:
-            bsp_RR = all_bispectra_polar(alist,'RR',phase_type,debias_snr=debias_snr)
+            bsp_RR = all_bispectra_polar(alist,'RR',phase_type,debias_snr=debias_snr,match_by_scan=match_by_scan)
             polars=polars+['RR']
         except: pass
         print('polarz', polars)
@@ -187,7 +187,13 @@ def all_bispectra(alist,phase_type='resid_phas',debias_snr=False):
     else:
         print('Wrong name for the phase column!')
 
-def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_snr=False):
+def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_snr=False,match_by_scan=False):
+    '''
+    match_by_scan: option to only use scan_id rather than timestamp to find triplets of phases to form closure phases
+    should only be used for scan-averaged data
+    '''
+    if match_by_scan:
+        alist=ut.coh_avg_vis(alist,tavg='scan',phase_type=phase_type)
     if 'snr' not in alist.columns:
         alist.loc[:,'snr'] = alist.loc[:,'amp']/alist.loc[:,'sigma']
     if debias_snr==True:
@@ -237,7 +243,10 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_sn
         #print(alist_Tri)
         #print(np.shape(alist_Tri))
         #throw away times without full triangle
-        tlist = alist_Tri.groupby(['band','datetime']).filter(lambda x: len(x) == 3)
+        if match_by_scan:
+            tlist = alist_Tri.groupby(['band','scan_id']).filter(lambda x: len(x) == 3)
+        else:
+            tlist = alist_Tri.groupby(['band','datetime']).filter(lambda x: len(x) == 3)
         tlist.loc[:,'sigma'] = (tlist.loc[:,'amp']/(tlist.loc[:,'snr']))
         #print(tlist.loc[:,phaseType])
         #print(tlist)
@@ -246,7 +255,11 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_sn
             tlist.loc[(tlist.loc[:,'baseline']==Tri[cou2]),phase_type] *= signat[cou2]*np.pi/180.
         tlist.loc[:,'sigma'] = 1./tlist.loc[:,'snr']**2 #put 1/snr**2 in the sigma column to aggregate
         #print(tlist.columns)
-        bsp = tlist.groupby(['expt_no','source','band','scan_id','datetime']).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
+        if match_by_scan:
+            bsp = tlist.groupby(['expt_no','source','band','scan_id']).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
+        'amps': lambda x: tuple(x),'snrs': lambda x: tuple(x),'fracpols': lambda x: tuple(x),'datetime':min})  
+        else:
+            bsp = tlist.groupby(['expt_no','source','band','scan_id','datetime']).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
         'amps': lambda x: tuple(x),'snrs': lambda x: tuple(x),'fracpols': lambda x: tuple(x)})
         #sigma above is the CLOSURE PHASE ERROR
         #print(bsp.columns)
