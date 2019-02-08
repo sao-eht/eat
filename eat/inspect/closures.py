@@ -390,12 +390,14 @@ def debias_A_sig(A,sigma):
 #def all_quads(alist,tavg='scan',debias=True):
 
 
-def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False):
+def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_scan=False):
     '''
     This one used!
     ctype = 'camp' or 'logcamp'
     debias = 'no'/whatever , 'amp', 'camp'
     '''
+    if match_by_scan:
+        alist=ut.coh_avg_vis(alist,tavg='scan',phase_type=phase_type)
     alist = alist[(alist['polarization']=='LL')|(alist['polarization']=='RR')|(alist['polarization']=='I')]
     if debias_snr==True:
         foo = np.maximum(np.asarray(alist['snr'])**2 - 1,0)
@@ -432,7 +434,10 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False):
         alist_Quad = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline','polarization','amp','snr','gmst','band','amps','snrs','snr1','snr2','snr3','snr4','sigma']]
         print(Quad, np.shape(alist_Quad)[0])
         #throw away times without full quadrangle
-        tlist = alist_Quad.groupby(['polarization','band','datetime']).filter(lambda x: len(x) == 4)
+        if match_by_scan:
+            tlist = alist_Quad.groupby(['polarization','band','scan_id']).filter(lambda x: len(x) == 4)
+        else:
+            tlist = alist_Quad.groupby(['polarization','band','datetime']).filter(lambda x: len(x) == 4)
         tlist['snr1'] = tlist['snr1']*(tlist['baseline']==Quad[0])
         tlist['snr2'] = tlist['snr2']*(tlist['baseline']==Quad[1])
         tlist['snr3'] = tlist['snr3']*(tlist['baseline']==Quad[2])
@@ -444,8 +449,13 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False):
         for cou2 in range(4):
             tlist.loc[(tlist.loc[:,'baseline']==Quad[cou2]),'camp'] = (tlist.loc[(tlist.loc[:,'baseline']==Quad[cou2]),'amp'])**power[cou2]
 
-        grouping =  ['expt_no','band','polarization','source','scan_id','datetime']
-        aggregate = {'amps': lambda x: tuple(x), 'snrs': lambda x: tuple(x), 'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
+        if match_by_scan:
+            grouping =  ['expt_no','band','polarization','source','scan_id']
+            aggregate = {'amps': lambda x: tuple(x),'datetime': min, 'snrs': lambda x: tuple(x), 'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
+        'snr1': np.sum, 'snr2': np.sum,'snr3': np.sum, 'snr4': np.sum}
+        else:
+            grouping =  ['expt_no','band','polarization','source','scan_id','datetime']
+            aggregate = {'amps': lambda x: tuple(x), 'snrs': lambda x: tuple(x), 'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
         'snr1': np.sum, 'snr2': np.sum,'snr3': np.sum, 'snr4': np.sum}
 
         if ctype=='camp':
