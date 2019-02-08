@@ -397,7 +397,12 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
     debias = 'no'/whatever , 'amp', 'camp'
     '''
     if match_by_scan:
-        alist=ut.coh_avg_vis(alist,tavg='scan',phase_type=phase_type)
+        if 'phase' in alist.columns:
+            alist=ut.coh_avg_vis(alist,tavg='scan',phase_type='phase')
+        elif 'resid_phas' in alist.columns:
+             alist=ut.coh_avg_vis(alist,tavg='scan',phase_type='resid_phas')
+        else: continue
+
     alist = alist[(alist['polarization']=='LL')|(alist['polarization']=='RR')|(alist['polarization']=='I')]
     if debias_snr==True:
         foo = np.maximum(np.asarray(alist['snr'])**2 - 1,0)
