@@ -1,4 +1,5 @@
 # Hotaka Shiokawa - 2017
+# Maciek Wielgus - 2017 -- 2019
 
 from __future__ import division
 from __future__ import print_function
@@ -8,7 +9,8 @@ from builtins import object
 import numpy as np
 import re
 import os
-import ehtim.observing.jdcal as jdcal
+#import ehtim.observing.jdcal as jdcal
+from astropy.time import Time
 
 import ehtim.array
 
@@ -285,6 +287,10 @@ def vexdate_to_MJD_hr(vexdate):
     time = re.findall("[-+]?\d+[\.]?\d*",vexdate)
     year = int(time[0])
     date = int(time[1])
-    mjd = jdcal.gcal2jd(year,1,1)[1]+date-1
+    year_mjd = Time(str(year)+'-01-01')
+    year_mjd.format = 'mjd'
+    year_mjd = int(float(str(year_mjd)))
+    #mjd = jdcal.gcal2jd(year,1,1)[1]+date-1
+    mjd = year_mjd+date-1
     hour = int(time[2]) + float(time[3])/60. + float(time[4])/60./60.
     return mjd,hour
