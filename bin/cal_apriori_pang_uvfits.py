@@ -47,9 +47,11 @@ station_dic = {'ALMA':'AA', 'A':'AA','AA':'AA',
             'SPT':'SP','Y':'SP','SP':'SP',
             'JCMT':'JC','J':'JC','JC':'JC',
             'SMAP':'SM','S':'SM','SMAR':'SM','SMA':'SM','SM':'SM',
-            'SMAR':'SR','R':'SR','SMR':'SR','SR':'SR'}
+            'SMAR':'SR','R':'SR','SMR':'SR','SR':'SR',
+            'GBT': 'G'
+            }
 
-station_frot = {'PV':(1,-1,0),'AZ':(1,1,0),'SM':(1,-1,np.pi/4.),'LM': (1,-1,0),'AA':(1,0,0),'SP':(1,0,0),'AP':(1,1,0),'JC':(1,0,0),'SR':(1,-1,np.pi/4.)}
+station_frot = {'PV':(1,-1,0),'AZ':(1,1,0),'SM':(1,-1,np.pi/4.),'LM': (1,-1,0),'AA':(1,0,0),'SP':(1,0,0),'AP':(1,1,0),'JC':(1,0,0),'SR':(1,-1,np.pi/4.),'GB':(1,0,0)}
 
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
 DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
