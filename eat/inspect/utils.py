@@ -1893,6 +1893,7 @@ def old_format(df):
     
 
     df_rr = df[base+['rrvis']].copy()
+    df_rr = df_lr[df_rr.rrvis==df_rr.rrvis].copy()
     df_rr['vis']=df_rr['rrvis']
     df_rr['sigma']=df_rr['rrsigma']
     df_rr['polarization']='RR'
@@ -1900,6 +1901,7 @@ def old_format(df):
     df_rr.drop('rrsigma',axis=1,inplace=True)
 
     df_ll = df[base+['llvis']].copy()
+    df_ll = df_ll[df_ll.llvis==df_ll.llvis].copy()
     df_ll['vis']=df_ll['llvis']
     df_ll['sigma']=df_rr['llsigma']
     df_ll['polarization']='LL'
@@ -1907,6 +1909,7 @@ def old_format(df):
     df_ll.drop('llsigma',axis=1,inplace=True)
 
     df_rl = df[base+['rlvis']].copy()
+    df_rl = df_rl[df_rl.rlvis==df_rl.rlvis].copy()
     df_rl['vis']=df_rl['rlvis']
     df_rl['sigma']=df_rl['rlsigma']
     df_rl['polarization']='RL'
@@ -1914,6 +1917,7 @@ def old_format(df):
     df_rl.drop('rlsigma',axis=1,inplace=True)
 
     df_lr = df[base+['lrvis']].copy()
+    df_lr = df_lr[df_lr.lrvis==df_lr.lrvis].copy()
     df_lr['vis']=df_lr['lrvis']
     df_lr['sigma']=df_lr['lrsigma']
     df_lr['polarization']='LR'
