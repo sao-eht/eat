@@ -1893,7 +1893,7 @@ def old_format(df):
     
 
     df_rr = df[base+['rrvis']].copy()
-    df_rr = df_lr[df_rr.rrvis==df_rr.rrvis].copy()
+    df_rr = df_rr[df_rr.rrvis==df_rr.rrvis].copy()
     df_rr['vis']=df_rr['rrvis']
     df_rr['sigma']=df_rr['rrsigma']
     df_rr['polarization']='RR'
