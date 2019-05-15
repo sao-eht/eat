@@ -17,7 +17,11 @@ lat_dict = {'A': -23.02922,
             'S': 19.82423,
             'R': 19.82423,
             'Y':  -90.00000,
-            'G': 38.43306}
+            'G': 38.43306,
+            'F':30.635214,
+            'K':31.956253,
+            'O':37.23176,
+            'C':35.7752887}
 
 lon_dict = {'A': 67.75474,
             'X': 67.75914,
@@ -28,7 +32,12 @@ lon_dict = {'A': 67.75474,
             'S': 155.47755,
             'R': 155.47755,
             'Y':  -45.00000,
-            'G':79.83972}#Greenbank
+            'G':79.83972,#Greenbank
+            'F':103.944826,
+            'K':111.612361,
+            'O':118.27714,
+            'C':106.2455897 }#C is, surprisingly, Los Alamos
+
 
 ant_locat ={
     'A': [2225061.16360, -5440057.36994, -2481681.15054],
@@ -153,7 +162,7 @@ def field_rotation(fra_data):
     par = fra_data[0]
     elev = fra_data[1]
     station = fra_data[2]
-    if station in {'A','J','Y'}:
+    if station in {'A','J','Y','G'}:
         fra = par
     elif station in {'X','Z'}:
         fra = par+elev
@@ -826,8 +835,11 @@ def add_gains_to_df(alist,recompute_elev=False,degSMA=5):
 
     dicPh = solve_only_phas_ratio_fun(fil,degSMA)
     dicAm = solve_only_amp_ratio(fil)
-    dicPh['J'] = lambda x: np.nan
-    dicAm['J'] = np.nan
+    #dicPh['J'] = lambda x: np.nan
+    #dicAm['J'] = np.nan
+    dicPh['J'] = lambda x: 0.
+    dicAm['J'] = 1.
+
     dicPh['R'] = lambda x: np.nan
     dicAm['R'] = np.nan
 
