@@ -1798,7 +1798,7 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
         mat_sys[3*Nscans:4*Nscans,4] = np.ones((Nscans))/np.conjugate(G2)
 
     elif use_gains==1:
-
+        #only use gains from first telescope
         V2 = np.asarray(data_solve.LRbyRR)
         V3 = np.asarray(data_solve.RLbyLL)
         G1 = np.asarray(data_solve.gr1)
@@ -1823,6 +1823,38 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
         mat_sys[Nscans:2*Nscans,2] = np.zeros((Nscans))
         mat_sys[Nscans:2*Nscans,3] = np.ones((Nscans))*G1
         mat_sys[Nscans:2*Nscans,4] = np.conjugate(f1)*f2*G1
+
+    elif use_gains=='LRbyLL':
+        #only use LRbyLL data
+        V1 = np.asarray(data_solve.LRbyLL)
+        G2 = np.asarray(data_solve.gr2)
+        f1 = np.asarray(data_solve.phasor_fra1)
+        f2 = np.asarray(data_solve.phasor_fra2)
+        Nscans = len(V1)
+        y0 = list(np.conjugate(V1))
+        Yvec = np.asarray(y0)
+        mat_sys = np.zeros((Nscans,3)) +0*1j
+
+        #equations with LRbyLL
+        mat_sys[:Nscans,0] = np.conjugate(f2)*G2
+        mat_sys[:Nscans,1] = f1*np.conjugate(f2)*G2
+        mat_sys[:Nscans,2] = np.ones((Nscans))*G2
+
+    elif use_gains=='RLbyRR':
+        #only use LRbyLL data
+        V4 = np.asarray(data_solve.RLbyRR)
+        G2 = np.asarray(data_solve.gr2)
+        f1 = np.asarray(data_solve.phasor_fra1)
+        f2 = np.asarray(data_solve.phasor_fra2)
+        Nscans = len(V4)
+        y3 = list(V4)
+        Yvec = np.asarray(y3)
+        mat_sys = np.zeros((Nscans,3)) +0*1j
+
+        #equations with RLbyRR
+        mat_sys[:Nscans,0] = np.conjugate(f2)/np.conjugate(G2)
+        mat_sys[:Nscans,1] = f1*np.conjugate(f2)/np.conjugate(G2)
+        mat_sys[:Nscans,2] = np.ones((Nscans))/np.conjugate(G2)
 
     elif use_gains==2:
 
@@ -1908,18 +1940,27 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
         plt.grid(which='both')
         plt.show()
     '''
-
-    if return_raw==False:
-        if use_m==False:
-            D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
-        else:
-            p = Dterms[0]/m
-            D_out=[p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
+    if use_gains=='LRbyLL':
+        #now this is  (D1L* p), (D2R p)
+        D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p), Dterms[2]/p]
         return D_out, ApproxVal, ApproxVal_no_leakage
+    if use_gains=='RLbyRR':
+        #now this is (D1R p), (D2L* p)
+        D_out = [Dterms[0]/p, Dterms[1]/p, np.conjugate(Dterms[2]/p)]
+        return D_out, ApproxVal, ApproxVal_no_leakage
+
     else:
-        #print('Raw Dterms')
-        #this returns [(m p), (D1L* p), (D2R p), (D1R p), (D2L* p)]
-        return Dterms, ApproxVal, ApproxVal_no_leakage
+        if return_raw==False:
+            if use_m==False:
+                D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
+            else:
+                p = Dterms[0]/m
+                D_out=[p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
+            return D_out, ApproxVal, ApproxVal_no_leakage
+        else:
+            #print('Raw Dterms')
+            #this returns [(m p), (D1L* p), (D2R p), (D1R p), (D2L* p)]
+            return Dterms, ApproxVal, ApproxVal_no_leakage
 
 
 def solve_single_ratio(dataLoc, which_ratio,ph0=0,use_m=False,m=0, return_raw = True):
