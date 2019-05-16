@@ -1963,6 +1963,120 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
             return Dterms, ApproxVal, ApproxVal_no_leakage
 
 
+
+def solve_Dterms_knowing_polarization(dataLoc,ph0=0,m=0, return_raw = True, use_gains='both'):
+    
+    p = np.exp(1j*ph0)
+    data_solve =prep_df_for_dterms(dataLoc)
+    
+    if use_gains=='both':
+
+        G2 = np.asarray(data_solve.gr2)
+        G1 = np.asarray(data_solve.gr1)
+        f1 = np.asarray(data_solve.phasor_fra1)
+        f2 = np.asarray(data_solve.phasor_fra2)
+        V1 = np.asarray(data_solve.LRbyLL)
+        V2 = np.asarray(data_solve.LRbyRR)
+        V3 = np.asarray(data_solve.RLbyLL) 
+        V4 = np.asarray(data_solve.RLbyRR)
+
+        Nscans = len(V1)
+
+        y0 = list(np.conjugate(V1) - np.conjugate(f2)*G2)
+        y1 = list(np.conjugate(V2) - np.conjugate(f1)/np.conjugate(G1))
+        y2 = list(V3 - np.conjugate(f1)*G1)
+        y3 = list(V4 - np.conjugate(f2)/np.conjugate(G2))
+        Yvec = np.asarray(y0+y1+y2+y3)
+        mat_sys = np.zeros((4*Nscans,5)) +0*1j
+
+        #equations with LRbyLL
+        mat_sys[:Nscans,0] = f1*np.conjugate(f2)*G2
+        mat_sys[:Nscans,1] = np.ones((Nscans))*G2
+        mat_sys[:Nscans,2] = np.zeros((Nscans))
+        mat_sys[:Nscans,3] = np.zeros((Nscans))
+
+        #equations with LRbyRR
+        mat_sys[Nscans:2*Nscans,0] = np.ones((Nscans))/np.conjugate(G1)
+        mat_sys[Nscans:2*Nscans,1] = np.conjugate(f1)*f2/np.conjugate(G1)
+        mat_sys[Nscans:2*Nscans,2] = np.zeros((Nscans))
+        mat_sys[Nscans:2*Nscans,3] = np.zeros((Nscans))
+
+        #equations with RLbyLL
+        mat_sys[2*Nscans:3*Nscans,0] = np.zeros((Nscans))
+        mat_sys[2*Nscans:3*Nscans,1] = np.zeros((Nscans))
+        mat_sys[2*Nscans:3*Nscans,2] = np.ones((Nscans))*G1
+        mat_sys[2*Nscans:3*Nscans,3] = np.conjugate(f1)*f2*G1
+        
+        #equations with RLbyRR
+        mat_sys[3*Nscans:4*Nscans,0] = np.zeros((Nscans))
+        mat_sys[3*Nscans:4*Nscans,1] = np.zeros((Nscans))
+        mat_sys[3*Nscans:4*Nscans,2] = f1*np.conjugate(f2)/np.conjugate(G2)
+        mat_sys[3*Nscans:4*Nscans,3] = np.ones((Nscans))/np.conjugate(G2)
+
+    elif use_gains=='LRbyLL':
+        #only use LRbyLL data
+        V1 = np.asarray(data_solve.LRbyLL)
+        G2 = np.asarray(data_solve.gr2)
+        f1 = np.asarray(data_solve.phasor_fra1)
+        f2 = np.asarray(data_solve.phasor_fra2)
+        Nscans = len(V1)
+        y0 = list(np.conjugate(V1))
+        Yvec = np.asarray(y0)
+        mat_sys = np.zeros((Nscans,3)) +0*1j
+
+        #equations with LRbyLL
+        mat_sys[:Nscans,0] = np.conjugate(f2)*G2
+        mat_sys[:Nscans,1] = f1*np.conjugate(f2)*G2
+        mat_sys[:Nscans,2] = np.ones((Nscans))*G2
+
+    elif use_gains=='RLbyRR':
+        #only use LRbyLL data
+        V4 = np.asarray(data_solve.RLbyRR)
+        G2 = np.asarray(data_solve.gr2)
+        f1 = np.asarray(data_solve.phasor_fra1)
+        f2 = np.asarray(data_solve.phasor_fra2)
+        Nscans = len(V4)
+        y3 = list(V4)
+        Yvec = np.asarray(y3)
+        mat_sys = np.zeros((Nscans,3)) +0*1j
+
+        #equations with RLbyRR
+        mat_sys[:Nscans,0] = np.conjugate(f2)/np.conjugate(G2)
+        mat_sys[:Nscans,1] = f1*np.conjugate(f2)/np.conjugate(G2)
+        mat_sys[:Nscans,2] = np.ones((Nscans))/np.conjugate(G2)
+
+    #solution with linear least squares
+    print('sizes ',[np.shape(mat_sys),np.shape(Yvec)])
+    if np.shape(mat_sys)[0]>3:
+        Dterms =  np.linalg.lstsq(mat_sys,Yvec)[0]
+    else: Dterms = [np.nan,np.nan,np.nan]
+    ####################################
+
+    ApproxVal = mat_sys.dot(Dterms)
+    Dterms_no_leakage = np.zeros(np.shape(Dterms))
+    Dterms_no_leakage[0] = Dterms[0]
+    ApproxVal_no_leakage = mat_sys.dot(Dterms_no_leakage)
+
+    if use_gains=='LRbyLL':
+        #now this is  (D1L* p), (D2R p)
+        D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p), Dterms[2]/p]
+        return D_out, ApproxVal, ApproxVal_no_leakage
+    if use_gains=='RLbyRR':
+        #now this is (D1R p), (D2L* p)
+        D_out = [Dterms[0]/p, Dterms[1]/p, np.conjugate(Dterms[2]/p)]
+        return D_out, ApproxVal, ApproxVal_no_leakage
+
+    else:
+        if return_raw==False:
+            D_out = [np.conjugate(Dterms[0]/p), Dterms[1]/p, Dterms[2]/p, np.conjugate(Dterms[3]/p)]
+            return D_out, ApproxVal, ApproxVal_no_leakage
+        else:
+            #print('Raw Dterms')
+            #this returns [(m p), (D1L* p), (D2R p), (D1R p), (D2L* p)]
+            return Dterms, ApproxVal, ApproxVal_no_leakage
+
+
+
 def solve_single_ratio(dataLoc, which_ratio,ph0=0,use_m=False,m=0, return_raw = True):
     
     p = np.exp(1j*ph0)
