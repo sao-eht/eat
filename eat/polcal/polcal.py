@@ -2030,20 +2030,20 @@ def solve_Dterms_knowing_polarization(dataLoc,ph0=0,m=0, return_raw = True, use_
         mat_sys[:Nscans,2] = np.ones((Nscans))*G2
 
     elif use_gains=='RLbyRR':
-        #only use LRbyLL data
+        #only use RLbyRR data
+        
         V4 = np.asarray(data_solve.RLbyRR)
         G2 = np.asarray(data_solve.gr2)
         f1 = np.asarray(data_solve.phasor_fra1)
         f2 = np.asarray(data_solve.phasor_fra2)
         Nscans = len(V4)
-        y3 = list(V4)
+        y3 = list(V4 - np.conjugate(f2)/np.conjugate(G2)*m*p)
         Yvec = np.asarray(y3)
         mat_sys = np.zeros((Nscans,2)) +0*1j
 
         #equations with RLbyRR
-        mat_sys[:Nscans,0] = np.conjugate(f2)/np.conjugate(G2)
-        mat_sys[:Nscans,1] = f1*np.conjugate(f2)/np.conjugate(G2)
-        mat_sys[:Nscans,2] = np.ones((Nscans))/np.conjugate(G2)
+        mat_sys[:Nscans,0] = f1*np.conjugate(f2)/np.conjugate(G2)
+        mat_sys[:Nscans,1] = np.ones((Nscans))/np.conjugate(G2)
 
     #solution with linear least squares
     print('sizes ',[np.shape(mat_sys),np.shape(Yvec)])
@@ -2059,11 +2059,11 @@ def solve_Dterms_knowing_polarization(dataLoc,ph0=0,m=0, return_raw = True, use_
 
     if use_gains=='LRbyLL':
         #now this is  (D1L* p), (D2R p)
-        D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p), Dterms[2]/p]
+        D_out = [np.conjugate(Dterms[0]/p), Dterms[1]/p]
         return D_out, ApproxVal, ApproxVal_no_leakage
     if use_gains=='RLbyRR':
         #now this is (D1R p), (D2L* p)
-        D_out = [Dterms[0]/p, Dterms[1]/p, np.conjugate(Dterms[2]/p)]
+        D_out = [Dterms[1]/p, np.conjugate(Dterms[2]/p)]
         return D_out, ApproxVal, ApproxVal_no_leakage
 
     else:
