@@ -1987,7 +1987,7 @@ def solve_Dterms_knowing_polarization(dataLoc,ph0=0,m=0, return_raw = True, use_
         y2 = list(V3 - np.conjugate(f1)*G1)
         y3 = list(V4 - np.conjugate(f2)/np.conjugate(G2))
         Yvec = np.asarray(y0+y1+y2+y3)
-        mat_sys = np.zeros((4*Nscans,5)) +0*1j
+        mat_sys = np.zeros((4*Nscans,4)) +0*1j
 
         #equations with LRbyLL
         mat_sys[:Nscans,0] = f1*np.conjugate(f2)*G2
@@ -2022,7 +2022,7 @@ def solve_Dterms_knowing_polarization(dataLoc,ph0=0,m=0, return_raw = True, use_
         Nscans = len(V1)
         y0 = list(np.conjugate(V1))
         Yvec = np.asarray(y0)
-        mat_sys = np.zeros((Nscans,3)) +0*1j
+        mat_sys = np.zeros((Nscans,2)) +0*1j
 
         #equations with LRbyLL
         mat_sys[:Nscans,0] = np.conjugate(f2)*G2
@@ -2038,7 +2038,7 @@ def solve_Dterms_knowing_polarization(dataLoc,ph0=0,m=0, return_raw = True, use_
         Nscans = len(V4)
         y3 = list(V4)
         Yvec = np.asarray(y3)
-        mat_sys = np.zeros((Nscans,3)) +0*1j
+        mat_sys = np.zeros((Nscans,2)) +0*1j
 
         #equations with RLbyRR
         mat_sys[:Nscans,0] = np.conjugate(f2)/np.conjugate(G2)
