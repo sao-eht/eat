@@ -2063,7 +2063,7 @@ def solve_Dterms_knowing_polarization(dataLoc,ph0=0,m=0, return_raw = True, use_
         return D_out, ApproxVal, ApproxVal_no_leakage
     if use_gains=='RLbyRR':
         #now this is (D1R p), (D2L* p)
-        D_out = [Dterms[1]/p, np.conjugate(Dterms[2]/p)]
+        D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p)]
         return D_out, ApproxVal, ApproxVal_no_leakage
 
     else:
