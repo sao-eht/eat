@@ -1982,10 +1982,10 @@ def solve_Dterms_knowing_polarization(dataLoc,ph0=0,m=0, return_raw = True, use_
 
         Nscans = len(V1)
 
-        y0 = list(np.conjugate(V1) - np.conjugate(f2)*G2*m)
-        y1 = list(np.conjugate(V2) - np.conjugate(f1)/np.conjugate(G1)*m)
-        y2 = list(V3 - np.conjugate(f1)*G1*m)
-        y3 = list(V4 - np.conjugate(f2)/np.conjugate(G2)*m)
+        y0 = list(np.conjugate(V1) - np.conjugate(f2)*G2*m*p)
+        y1 = list(np.conjugate(V2) - np.conjugate(f1)/np.conjugate(G1)*m*p)
+        y2 = list(V3 - np.conjugate(f1)*G1*m*p)
+        y3 = list(V4 - np.conjugate(f2)/np.conjugate(G2)*m*p)
         Yvec = np.asarray(y0+y1+y2+y3)
         mat_sys = np.zeros((4*Nscans,4)) +0*1j
 
