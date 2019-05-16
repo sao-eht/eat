@@ -1899,6 +1899,7 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
     if np.shape(mat_sys)[0]>3:
         Dterms =  np.linalg.lstsq(mat_sys,Yvec)[0]
     else: Dterms = [np.nan,np.nan,np.nan]
+    Ntot = np.shape(mat_sys)[0]
     ####################################
     #solution with least squares+loss
     '''
@@ -1956,7 +1957,7 @@ def solve_Dterms(dataLoc,ph0=0,use_m=False,m=0, return_raw = True, use_gains='bo
             else:
                 p = Dterms[0]/m
                 D_out=[p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
-            return D_out, ApproxVal, ApproxVal_no_leakage
+            return D_out, ApproxVal, ApproxVal_no_leakage, Ntot, (ApproxVal-Yvec)
         else:
             #print('Raw Dterms')
             #this returns [(m p), (D1L* p), (D2R p), (D1R p), (D2L* p)]
