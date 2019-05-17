@@ -2257,41 +2257,62 @@ def solve_Dterms_quadratic(dataLoc,ph0=0, return_raw = True, use_gains='both'):
         f1 = np.asarray(data_solve.phasor_fra1)
         f2 = np.asarray(data_solve.phasor_fra2)
         Nscans = len(V1)
-
         y0 = list(np.conjugate(V1))
         y1 = list(np.conjugate(V2))
         y2 = list(V3)
         y3 = list(V4)
         Yvec = np.asarray(y0+y1+y2+y3)
-        mat_sys = np.zeros((4*Nscans,5)) +0*1j
+        mat_sys = np.zeros((4*Nscans,10)) +0*1j
+        foo = data_solve.datetime-data_solve.datetime.min()
+        t = np.asarray([x.seconds/3600. for x in foo])
 
         #equations with LRbyLL
         mat_sys[:Nscans,0] = np.conjugate(f2)*G2
-        mat_sys[:Nscans,1] = f1*np.conjugate(f2)*G2
-        mat_sys[:Nscans,2] = np.ones((Nscans))*G2
+        mat_sys[:Nscans,1] = np.conjugate(f2)*G2*t
+        mat_sys[:Nscans,2] = np.conjugate(f2)*G2*t**2
         mat_sys[:Nscans,3] = np.zeros((Nscans))
         mat_sys[:Nscans,4] = np.zeros((Nscans))
+        mat_sys[:Nscans,5] = np.zeros((Nscans))
+        mat_sys[:Nscans,6] = f1*np.conjugate(f2)*G2
+        mat_sys[:Nscans,7] = np.ones((Nscans))*G2
+        mat_sys[:Nscans,8] = np.zeros((Nscans))
+        mat_sys[:Nscans,9] = np.zeros((Nscans))
 
         #equations with LRbyRR
         mat_sys[Nscans:2*Nscans,0] = np.conjugate(f1)/np.conjugate(G1)
-        mat_sys[Nscans:2*Nscans,1] = np.ones((Nscans))/np.conjugate(G1)
-        mat_sys[Nscans:2*Nscans,2] = np.conjugate(f1)*f2/np.conjugate(G1)
+        mat_sys[Nscans:2*Nscans,1] = np.conjugate(f1)/np.conjugate(G1)*t
+        mat_sys[Nscans:2*Nscans,2] = np.conjugate(f1)/np.conjugate(G1)*t**2
         mat_sys[Nscans:2*Nscans,3] = np.zeros((Nscans))
         mat_sys[Nscans:2*Nscans,4] = np.zeros((Nscans))
+        mat_sys[Nscans:2*Nscans,5] = np.zeros((Nscans))
+        mat_sys[Nscans:2*Nscans,6] = np.ones((Nscans))/np.conjugate(G1)
+        mat_sys[Nscans:2*Nscans,7] = np.conjugate(f1)*f2/np.conjugate(G1)
+        mat_sys[Nscans:2*Nscans,8] = np.zeros((Nscans))
+        mat_sys[Nscans:2*Nscans,9] = np.zeros((Nscans))
 
         #equations with RLbyLL
-        mat_sys[2*Nscans:3*Nscans,0] = np.conjugate(f1)*G1
+        mat_sys[2*Nscans:3*Nscans,0] = np.zeros((Nscans))
         mat_sys[2*Nscans:3*Nscans,1] = np.zeros((Nscans))
         mat_sys[2*Nscans:3*Nscans,2] = np.zeros((Nscans))
-        mat_sys[2*Nscans:3*Nscans,3] = np.ones((Nscans))*G1
-        mat_sys[2*Nscans:3*Nscans,4] = np.conjugate(f1)*f2*G1
+        mat_sys[2*Nscans:3*Nscans,3] = np.conjugate(f1)*G1
+        mat_sys[2*Nscans:3*Nscans,4] = np.conjugate(f1)*G1*t
+        mat_sys[2*Nscans:3*Nscans,5] = np.conjugate(f1)*G1*t**2
+        mat_sys[2*Nscans:3*Nscans,6] = np.zeros((Nscans))
+        mat_sys[2*Nscans:3*Nscans,7] = np.zeros((Nscans))
+        mat_sys[2*Nscans:3*Nscans,8] = np.ones((Nscans))*G1
+        mat_sys[2*Nscans:3*Nscans,9] = np.conjugate(f1)*f2*G1
         
         #equations with RLbyRR
-        mat_sys[3*Nscans:4*Nscans,0] = np.conjugate(f2)/np.conjugate(G2)
+        mat_sys[3*Nscans:4*Nscans,0] = np.zeros((Nscans))
         mat_sys[3*Nscans:4*Nscans,1] = np.zeros((Nscans))
         mat_sys[3*Nscans:4*Nscans,2] = np.zeros((Nscans))
-        mat_sys[3*Nscans:4*Nscans,3] = f1*np.conjugate(f2)/np.conjugate(G2)
-        mat_sys[3*Nscans:4*Nscans,4] = np.ones((Nscans))/np.conjugate(G2)
+        mat_sys[3*Nscans:4*Nscans,3] = np.conjugate(f2)/np.conjugate(G2)
+        mat_sys[3*Nscans:4*Nscans,4] = np.conjugate(f2)/np.conjugate(G2)*t
+        mat_sys[3*Nscans:4*Nscans,5] = np.conjugate(f2)/np.conjugate(G2)*t**2
+        mat_sys[3*Nscans:4*Nscans,6] = np.zeros((Nscans))
+        mat_sys[3*Nscans:4*Nscans,7] = np.zeros((Nscans))
+        mat_sys[3*Nscans:4*Nscans,8] = f1*np.conjugate(f2)/np.conjugate(G2)
+        mat_sys[3*Nscans:4*Nscans,9] = np.ones((Nscans))/np.conjugate(G2)
 
 
     #solution with linear least squares
