@@ -2134,7 +2134,117 @@ def solve_single_ratio(dataLoc, which_ratio,ph0=0,use_m=False,m=0, return_raw = 
 
 def inspect_dterms_quality(dataLoc,use_m=False,m=0,use_gains='both',return_raw = True):
     data_solve =prep_df_for_dterms(dataLoc)
-    DT,App, App0 = solve_Dterms(dataLoc,return_raw=True,use_gains=use_gains)
+    DT,App, App0 = solve_Dterms(dataLoc,return_raw=return_raw,use_gains=use_gains)
+    
+    '''
+    DT=np.zeros(5)
+    DTs = solve_LRbyLL_phase(dataLoc)
+    DT[0:3]=DTs
+    '''
+    V1 = np.asarray(data_solve.LRbyLL)
+    V2 = np.asarray(data_solve.LRbyRR)
+    V3 = np.asarray(data_solve.RLbyLL)
+    V4 = np.asarray(data_solve.RLbyRR)
+    
+    lhs1 = np.conjugate(V1)
+    lhs2 = np.conjugate(V2)
+    lhs3 = V3
+    lhs4 = V4
+    Nscans = len(V1)
+
+    if use_gains=='both':
+        rhs1 = App[:Nscans]
+        rhs2 = App[Nscans:2*Nscans]
+        rhs3 = App[2*Nscans:3*Nscans]
+        rhs4 = App[3*Nscans:4*Nscans]
+        rhs1_0 = App0[:Nscans]
+        rhs2_0 = App0[Nscans:2*Nscans]
+        rhs3_0 = App0[2*Nscans:3*Nscans]
+        rhs4_0 = App0[3*Nscans:4*Nscans]
+    elif use_gains==1:
+        rhs2 = App[:Nscans]
+        rhs3 = App[Nscans:2*Nscans]
+        rhs1 = np.zeros(Nscans)
+        rhs4 = np.zeros(Nscans)
+        rhs2_0 = App0[:Nscans]
+        rhs3_0 = App0[Nscans:2*Nscans]
+        rhs1_0 = np.zeros(Nscans)
+        rhs4_0 = np.zeros(Nscans)
+    elif use_gains==2:
+        rhs1 = App[:Nscans]
+        rhs4 = App[Nscans:2*Nscans]
+        rhs2 = np.zeros(Nscans)
+        rhs3 = np.zeros(Nscans)
+        rhs1_0 = App0[:Nscans]
+        rhs4_0 = App0[Nscans:2*Nscans]
+        rhs2_0 = np.zeros(Nscans)
+        rhs3_0 = np.zeros(Nscans)
+
+    fig, ax = plt.subplots(2,2,figsize=(10,10))
+
+    ax[0,0].axvline(0,color='k',linestyle='--')
+    ax[0,0].axhline(0,color='k',linestyle='--')
+    ax[0,0].plot(np.real(lhs1),np.imag(lhs1),'kd',label='data',markersize=12)
+    ax[0,0].plot(np.real(rhs1),np.imag(rhs1),'ro',label='fit')
+    ax[0,0].plot(np.real(rhs1_0),np.imag(rhs1_0),'o',label='fit 0 leakage',markerfacecolor='None',markeredgecolor='b',markeredgewidth=1)
+    ax[0,0].grid()
+    ax[0,0].legend(frameon=True,framealpha = 1.,edgecolor='k')
+    ax[0,0].axis('equal')
+    ax[0,0].set_title('(LR/LL)*')
+    ax[0,0].set_ylabel('Im')
+    ax[0,0].set_xlabel('Re')
+
+    ax[0,1].axvline(0,color='k',linestyle='--')
+    ax[0,1].axhline(0,color='k',linestyle='--')
+    ax[0,1].plot(np.real(lhs2),np.imag(lhs2),'kd',label='data',markersize=12)
+    ax[0,1].plot(np.real(rhs2),np.imag(rhs2),'ro',label='fit')
+    ax[0,1].plot(np.real(rhs2_0),np.imag(rhs2_0),'o',label='fit 0 leakage',markerfacecolor='None',markeredgecolor='b',markeredgewidth=1)
+    ax[0,1].grid()
+    ax[0,1].axis('equal')
+    ax[0,1].set_title('(LR/RR)*')
+    ax[0,1].set_ylabel('Im')
+    ax[0,1].legend(frameon=True,framealpha = 1.,edgecolor='k')
+    ax[0,1].set_xlabel('Re')
+
+    ax[1,0].axvline(0,color='k',linestyle='--')
+    ax[1,0].axhline(0,color='k',linestyle='--')
+    ax[1,0].plot(np.real(lhs3),np.imag(lhs3),'kd',label='data',markersize=12)
+    ax[1,0].plot(np.real(rhs3),np.imag(rhs3),'ro',label='fit')
+    ax[1,0].plot(np.real(rhs3_0),np.imag(rhs3_0),'o',label='fit 0 leakage',markerfacecolor='None',markeredgecolor='b',markeredgewidth=1)
+    ax[1,0].grid()
+    ax[1,0].axis('equal')
+    ax[1,0].set_title('RL/LL')
+    ax[1,0].set_ylabel('Im')
+    ax[1,0].legend(frameon=True,framealpha = 1.,edgecolor='k')
+    ax[1,0].set_xlabel('Re')
+
+
+    ax[1,1].axvline(0,color='k',linestyle='--')
+    ax[1,1].axhline(0,color='k',linestyle='--')
+    ax[1,1].plot(np.real(lhs4),np.imag(lhs4),'kd',label='data',markersize=12)
+    ax[1,1].plot(np.real(rhs4),np.imag(rhs4),'ro',label='fit')
+    ax[1,1].plot(np.real(rhs4_0),np.imag(rhs4_0),'o',label='fit 0 leakage',markerfacecolor='None',markeredgecolor='b',markeredgewidth=1)
+    ax[1,1].grid()
+    ax[1,1].axis('equal')
+    ax[1,1].set_title('RL/RR')
+    ax[1,1].set_ylabel('Im')
+    ax[1,1].set_xlabel('Re')
+    ax[1,1].legend(frameon=True,framealpha = 1.,edgecolor='k')
+    #leg = legend.get_frame()
+    #leg.set_facecolor('white')
+    ax[0,0].grid()
+    ax[0,1].grid()
+    ax[1,0].grid()
+    ax[1,1].grid()
+    plt.show()
+
+
+def inspect_dterms_quality_no_recompute(dataLoc,solut,use_m=False,m=0,use_gains='both',return_raw = True):
+    data_solve =prep_df_for_dterms(dataLoc)
+    DT=solut[0]
+    App=solut[1]
+    App0=solut[2]
+    #DT,App, App0 = solve_Dterms(dataLoc,return_raw=return_raw,use_gains=use_gains)
     
     '''
     DT=np.zeros(5)
@@ -2240,7 +2350,6 @@ def inspect_dterms_quality(dataLoc,use_m=False,m=0,use_gains='both',return_raw =
 
 
 
-
 def solve_Dterms_quadratic(dataLoc,ph0=0, return_raw = True, use_gains='both'):
     
     p = np.exp(1j*ph0)
@@ -2329,7 +2438,7 @@ def solve_Dterms_quadratic(dataLoc,ph0=0, return_raw = True, use_gains='both'):
     ApproxVal_no_leakage = mat_sys.dot(Dterms_no_leakage)
 
     if return_raw==False:
-        D_out = [Dterms[0]/p, np.conjugate(Dterms[1]/p), Dterms[2]/p, Dterms[3]/p, np.conjugate(Dterms[4]/p)]
+        D_out = [Dterms[0]/p,Dterms[1]/p,Dterms[2]/p,Dterms[3]/p,Dterms[4]/p,Dterms[5]/p, np.conjugate(Dterms[6]/p), Dterms[7]/p, Dterms[8]/p, np.conjugate(Dterms[9]/p)]
         return D_out, ApproxVal, ApproxVal_no_leakage, Ntot, (ApproxVal-Yvec)
     else:
         #print('Raw Dterms')
