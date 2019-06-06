@@ -166,18 +166,18 @@ def baselines2triangles(basel):
     tri = [''.join(sorted(list(set(''.join(x))))) for x in basel]
     return tri
 
-def all_bispectra(alist,phase_type='resid_phas',debias_snr=False,match_by_scan=False):
+def all_bispectra(alist,phase_type='resid_phas',debias_snr=False,match_by_scan=False,verbose=False):
     polars=[]
     if phase_type in alist.columns:
         try:
-            bsp_LL = all_bispectra_polar(alist,'LL',phase_type,debias_snr=debias_snr,match_by_scan=match_by_scan)
+            bsp_LL = all_bispectra_polar(alist,'LL',phase_type,debias_snr=debias_snr,match_by_scan=match_by_scan,verbose=verbose)
             polars=polars+['LL']
         except: pass
         try:
-            bsp_RR = all_bispectra_polar(alist,'RR',phase_type,debias_snr=debias_snr,match_by_scan=match_by_scan)
+            bsp_RR = all_bispectra_polar(alist,'RR',phase_type,debias_snr=debias_snr,match_by_scan=match_by_scan,verbose=verbose)
             polars=polars+['RR']
         except: pass
-        print('polarz', polars)
+        if verbose: print('polarz', polars)
         if len(polars)==2:
             bsp = pd.concat([bsp_LL,bsp_RR],ignore_index=True)
         elif polars[0]=='LL':
@@ -187,7 +187,7 @@ def all_bispectra(alist,phase_type='resid_phas',debias_snr=False,match_by_scan=F
     else:
         print('Wrong name for the phase column!')
 
-def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_snr=False,match_by_scan=False):
+def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_snr=False,match_by_scan=False,verbose=False):
     '''
     match_by_scan: option to only use scan_id rather than timestamp to find triplets of phases to form closure phases
     should only be used for scan-averaged data
@@ -231,7 +231,7 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_sn
     for cou in range(len(triL)):
         
         Tri = tri_baseL[cou]
-        print(Tri)
+        if verbose: print(Tri)
         signat = sgnL[cou]
         #print(Tri)
         condB1 = (alist['baseline']==Tri[0])
@@ -275,7 +275,7 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_sn
         #bsp.loc[:,'snr'] = bsp.loc[:,'amp']/bsp.loc[:,'sigma']
         bsp.loc[:,'sigmaCP'] = 1./bsp.loc[:,'snr']*180./np.pi #deg
         bsp_out = pd.concat([bsp_out, bsp])
-        print(triL[cou]+': '+str(np.shape(bsp)[0])+' closure phases')
+        if verbose: print(triL[cou]+': '+str(np.shape(bsp)[0])+' closure phases')
     #print(bsp_out.columns)
     bsp_out = bsp_out.reset_index()
     #print(bsp_out.columns)
