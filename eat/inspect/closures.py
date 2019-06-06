@@ -390,7 +390,7 @@ def debias_A_sig(A,sigma):
 #def all_quads(alist,tavg='scan',debias=True):
 
 
-def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_scan=False):
+def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_scan=False,verbose=False):
     '''
     This one used!
     ctype = 'camp' or 'logcamp'
@@ -437,7 +437,7 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
         condB3 = (alist['baseline']==Quad[3])
         condB = condB0|condB1|condB2|condB3
         alist_Quad = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline','polarization','amp','snr','gmst','band','amps','snrs','snr1','snr2','snr3','snr4','sigma']]
-        print(Quad, np.shape(alist_Quad)[0])
+        if verbose: print(Quad, np.shape(alist_Quad)[0])
         #throw away times without full quadrangle
         if match_by_scan:
             tlist = alist_Quad.groupby(['polarization','band','scan_id']).filter(lambda x: len(x) == 4)
