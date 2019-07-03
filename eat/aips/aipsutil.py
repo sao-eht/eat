@@ -57,7 +57,7 @@ class AIPSUVData_common(object):
         Nscan = len(NXtab)
 
         # calc timerang
-        keys = NXtab[0].keys()
+        keys = list(NXtab[0].keys())
         scantimes = []
         for iscan in range(Nscan):
             t= NXtab[iscan]["time"]  # Central time of each scan (day)
@@ -89,13 +89,13 @@ class AIPSUVData_common(object):
         self.clrstat()
         if type(tables[0]) == type([]):
             for table in tables:
-                print("Zap %s #%d"%(table[1], table[0]))
+                print(("Zap %s #%d"%(table[1], table[0])))
                 self.zap_table(table[1], table[0])
         elif type(tables[0]) == type(""):
-            print("Zap %s #%d"%(tables[0], tables[1]))
+            print(("Zap %s #%d"%(tables[0], tables[1])))
             self.zap_table(tables[0], tables[1])
         elif type(tables[0]) == type(1):
-            print("Zap %s #%d"%(tables[1], tables[0]))
+            print(("Zap %s #%d"%(tables[1], tables[0])))
             self.zap_table(tables[1], tables[0])
 
     def uvdataname(self):
@@ -207,7 +207,7 @@ class AIPSTask(AIPSTask, object):
             print('[WARNING] This AIPS task does not have adverbs of geton')
 
     def set_params(self, **args):
-        keys = args.keys()
+        keys = list(args.keys())
         for key in keys:
             try:
                 getattr(self, key)
@@ -239,7 +239,7 @@ class AIPSTask(AIPSTask, object):
             if attr in dirs:
                 filename = self.__getattribute__(attr)
                 if filename == "":
-                    print("CHECK: %s is blank"%(attr))
+                    print(("CHECK: %s is blank"%(attr)))
                 else:
                     if not os.path.isfile(filename):
                         errmsg = "%s='%s' cannot be found."%(attr,filename)
@@ -251,13 +251,13 @@ class AIPSTask(AIPSTask, object):
             if attr in dirs:
                 filename = self.__getattribute__(attr)
                 if filename == "":
-                    print("CHECK: %s is blank"%(attr))
+                    print(("CHECK: %s is blank"%(attr)))
                 else:
                     if os.path.isfile(filename) and overwrite:
                         command = "rm -f %s"%(filename)
-                        print("CHECK: %s"%(command))
+                        print(("CHECK: %s"%(command)))
                         os.system(command)
-                        print("CHECK: %s was deleted."%(filename))
+                        print(("CHECK: %s was deleted."%(filename)))
 
         # TV
         if 'dotv' in dirs:
@@ -308,7 +308,7 @@ def setuser(userno):
     Args:
         userno (int): AIPS USER NO
     '''
-    print("AIPS User No.: %d"%(userno))
+    print(("AIPS User No.: %d"%(userno)))
     AIPS.userno=int(userno)
 
 def pcat(output=False, doprint=True, disk=1):
@@ -339,10 +339,10 @@ def pcat(output=False, doprint=True, disk=1):
 
     if doprint:
         if len(catlist) == 0:
-            if doprint: print("pcat: disk=%d is empty."%(disk))
+            if doprint: print(("pcat: disk=%d is empty."%(disk)))
         else:
             for catdata in catlist:
-                print("%3d: %12s.%6s.%3d.%3d %s %s %s"%(
+                print(("%3d: %12s.%6s.%3d.%3d %s %s %s"%(
                         catdata["cno"],
                         catdata["name"],
                         catdata["klass"],
@@ -350,7 +350,7 @@ def pcat(output=False, doprint=True, disk=1):
                         disk,
                         catdata["type"],
                         catdata["time"],
-                        catdata["date"]))
+                        catdata["date"])))
 
     if output:
         return catlist
@@ -389,10 +389,10 @@ def zap(uvdata):
     '''
     # delete AIPS data from catalogue
     if uvdata.exists():
-        print("zap %s."%(uvdata.uvdataname()))
+        print(("zap %s."%(uvdata.uvdataname())))
         uvdata.zap(force=True)
     else:
-        print("%s does not exist."%(uvdata.uvdataname()))
+        print(("%s does not exist."%(uvdata.uvdataname())))
 
 
 # ------------------------------------------------------------------------------

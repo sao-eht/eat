@@ -113,14 +113,14 @@ def ehtfgin(indata, fgtab, outfgver=-1, unflag=False):
         ant1 = tab["ant1"].upper()
         ant2 = tab["ant2"].upper()
         if ant1 not in ants:
-            print("Antenna %s is not in uvdata"%(ant1))
+            print(("Antenna %s is not in uvdata"%(ant1)))
             continue
         else:
             for iant1 in np.arange(Nant):
                 if ant1 == ants[iant1]:
                     break
         if ant2 not in ants:
-            print("Antenna %s is not in uvdata"%(ant2))
+            print(("Antenna %s is not in uvdata"%(ant2)))
             continue
         else:
             for iant2 in np.arange(Nant):
@@ -278,12 +278,12 @@ def mkfitsloader(fitsdir, outdir, filename="loader.fits", skipna=True, skip31if=
     fitsfiles = pd.DataFrame(fitsfiles, columns=["datetime", "fitsfile"])
     fitsfiles = fitsfiles.sort_values(by="datetime").reset_index(drop=True)
     Nfile = len(fitsfiles.fitsfile)
-    print("  - %d FITS files are found"%(Nfile))
+    print(("  - %d FITS files are found"%(Nfile)))
     print(fitsfiles)
     
     os.system("mkdir -p %s"%(outdir))
     os.system("rm -rf %s*"%(os.path.join(outdir,filename)))
-    for i in tqdm(xrange(Nfile), bar_format="Creating symbolic links: "+r'{l_bar}{bar}{r_bar}'):
+    for i in tqdm(range(Nfile), bar_format="Creating symbolic links: "+r'{l_bar}{bar}{r_bar}'):
         orgfile = os.path.relpath(fitsfiles.loc[i, "fitsfile"], start=outdir)
         lnfile = "%s%d"%(filename,i+1)
         os.system("cd %s; ln -s %s %s"%(outdir, orgfile, lnfile))
@@ -388,7 +388,7 @@ def ehtancor(indata, inver=0, datain=""):
     for ian in range(Nan):
         anname = annames[ian]
         if anname not in annames_tab:
-            print("[WARNING] No correction info for the station %s"%(anname))
+            print(("[WARNING] No correction info for the station %s"%(anname)))
             continue
         mntsta = cortable.loc[cortable["ANNAME"]==anname,"MNTSTA"].reset_index(drop=True)[0]
         #
