@@ -244,7 +244,7 @@ def xyz_2_latlong(obsvecs):
     #if out.shape[0]==1: out = out[0]
     return out
 
-def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic',err_scale=1.):
+def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic',err_scale=1.,skip_fluxcal=False):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
@@ -337,12 +337,16 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             print ("No Calibration  Data for %s !" % site)
             continue
 
-        time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
+        if skip_fluxcal: #if we don't do flux calibration don't waste time on serious interpolating
+            rinterp[site] = scipy.interpolate.interp1d([0],[1],kind='zero',fill_value='extrapolate')
+            linterp[site] = scipy.interpolate.interp1d([0],[1],kind='zero',fill_value='extrapolate')
 
-        rinterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['rscale'],
-                                                   kind=interp, fill_value=fill_value)
-        linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'],
-                                                   kind=interp, fill_value=fill_value)
+        else: #default option, create interpolating station based SEFD gains
+            time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
+            rinterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['rscale'],
+                                                    kind=interp, fill_value=fill_value)
+            linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'],
+                                                    kind=interp, fill_value=fill_value)
 
 
 
@@ -637,7 +641,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
             continue
 
         outname = outdir + '/' + os.path.basename(uvfitsfile).replace('.uvfits', ident+'.apriori.uvfits')
-        apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=err_scale)
+        apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=interp, extrapolate=extrapolate,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=err_scale,skip_fluxcal=skip_fluxcal)
         print("Saved calibrated data to ", outname)
     print("---------------------------------------------------------")
     print("---------------------------------------------------------")
@@ -722,7 +726,7 @@ if __name__=='__main__':
     else:
         outdir = OUTDIR_DEFAULT
 
-    skip_fluxcal = False
+    skip_fluxcal = False #if True then only perform field rotation correction
     if "--skip_fluxcal" in sys.argv: skip_fluxcal = True
 
     main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate,sqrt_gains=sqrt_gains,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=1.,skip_fluxcal=skip_fluxcal)
