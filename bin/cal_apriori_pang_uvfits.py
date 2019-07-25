@@ -53,7 +53,10 @@ station_dic = {'ALMA':'AA', 'A':'AA','AA':'AA',
             'OV':'OV','YS':'YS','EB':'EB'
             }
 
-station_frot = {'PV':(1,-1,0),'AZ':(1,1,0),'SM':(1,-1,np.pi/4.),'LM': (1,-1,0),'AA':(1,0,0),'SP':(1,0,0),'AP':(1,1,0),'JC':(1,0,0),'SR':(1,-1,np.pi/4.),'GB':(1,0,0)}
+station_frot = {'PV':(1,-1,0),'AZ':(1,1,0),'SM':(1,-1,np.pi/4.),'LM': (1,-1,0),
+                'AA':(1,0,0),'SP':(1,0,0),'AP':(1,1,0),'JC':(1,0,0),'SR':(1,-1,np.pi/4.),
+                'GB':(1,0,0),'FD':(1,0,0),'PT':(1,0,0),'LA':(1,0,0),'KP':(1,0,0),
+                'MK':(1,0,0),'BR':(1,0,0),'NL':(1,0,0),'OV':(1,0,0),'YS':(1,0,0),'EB':(1,0,0)}
 
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
 DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
@@ -125,7 +128,7 @@ class Caltable(object):
         return new_caltable
 
 
-def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
+def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False):
     """Load apriori cal tables
     """
 
@@ -144,76 +147,83 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False ):
 
         site = tarr[s]['site']
 
-        # AIPS can only handle 8-character source name so "source" may
-        # be truncated.  Therefore, we match a pattern (note the "*")
-        # and proceed only if there is one match
-        pattern   = tabledir + "/" + source + '*_' + site + '.txt'
-        filenames = glob.glob(pattern)
-        if len(filenames) == 1:
-            try:
-                data = np.loadtxt(filenames[0], dtype=bytes).astype(str)
-            except IOError:
-                print("CORRUPTED FILE: " + filenames[0])
-                continue
+        if skip_fluxcal: #mocking SEFDs equal to 1.0 spread across the day
 
-            filename_source = filenames[0].\
-                replace(tabledir+'/', '').\
-                replace('_'+site+'.txt', '')
-            if source != filename_source:
-                print('WARNING: the filename indicates a different source name')
-                if filename_source.startswith(source):
-                    print('which is probably due to AIPS source name truncation,'+
-                          ' use the full name "'+filename_source+'"instead')
-                    source = filename_source
-        elif len(filenames) == 0:
-            print("NO FILE MATCHING: " + pattern)
-            continue
-        else:
-            print("MULTIPLE FILES MATCHING: " + pattern)
-            continue
+            datatable = []
+            for time in np.linspace(0.,24.,100):
+                datatable.append(np.array((time, 1.0, 1.0), dtype=DTCAL))
 
-        datatable = []
+        else: # getting SEFDS from files
+            # AIPS can only handle 8-character source name so "source" may
+            # be truncated.  Therefore, we match a pattern (note the "*")
+            # and proceed only if there is one match
+            pattern   = tabledir + "/" + source + '*_' + site + '.txt'
+            filenames = glob.glob(pattern)
+            if len(filenames) == 1:
+                try:
+                    data = np.loadtxt(filenames[0], dtype=bytes).astype(str)
+                except IOError:
+                    print("CORRUPTED FILE: " + filenames[0])
+                    continue
 
-        # ANDREW HACKY WAY TO MAKE IT WORK WITH ONLY ONE ENTRY
-        onerowonly=False
-        try: data.shape[1]
-        except IndexError:
-            data = data.reshape(1,len(data))
-            onerowonly = True
-        for row in data:
-
-            time = (float(row[0]) - mjd) * 24.0 # time is given in mjd
-
- #            # Maciek's old convention had a square root
- #           rscale = np.sqrt(float(row[1])) # r
- #           lscale = np.sqrt(float(row[2])) # l
-
-            if len(row) == 3:
-                rscale = float(row[1])
-                lscale = float(row[2])
-            elif len(row) == 5:
-                rscale = float(row[1]) + 1j*float(row[2])
-                lscale = float(row[3]) + 1j*float(row[4])
-            else:
-                raise Exception("cannot load caltable -- format unknown!")
-            if sqrt_gains:
-                rscale = rscale**.5
-                lscale = lscale**.5
-            #ANDREW THERE ARE ZERO VALS IN THE CALTABLE
-            if rscale==0. and lscale==0.:
+                filename_source = filenames[0].\
+                    replace(tabledir+'/', '').\
+                    replace('_'+site+'.txt', '')
+                if source != filename_source:
+                    print('WARNING: the filename indicates a different source name')
+                    if filename_source.startswith(source):
+                        print('which is probably due to AIPS source name truncation,'+
+                            ' use the full name "'+filename_source+'"instead')
+                        source = filename_source
+            elif len(filenames) == 0:
+                print("NO FILE MATCHING: " + pattern)
                 continue
             else:
-                datatable.append(np.array((time, rscale, lscale), dtype=DTCAL))
-            #ANDREW HACKY WAY TO MAKE IT WORK WITH ONLY ONE ENTRY
-            if onerowonly:
-                datatable.append(np.array((1.1*time, rscale, lscale), dtype=DTCAL))
+                print("MULTIPLE FILES MATCHING: " + pattern)
+                continue
+
+            datatable = []
+
+            # ANDREW HACKY WAY TO MAKE IT WORK WITH ONLY ONE ENTRY
+            onerowonly=False
+            try: data.shape[1]
+            except IndexError:
+                data = data.reshape(1,len(data))
+                onerowonly = True
+            for row in data:
+
+                time = (float(row[0]) - mjd) * 24.0 # time is given in mjd
+
+    #            # Maciek's old convention had a square root
+    #           rscale = np.sqrt(float(row[1])) # r
+    #           lscale = np.sqrt(float(row[2])) # l
+
+                if len(row) == 3:
+                    rscale = float(row[1])
+                    lscale = float(row[2])
+                elif len(row) == 5:
+                    rscale = float(row[1]) + 1j*float(row[2])
+                    lscale = float(row[3]) + 1j*float(row[4])
+                else:
+                    raise Exception("cannot load caltable -- format unknown!")
+                if sqrt_gains:
+                    rscale = rscale**.5
+                    lscale = lscale**.5
+                #ANDREW THERE ARE ZERO VALS IN THE CALTABLE
+                if rscale==0. and lscale==0.:
+                    continue
+                else:
+                    datatable.append(np.array((time, rscale, lscale), dtype=DTCAL))
+                #ANDREW HACKY WAY TO MAKE IT WORK WITH ONLY ONE ENTRY
+                if onerowonly:
+                    datatable.append(np.array((1.1*time, rscale, lscale), dtype=DTCAL))
 
         datatables[site] = np.array(datatable)
 
-    if len(datatables)>0:
-        caltable = Caltable(ra, dec, rf, bw, datatables, tarr, source=source, mjd=mjd, timetype='UTC')
-    else:
+    if (len(datatables)<=0)&(skip_fluxcal==False):#only if no SEFD files available and we don't want just field rotation
         caltable=False
+    else: #other cases, either we want flux and we do have SEFDs, or we want to skip fluxcal
+        caltable = Caltable(ra, dec, rf, bw, datatables, tarr, source=source, mjd=mjd, timetype='UTC')
     return caltable
 
 def xyz_2_latlong(obsvecs):
@@ -590,7 +600,7 @@ def get_elev_2(obsvecs, sourcevec):
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
 def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
-         interp='linear', extrapolate=True, ident='',sqrt_gains=False, frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic',err_scale=1.):
+         interp='linear', extrapolate=True, ident='',sqrt_gains=False, frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic',err_scale=1.,skip_fluxcal=False):
 
     print("********************************************************")
     print("*********************CALUVFITS**************************")
@@ -621,7 +631,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
             datastruct_ehtim.obs_info.src = tok[2]
 
         tarr = datastruct_ehtim.antenna_info
-        caltable = load_caltable_ds(datastruct_ehtim, caldir,sqrt_gains=sqrt_gains)
+        caltable = load_caltable_ds(datastruct_ehtim, caldir,sqrt_gains=sqrt_gains,skip_fluxcal=skip_fluxcal)
         if caltable==False:
             print("couldn't find caltable in " + caldir + " for " + source + "!!")
             continue
@@ -712,4 +722,7 @@ if __name__=='__main__':
     else:
         outdir = OUTDIR_DEFAULT
 
-    main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate,sqrt_gains=sqrt_gains,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=1.)
+    skip_fluxcal = False
+    if "--skip_fluxcal" in sys.argv: skip_fluxcal = True
+
+    main(datadir=datadir, outdir=outdir, caldir=caldir, ident=ident, interp=interp, extrapolate=extrapolate,sqrt_gains=sqrt_gains,frotcal=frotcal,elev_function=elev_function,interp_dt=interp_dt,elev_interp_kind=elev_interp_kind,err_scale=1.,skip_fluxcal=skip_fluxcal)
