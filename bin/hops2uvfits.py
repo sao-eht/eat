@@ -1311,7 +1311,8 @@ def save_uvfits(datastruct, fname):
     hdulist.append(tbhdu)
 
     # Write final HDUList to file
-    hdulist.writeto(fname, clobber=True)
+    #hdulist.writeto(fname, clobber=True)#this is deprecated and changed to overwrite
+    hdulist.writeto(fname, overwrite=True)
 
     return 0
 
