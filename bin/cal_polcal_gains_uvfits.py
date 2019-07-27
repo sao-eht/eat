@@ -48,10 +48,17 @@ station_dic = {'ALMA':'AA', 'A':'AA','AA':'AA',
             'SPT':'SP','Y':'SP','SP':'SP',
             'JCMT':'JC','J':'JC','JC':'JC',
             'SMAP':'SM','S':'SM','SMAR':'SM','SMA':'SM','SM':'SM',
-            'SMAR':'SR','R':'SR','SMR':'SR','SR':'SR'}
+            'SMAR':'SR','R':'SR','SMR':'SR','SR':'SR',
+            'GBT': 'GB','FD': 'FD','PT':'PT','LA':'LA', 
+            'KP':'KP', 'MK':'MK', 'BR':'BR', 'NL':'NL',
+            'OV':'OV','YS':'YS','EB':'EB'
+            }
 
-station_frot = {'PV':(1,-1,0),'AZ':(1,1,0),'SM':(1,-1,np.pi/4.),'LM': (1,-1,0),'AA':(1,0,0),'SP':(1,0,0),'AP':(1,1,0),'JC':(1,0,0),'SR':(1,-1,np.pi/4.)}
-
+station_frot = {'PV':(1,-1,0),'AZ':(1,1,0),'SM':(1,-1,np.pi/4.),'LM': (1,-1,0),
+                'AA':(1,0,0),'SP':(1,0,0),'AP':(1,1,0),'JC':(1,0,0),'SR':(1,-1,np.pi/4.),
+                'GB':(1,0,0),'FD':(1,0,0),'PT':(1,0,0),'LA':(1,0,0),'KP':(1,0,0),
+                'MK':(1,0,0),'BR':(1,0,0),'NL':(1,0,0),'OV':(1,0,0),'YS':(1,0,0),'EB':(1,0,0)}
+                
 BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
 DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
 DTCAL = [('time','f8'), ('rscale','c16'), ('lscale','c16')]
