@@ -71,10 +71,12 @@ sites = """
 A ALMA
 X APEX
 L LMT
-S SMAP
+S SMA
 R SMAR
+J JCMT
 Z SMT
-P Pico
+P PV
+Y SPT
 """
 sdict = dict((line.strip().split() for line in sites.strip().split('\n')))
 
@@ -436,7 +438,7 @@ def expmean(x, s=8, n=4): # robust mean of exponential distribution
 def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None, None),
                dt=2, df=None, ni=1, ret=False, showhops=False,
                delay_off=0., rate_off=0., flip=False, segment=(None, None), channels=(None,None),
-               pol=None, unrotate_212=True, replacedata=None, cf=None):
+               pol=None, unrotate_212=True, replacedata=None, cf=None, aspect=None):
     b = getfringefile(fringefile, pol=pol)
     p = params(b, cf=cf)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
@@ -520,7 +522,7 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
     T = ap * v.shape[1]
     fwhm_delay = 1e3 / BW # ns
     fwhm_rate = 1e6 / T / p.ref_freq # ps/s
-    aspect = abs(fwhm_delay / fwhm_rate)
+    aspect = aspect if aspect is not None else abs(fwhm_delay / fwhm_rate)
     fringepow = np.abs(fringevis)**2 # fringe power before incoherent averaging
     fringepow = fringepow / (0.5 * expmean(fringepow.ravel())) # normalize to snr=1 for noise
     fringepow = np.sum(fringepow, axis=0) # the incoherent average of fringe power
@@ -709,18 +711,19 @@ def vecplot(vs, dtvec, dfvec, delay, rate, ref_freq, dt=1, df=1):
     vrot = vrot[:nt,:]
     vrot = vrot.reshape((nt//dt, dt, nf//df, df))
     vrot = vrot.sum(axis=(1, 3)) # stack on time, and frequency decimation factors
-    plt.plot([0,0], [vrot.re, vrot.im], 'b.-', alpha=0.25)
+    plt.plot([0,0], [vrot.real, vrot.imag], 'b.-', alpha=0.25)
     vtot = np.sum(vrot) / len(vrot.ravel())
-    plt.plot([0,0], [vtot.re, vtot.im], 'r.-', lw=2, ms=4, alpha=1.0)
+    plt.plot([0,0], [vtot.real, vtot.imag], 'r.-', lw=2, ms=4, alpha=1.0)
 
-def timeseries(bs, dt=1, pol=None, kind=212, cf=None, delay=None, rate=None):
+def timeseries(bs, dt=1, pol=None, kind=212, cf=None, delay=None, rate=None, ret=False):
     if not hasattr(bs, '__iter__'):
         bs = [bs,]
     nrow = len(bs)
     for (i, b) in enumerate(bs):
         b = getfringefile(b, pol=pol)
         p = params(b, cf=cf)
-        plt.subplot(nrow, 1, 1+i)
+        if len(bs) > 1:
+            plt.subplot(nrow, 1, 1+i)
         if kind == 212:
             v = pop212(b).mean(axis=1) # stack over channels
         elif kind == 120:
@@ -742,20 +745,23 @@ def timeseries(bs, dt=1, pol=None, kind=212, cf=None, delay=None, rate=None):
         plt.plot(t, amp, 'b.-')
         plt.ylim(0, plt.ylim()[1])
         # plt.gca().set_yticklabels([])
-        plt.ylabel('amp [1e-4]', color='blue')
+        plt.ylabel('amp (1e-4)', color='blue')
+        plt.xlabel('time (s)')
         plt.twinx()
         plt.plot(t, phase, 'r.-')
         plt.ylim(-np.pi, np.pi)
         # plt.gca().set_yticklabels([])
-        plt.ylabel('phase [rad]', color='red')
+        plt.ylabel('phase (rad)', color='red')
         putil.rmgaps(1e6, 2.0)
         plt.xlim(t[0] - dt*p.ap/2., t[-1] + dt*p.ap/2.)
-        plt.xlabel('time [s]')
         plt.gca().add_artist(AnchoredText(p.baseline + ' (' + p.pol + ')', loc=3, frameon=False, borderpad=0))
         plt.gca().add_artist(AnchoredText(p.timetag + ' (' + p.source + ')', loc=4, frameon=False, borderpad=0))
     plt.setp(plt.gcf(), figwidth=8, figheight=2+nrow)
     plt.tight_layout()
-    plt.subplots_adjust(hspace=0)
+    if len(bs) > 1:
+        plt.subplots_adjust(hspace=0)
+    if ret:
+        return (t, amp, phase)
 
 # calculate delay at each AP using type120 data
 def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None, fix_outliers=True, kind=120):
@@ -922,7 +928,8 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         tcoh = tcoh or 6.0 * (220e3 / p.ref_freq) * 2./alpha
 
     if bowlfix and p is not None:
-        rfdict = {'A':-0.2156, 'X':0.163} # ps/s
+        # rfdict = {'A':-0.2156, 'X':0.163} # ps/s
+        rfdict = {'X':0.163} # ps/s (ALMA fixed after Rev7)
         ratefix = rfdict.get(p.baseline[1], 0) - rfdict.get(p.baseline[0], 0)
         ratefix_phase = 2*np.pi * p.dfvec[212][None,:] * p.dtvec[:,None] * ratefix*1e-6
         v = v * np.exp(-1j * ratefix_phase) # take bowl effect out of visibs before adhoc phasing
@@ -1425,7 +1432,7 @@ def hiloplot(p, baselines=slice(None), polarizations=slice(None)):
 # restarts[site] = [pd.Timestamp list of clock resets]
 # assume additional clock reset at 21:00 UT for all sites = boundary [h]
 def rrll_segmented(a, restarts={}, boundary=21,
-                   index="ref_freq expt_no scan_id scan_no source timetag".split()):
+                   index="ref_freq expt_no scan_id scan_no source timetag".split(), aggfunc='first'):
     """rrll_segmented: general RR-LL delay statistics given alist data
 
     Args:
@@ -1461,10 +1468,11 @@ def rrll_segmented(a, restarts={}, boundary=21,
     # for indexing, lose meta-info about right or left closed segment -- too bad
     b['start'] = b.segment.apply(lambda x: x.left)
     b['stop'] = b.segment.apply(lambda x: x.right)
-    p = b.pivot_table(aggfunc='first', index=['start', 'stop', 'baseline'] + index,
-        columns=['polarization'], values=['mbd_unwrap', 'mbd_err']).dropna()
+    p = b.pivot_table(aggfunc=aggfunc, index=['start', 'stop', 'baseline'] + index,
+        columns=['polarization'], values=['length', 'snr', 'mbd_unwrap', 'mbd_err']).dropna()
     p.reset_index(index, inplace=True)
     p['LLRR'] = p.mbd_unwrap.RR - p.mbd_unwrap.LL
+    p['LLRR_snr'] = np.sqrt(p.snr.RR**2 + p.snr.LL**2)
     p['LLRR_err'] = np.sqrt(p.mbd_err.RR**2 + p.mbd_err.LL**2)
     rrll_stats = p.groupby(['start', 'stop', 'baseline']).apply(lambda df:
         pd.Series(wavg(df.LLRR, df.LLRR_err,
@@ -1563,7 +1571,7 @@ def delayplot(df, site, offs={}, vlines=[]):
     pu.multline(vlines)
 
 # function to convert delay offsets table row to control code element
-def doff2cf(row, nchan=32):
+def doff2cf(row, nchan=32, ref='L'):
     """doff2cf: convert delay offsets table row to control file codes
 
     Args:
@@ -1580,13 +1588,14 @@ def doff2cf(row, nchan=32):
     start_tt = util.dt2tt(datetime.datetime.strptime(str(row.start), fmt) - onesec)
     stop_tt =  util.dt2tt(datetime.datetime.strptime(str(row.stop), fmt) + onesec)
     codes = lex[:nchan]
-    delay = -row.LR_delay * 1e3 # convert from us to ns, undo measured R-L
+    rem = 'r' if ref == 'L' else 'l'
+    delay = (-1. if ref=='L' else 1.0) * row.LR_delay * 1e3 # convert from us to ns, undo measured R-L
     delay_offs = ' '.join(["%.4f" % delay] * nchan)
     cf = """
 if station %s and scan %s to %s
-    delay_offs_r %s %s
-    pc_delay_r %.4f
-""" % (row.site, start_tt, stop_tt, codes, delay_offs, delay)
+    delay_offs_%s %s %s
+    pc_delay_%s %.4f
+""" % (row.site, start_tt, stop_tt, rem, codes, delay_offs, rem, delay)
     return cf
 
 # function to create control codes from ALMA SBD-MBD offset measurement where ALMA is ref station
@@ -1617,7 +1626,7 @@ def sbdmbd2cf(row):
 # df: averaging num channels
 # pol: pol filter for ff wildcard
 # almaref: if ALMA not in ff, use ALMA to reference adhoc phases withou freq slicing
-def vecphase(ff, doadhoc=True, dt=30, df=4, pol=None, almaref=True, replacedata=None):
+def vecphase(ff, doadhoc=True, dt=30, df=4, pol=None, almaref=True, replacedata=None, bowlfix=True):
     b = getfringefile(ff, quiet=True, pol=pol)
     p = params(b)
     v = pop212(b) if replacedata is None else replacedata
@@ -1630,7 +1639,7 @@ def vecphase(ff, doadhoc=True, dt=30, df=4, pol=None, almaref=True, replacedata=
             ahrot = np.exp(-1j*(ah2.phase.mean(axis=1)-ah1.phase.mean(axis=1))*np.pi/180)
             ahrot *= p.trot.conj() * p1.trot.conj() * p2.trot
         else:
-            ah = adhoc(ff)
+            ah = adhoc(ff, bowlfix=bowlfix)
             ahrot = np.exp(-1j*ah.phase.mean(axis=1)*np.pi/180)
         v = v * ahrot[:,None]
     v = v * np.exp(-1j*np.angle(np.mean(v)))
@@ -1700,19 +1709,25 @@ hoffs={
 # offs: dict of offsets by site, if REM will be subtracted from baseline value
 # site: use only baselines including station and set as REM station
 # col: column in data frame to plot
-def trendplot(df, site='', offs={}, col='sbdelay', vlines=None, **kwargs):
+# bltrans: function that takes baseline and converts to a legend label
+# rem: make site REM if True
+# tag: put site tag on
+def trendplot(df, site='', offs={}, col='sbdelay', vlines=None, bltrans=lambda bl: bl, rem=True, tag=True, **kwargs):
     from ..plots import util as pu
     from matplotlib.legend import Legend
     mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_')))
     b = df[df.baseline.str.contains(site)].copy()
-    flip(b, b.baseline.str[0] == site)
+    if rem is True:
+        flip(b, b.baseline.str[0] == site)
+    elif rem is False:
+        flip(b, b.baseline.str[1] == site)
     color = dict(zip(sorted(set(b.baseline)),
            itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])))
     lines = []
     labels = []
     for (name, rows) in b.groupby(['baseline', 'polarization']):
         (bl, pol) = name
-        label = bl if pol == 'LL' else '_nolegend_'
+        label = bltrans(bl) if pol == 'LL' else '_nolegend_'
         offset = np.array([offs.get((bl[1], expt), 0.) - offs.get((bl[0], expt), 0.)
                            for expt in rows.expt_no])
         val = (1e3 if ('mbd' in col or 'sbd' in col or 'delay' in col) and (not 'rate' in col) else 1.) * rows[col]
@@ -1725,7 +1740,8 @@ def trendplot(df, site='', offs={}, col='sbdelay', vlines=None, **kwargs):
     plt.ylabel('%s' % col)
     plt.xlim(0, plt.xlim()[1]*1.06)
     plt.legend(loc='upper right')
-    putil.tag('%s' % site, loc='upper left')
+    if tag:
+        putil.tag('%s' % site, loc='upper left')
     plt.grid(alpha=0.25)
     if vlines is None:
         vlines = df.scan_no.sort_values().values[np.nonzero(np.diff(df.expt_no.sort_values()) > 0)[0]] + 0.5
