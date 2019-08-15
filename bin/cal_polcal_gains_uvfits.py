@@ -155,7 +155,9 @@ def apply_caltable_uvfits(gaincaltable, datastruct, filename_out,cal_amp=False):
 
     for cou, row in gains.iterrows():
         polygain[row.station] = poly_from_str(str(row.ratio_phas))
-        mjd_start[row.station] = row.mjd_start
+        #if mjd0 provided, use it as mjd time reference offset, otherwise use mjd_start
+        try: mjd_start[row.station] = row.mjd0
+        except AttributeError: mjd_start[row.station] = row.mjd_start
         if cal_amp==True:
             polyamp[row.station] = poly_from_str(str(row.ratio_amp))
         else:
