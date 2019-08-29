@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+mkdir tests temp log
+for d in {1234..1234}; do
+	mkdir -p $d
+	/usr/bin/time -v hops2uvfits.py     \
+	        --clean --uv --fix_src_name \
+	        --outdir $d $SRCDIR/$d      \
+		>  log/uvfits-$d.log        \
+		2> log/uvfits-$d.err        &
+done
+wait $(jobs -p)

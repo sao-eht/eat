@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+mkdir -p tests temp log
+for d in {1234..1234}; do
+	mkdir -p $d
+	/usr/bin/time -v                       \
+	        cal_polcal_gains_uvfits.py     \
+	        --calfile polcal.csv --cal_amp \
+	        --outdir $d                    \
+	        $SRCDIR/$d                     \
+		>  log/polcal-$d.log           \
+		2> log/polcal-$d.err           &
+done
+wait $(jobs -p)

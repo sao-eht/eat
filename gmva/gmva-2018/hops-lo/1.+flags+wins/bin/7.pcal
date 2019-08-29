@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+echo "5. Compute phase-cal phases and delay offsets"
+echo "	Container work directory: \"$WRKDIR\""
+echo "	Container data output:    \"$DATADIR\""
+
+cd $WRKDIR
+
+# note that for GMVA we use average R+L pcal instead of individual to address RDBE bug in cf0_default
+alma_pcal $DATADIR/alist.v6 -g -c -o $DATADIR/cf2_pcal > log/pcal.out 2> log/pcal.err
+echo "DONE"

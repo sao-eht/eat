@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# SCRIPT TO GENERATE POLCAL GAIN RATIOS TEXTFILE
+# Maciek Wielgus 02/Oct/2018
+
+path_data='vis_sc.h5'
+path_out='polcal.csv'
+
+mkdir -p log
+/usr/bin/time -v \
+	generate_polcal_table.py --datadir $path_data --outpath $path_out \
+	>  log/gentab.log \
+	2> log/gentab.err

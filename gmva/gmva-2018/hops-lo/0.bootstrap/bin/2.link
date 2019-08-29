@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+echo "1. Linking HOPS directories"
+echo "  Container work directory: \"$WRKDIR\""
+echo "  Container data source:    \"$SRCDIR\""
+echo "  Container Corr release(s) \"$CORRDAT\""
+echo "  Container data output:    \"$DATADIR\""
+
+cd "$WRKDIR"
+mkdir -p "$DATADIR" tests temp log
+
+# add some more token delimiters
+IFS=$' \t\n:,'
+
+# Create and populate $DATADIR
+for d in $CORRDAT
+do
+    find $SRCDIR/$d -mindepth 1 -maxdepth 1 -type d |
+        while read path; do
+            # Symlink the source data files
+            cp -rs "$path" "$DATADIR"
+            # Remove the log to avoid overwrite errors
+            rm -f "$DATADIR/$(basename $path)"/difx2mark4-*.log
+        done
+done
+
+# remove any old fringe file links
+rm -f $DATADIR/????/*/??.?.*
+
+# Rename root files with underscores so fringex can find them
+find "$DATADIR" -name '*_*' |
+    while read bad; do
+        new=$(echo $bad | sed 's/_.*\./\./g')
+        echo "$bad |-> $new"
+        mv "$bad" "$new"
+        # Symlinking instead of renaming
+        # ln -s $(realbad "$bad") "$new"
+    done
+

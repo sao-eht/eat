@@ -1,0 +1,24 @@
+* Global commands that won't affect fringe search
+weak_channel  0.0           * don't mark weak channels
+ref_freq      86238.703125  * 86209.703125 + 58/2.
+
+* More global commands
+optimize_closure true   * minimize the contribution of non-closing delay
+pc_mode          manual * use manual phase-cal phase
+
+* Set up reasonable windows
+sb_win -0.150 0.150   * reasonable single band delay search window in us
+mb_win -0.009 0.009 * reasonable multiband delay search window in us
+dr_win -1.e-6 1.e-6 * reasonable delay-rate search window in us/s
+
+* ALMA rate window
+if station A
+  dr_win -1.5e-6 1.5e-6
+
+* skip the DBBC3 Effelsberg redundant signal
+if station B skip true
+
+* [2018-01-26 12:39:54] lindy@eht-work:/data/2017-april/ce/3mmtest2/hops-lo/1.+flags+wins/data$ /home/lindy/bin/alma_sbdmbd -b AG -d . -n 4 alist.v6 -c -g -1.63
+
+if station A and scan 092-205959 to 093-210001 pc_delay_l 15.3362
+if station A and scan 092-205959 to 093-210001 pc_delay_r 15.3949

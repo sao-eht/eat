@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+echo "5. Compute delay offsets"
+
+cd $WRKDIR
+
+# use LCP reference so that RCP offset can be used to fix sample error
+alma_delayoffs -r R -c $DATADIR/alist.v6 > $DATADIR/cf4_delays 2> log/delays.err
+echo >> $DATADIR/cf4_delays
+echo "DONE"

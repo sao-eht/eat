@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+function pack {
+	# Specifically for this package
+	find	hops-$1/6.uvfits \
+		-type f | grep -v '\/\.' > hops-$1-uvfits.in
+
+	# Sort and make the list unique
+	sort hops-$1-uvfits.in | uniq > hops-$1-uvfits.ls && rm hops-$1-uvfits.in
+
+	# Actually taring
+	tar	--transform 's/^hops-/er4v2-hops-/g' \
+		-czhf ../er4v2-hops-$1-uvfits.tgz \
+		--files-from=hops-$1-uvfits.ls
+}
+
+pack hi
+pack lo

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+function pack {
+	# Specifically for this package
+	find	hops-$1/8.+netcal \
+		-name '*+netcal.uvfits' \
+		-type f | grep -v '\/\.' > hops-$1-netcal.in
+
+	# Sort and make the list unique
+	sort hops-$1-netcal.in |\
+		uniq           |\
+		grep -v step    \
+		> hops-$1-netcal.ls && rm hops-$1-netcal.in
+
+	# Actually taring
+	tar	--transform 's/^hops-/er4v2-hops-/g' \
+		-czhf ../er4v2-hops-$1-netcal.tgz \
+		--files-from=hops-$1-netcal.ls
+}
+
+pack hi
+pack lo
