@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-echo "5. Closing solution"
-
-cd $WRKDIR
-
-closecf $DATADIR/alist.v6 > $DATADIR/cf5_close 2>> log/close.err
-echo >> $DATADIR/cf5_close
-echo "DONE"

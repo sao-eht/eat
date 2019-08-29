@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-echo "5. Compute delay offsets"
-
-cd $WRKDIR
-
-alma_delayoffs -c $DATADIR/alist.v6 > $DATADIR/cf4_delays 2> log/delays.err
-echo >> $DATADIR/cf4_delays
-echo "DONE"
