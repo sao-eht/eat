@@ -14,28 +14,3 @@ sb_win -0.150 0.150   * reasonable single band delay search window in us
 mb_win -1.000 1.000 * reasonable multiband delay search window in us
 dr_win -1.e-6 1.e-6 * reasonable delay-rate search window in us/s
 
-* ALMA rate window
-if station A
-  dr_win -1.5e-6 1.5e-6
-
-* skip the DBBC3 Effelsberg redundant signal
-if station B skip true
-
-* should not be needed for 2018+ ... but it still is.. but cannot fix with 32 MHz channels
-* if station A pc_delay_l 0.0
-* if station A pc_delay_r 0.0
-
-* RCP sampling problem in the RDBE? solve by.. adjusting ALMA to match 180 degree shift
-* do NOT do this because later in pipeline we rely on ALMA R-L to be delay calibrated..
-* if station A pc_delay_r 15.625
-
-* instead do this (and change pcal pc_phases to use R+L average)
-* do NOT do this because HOPS will not add pc_phases and pc_phases_r, it will replace one with the other
-* UNLIKE delay_offs and delay_offs_r (which are added)
-* if not station A
-*     pc_phases_r abcdefgh 0. 180. 0. 180. 0. 180. 0. 180.
-
-* instead do this (but then delay_offs needs to reference to R not L
-if not station A
-    pc_delay_r 15.625
-
