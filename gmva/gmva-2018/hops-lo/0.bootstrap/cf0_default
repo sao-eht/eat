@@ -1,6 +1,7 @@
 * Global commands that won't affect fringe search
 weak_channel  0.0           * don't mark weak channels
-ref_freq      86238.703125  * 86209.703125 + 58/2.
+* ref_freq      86238.703125  * 86209.703125 + 58/2.
+ref_freq      86140.0       *   86124.0 + 32./2.
 
 * avoid adhoc errors from using too many freq
 freqs a b c d e f g h
