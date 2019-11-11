@@ -8,7 +8,7 @@ __version__ = '1.4'
 
 ###############################################################################
 # UPDATE NOV. 11, 2019:
-# NEW COMMAND LINE ARGUMENT 'MODE' IS ADDED, USING '-MODE CHECK_SCAN' ENABLE
+# NEW COMMAND LINE ARGUMENT 'MODE' IS ADDED, USING '-M CHECK_SCAN' ENABLE
 # ONE TO CHECK THE SCANS BETWEEN DIFFERENT SOURCES.
 # FOR MORE DETAILS, SEE ./UV_COMB.PY -H
 ###############################################################################
@@ -429,7 +429,7 @@ def main():
       '  uv_comb.py is designed to merge arbitrary uvfits files, i.e., \n'
       '  uvfits files with different antenna tables, IFs and timestamps. \n'
       '  Currently multiple-source merging is not supported. \n\n'
-      '  EXAMPLE: ./uv_comb.py a.uvfits b.uvfits c.uvfits -mode normal -o abc.uvfits',
+      '  EXAMPLE: ./uv_comb.py a.uvfits b.uvfits c.uvfits -m normal -o abc.uvfits',
       formatter_class = argparse.RawDescriptionHelpFormatter)
 
   parser.add_argument('uvfits', help='input uvfits files to be merged',
