@@ -4,8 +4,13 @@
 __author__ = 'Jun LIU'
 __copyright__ = 'Copyright (c) 2019 Jun Liu <jliu@mpifr-bonn.mpg.de>'
 __license__ = 'GPL v3'
-__version__ = '1.3'
+__version__ = '1.4'
 
+###############################################################################
+# UPDATE NOV. 11, 2019:
+# NEW COMMAND LINE ARGUMENT 'MODE' IS ADDED, USING '-MODE CHECK_SCAN' ENABLE
+# ONE TO CHECK THE SCANS BETWEEN DIFFERENT SOURCES.
+# FOR MORE DETAILS, SEE ./UV_COMB.PY -H
 ###############################################################################
 # UPDATE NOV. 08, 2019:
 # NEW CAPABILITY OF MERGING ARBITRARY UVFITS FILES (I.E. UVFITS WITH DIFFERENT
@@ -41,21 +46,18 @@ def check_uvf_antab(uvf_list):
   an_data = []
   for uvf in uvf_list:
     with pyfits.open(uvf) as f:
-      # DUMP THE AN DATA TO A DICTIONARY, IN CASE OF EMPTY FIELDS
-      # (E.G. ORBPARM, POLCALA, POLCALB)
+      # DUMP THE AN DATA TO A DICTIONARY, SET ORBPARM, POLCALA, POLCALB TO
+      # ZEROS, THIS SHOULD BE FINE WITH MOST CASES.
       data = f['AIPS AN'].data
+      nant = len(data['ANNAME'])
       _data = {}
       for key in data.names:
-        _data[key] = data[key]
+        if key in ['ORBPARM', 'POLCALA', 'POLCALB']:
+          _data[key] = np.zeros(nant)
+        else:
+          _data[key] = data[key]
       an_data.append(_data)
-      del _data
-      if not len(an_data[-1]['ORBPARM']):
-        nant = len(an_data[-1]['ANNAME'])
-        # FILL THE EMPTY FIELDS WITH ZEROS
-        an_data[-1]['ORBPARM'] = np.zeros(nant)
-        an_data[-1]['POLCALA'] = np.zeros(nant)
-        an_data[-1]['POLCALB'] = np.zeros(nant)
-      del data
+      del _data, data
 
   an_keys = ['ANNAME', 'STABXYZ', 'ORBPARM', 'NOSTA', 'STAXOF', 'MNTSTA', \
              'POLTYA', 'POLAA', 'POLCALA', 'POLTYB', 'POLAB', 'POLCALB']
@@ -76,7 +78,6 @@ def check_uvf_antab(uvf_list):
           ad[0][j] = '%s%d' %(ad[0][j], j)
         for k in range(len(ad)):
           # K -- CURRENT COLUMN OF AN TABLE
-          print k, j
           an_data_new[k] = np.append(an_data_new[k], [ad[k][j]], axis=0)
   print('AN table checking done !!!')
 
@@ -180,8 +181,10 @@ def index_uvf_keys(keys, exp_keys):
   iek.append('DATA')
   return idx, iek
 
+def borrow_cards(hdr, key):
+  return hdr[key] if key in hdr else key
 
-def uvf_if_combine(uvf_list, outp='merged.uvfits'):
+def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
 
   uvf_list = check_uvf_antab(uvf_list)
 #  uvf_list = ['tmp_AN_update_%d.uvfits' %i for i in range(len(uvf_list))]
@@ -237,7 +240,11 @@ def uvf_if_combine(uvf_list, outp='merged.uvfits'):
       st_vvs.append(list(data.par(idx[1])[flt]))
       st_wws.append(list(data.par(idx[2])[flt]))
       st_intts.append(list(data.par(idx[6])[flt]))
-      st_data.append(list(data.par(idx[7])[flt]))
+      st_data.append(data.par(idx[7])[flt])
+      if mode == 'check_scan':
+        st_data[-1][:,:,:,:,:,:,0] = j + 1
+        st_data[-1][:,:,:,:,:,:,1] = 0
+        st_data[-1][:,:,:,:,:,:,2] = 2
 
     t_bsls = list(set(t_bsls))
     t_bsls.sort() # UNION BASELINES AT A GIVEN TIME
@@ -257,11 +264,6 @@ def uvf_if_combine(uvf_list, outp='merged.uvfits'):
       # NOW IT IS TIME TO WORK ON IFS !!!
       # THIS IS GOING TO BE COMPLICATE BECAUSE WE ARE DEALING WITH TIME AND IF
       # AT THE SAME TIME
-#      _arr_st_data = np.empty((0, 1, 0, 1, 4, 3))
-#      for (j, st_bsl) in enumerate(st_bsls):
-#        if t_bsl in st_bsl:
-#          k = st_bsl.index(t_bsl)
-#
       _arr_st_data = np.zeros((1, 1, Nif, 1, 4, 3))
       # ITERATION ON UVFITS
       for (j, st_bsl) in enumerate(st_bsls):
@@ -360,19 +362,24 @@ def uvf_if_combine(uvf_list, outp='merged.uvfits'):
   utc = Time(all_rjds[0], scale='utc', format='jd')
   cards = []
   cards.append(('DATE-OBS', utc.isot[:10]))
-  cards.append(('TELESCOP', hdr0['TELESCOP']))
-  cards.append(('INSTRUME', hdr0['INSTRUME']))
-  cards.append(('OBSERVER', hdr0['OBSERVER']))
-  cards.append(('OBJECT', hdr0['OBJECT']))
-  if 'EQUINOX' in hdr0:
-    cards.append(('EPOCH', int(hdr0['EQUINOX'][1:])))
-  elif 'EPOCH' in hdr0:
-    cards.append(('EPOCH', hdr0['EPOCH']))
+
+  brr_keys = ['TELESCOP', 'INSTRUME', 'OBSERVER', 'OBJECT', 'BUNIT']
+  for bk in brr_keys:
+    cards.append((bk, borrow_cards(hdr0, bk)))
+
+  eq_keys = ['EQUINOX', 'EPOCH']
+  eq_keys = [ek for ek in eq_keys if ek in hdr0.keys()]
+  if len(eq_keys) >= 1:
+    ek = eq_keys[0]
+    if type(hdr0[ek]) == float:
+      cards.append(('EPOCH', hdr0[ek]))
+    else:
+      cards.append(('EPOCH', int(hdr0[ek][1:])))
   else:
-    cards.append(('EPOCH', '2000.0'))
+      cards.append(('EPOCH', 2000))
+
   cards.append(('BSCALE', 1.0))
   cards.append(('BSZERO', 0.0))
-  cards.append(('BUNIT', hdr0['BUNIT']))
   cards.append(('VELREF', 3))
   cards.append(('ALTRVAL', 0.0))
   cards.append(('ALTRPIX', 1.0))
@@ -389,6 +396,7 @@ def uvf_if_combine(uvf_list, outp='merged.uvfits'):
 
   if_freq = (r_bands.real + r_bands.imag)*0.5
   if_freq = if_freq[1:] - if_freq[:-1]
+  if_freq = [np.sum(if_freq[:i]) for i in range(1, len(if_freq)+1)]
   if_freq = np.insert(if_freq, 0, 0)[np.newaxis]
   ch_width = (r_bands.imag - r_bands.real)[np.newaxis]
   tot_bw = ch_width * 1.0
@@ -414,30 +422,38 @@ def uvf_if_combine(uvf_list, outp='merged.uvfits'):
 
 
 def main():
-#  parser = argparse.ArgumentParser(description=__doc__,
   parser = argparse.ArgumentParser(
-      description ='  UV combine version 1.3 \n'
+      description ='  UV combine version 1.4 \n'
       '  jliu@mpifr-bonn.mpg.de \n'
-      '  date: Nov. 08, 2019 \n\n'
+      '  date: Nov. 11, 2019 \n\n'
       '  uv_comb.py is designed to merge arbitrary uvfits files, i.e., \n'
       '  uvfits files with different antenna tables, IFs and timestamps. \n'
       '  Currently multiple-source merging is not supported. \n\n'
-      '  EXAMPLE: ./uv_comb.py a.uvfits b.uvfits c.uvfits -o abc.uvfits',
+      '  EXAMPLE: ./uv_comb.py a.uvfits b.uvfits c.uvfits -mode normal -o abc.uvfits',
       formatter_class = argparse.RawDescriptionHelpFormatter)
 
   parser.add_argument('uvfits', help='input uvfits files to be merged',
                       metavar="FILE", nargs='*', default=None)
+  parser.add_argument('-m', '--mode', type=str, required=False,
+      default='normal', help='merge mode: (i) nomral -- perform a normal merge, '
+      'i.e., merging uvfits with different time, IFs, '
+      'but with the same observing target. '
+      '(ii) check_scan -- fake the amplitudes if one wants to check the '
+      'scan time for different sources. '
+      'In this case, one has to merge uvfits with '
+      'different sources using check_scan mode.')
   parser.add_argument('-o','--output', metavar='FILE', type=str, required=False,
                     default='merged.uvfits', help='output merged uvfits file')
   args = parser.parse_args()
 
   outp = args.output
   uvf_list = args.uvfits
+  mode = args.mode
   if len(uvf_list) < 2:
     print('Error: Please give at least two input UVFITS files!')
     exit(0)
 
-  uvf_if_combine(uvf_list, outp)
+  uvf_combine(uvf_list, outp, mode)
 
 
 if __name__ == '__main__':
