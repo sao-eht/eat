@@ -127,7 +127,9 @@ def check_uvf_antab(uvf_list):
       f.append(antab)
       print('  done !!!')
 
-      f.writeto('tmp_AN_update_%d.uvfits' %i, overwrite=True)
+      f.writeto('tmp_AN_update_%d.uvfits' %i,
+                output_verify = 'silentfix',
+                overwrite = True)
       uvf_list_new.append('tmp_AN_update_%d.uvfits' %i)
   print('Baseline re-labeling and AN table updating done !!!')
   return uvf_list_new
@@ -414,7 +416,9 @@ def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
   fh['NO_IF'] = Nif
 
   comb_hdu = pyfits.HDUList([ghdu, antab, fqtab])
-  comb_hdu.writeto(outp, overwrite=True)
+  comb_hdu.writeto(outp,
+      output_verify = 'silentfix',
+      overwrite = True)
 
   for uvf in uvf_list:
     os.system('rm -rf %s' %uvf)
