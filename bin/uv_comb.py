@@ -47,13 +47,13 @@ def check_uvf_antab(uvf_list):
   for uvf in uvf_list:
     with pyfits.open(uvf) as f:
       # DUMP THE AN DATA TO A DICTIONARY, SET ORBPARM, POLCALA, POLCALB TO
-      # ZEROS, THIS SHOULD BE FINE WITH MOST CASES.
+      # EMPTY, THIS SHOULD BE FINE WITH MOST CASES.
       data = f['AIPS AN'].data
       nant = len(data['ANNAME'])
       _data = {}
       for key in data.names:
         if key in ['ORBPARM', 'POLCALA', 'POLCALB']:
-          _data[key] = np.zeros(nant)
+          _data[key] = np.empty((nant, ))
         else:
           _data[key] = data[key]
       an_data.append(_data)
@@ -113,8 +113,8 @@ def check_uvf_antab(uvf_list):
       print('  Updating AN table for %s ...' %uvf)
       ah_old = f['AIPS AN'].header
       nant = len(an_data_new[0])
-      an_formats = ['%dA' %nant, '3D', '1E', '1J', '1J', '1E', \
-                    '1A', '1E', '3E', '1A', '1E', '3E']
+      an_formats = ['%dA' %nant, '3D', '0E', '1J', '1E', '1J', \
+                    '1A', '1E', '0E', '1A', '1E', '0E']
       cols = [pyfits.Column(name=an_keys[k], format=an_formats[k], \
               array=an_data_new[k]) for k in range(len(an_keys))]
       antab = pyfits.BinTableHDU.from_columns(cols)
@@ -158,7 +158,7 @@ def check_uvf_ifs(uvf_list):
   # UNION OF ALL FREQS AND IFS, GET THE FREQ RANGE FOR EACH IF
   # FIND THE IF STAMPS FOR EACH UVFITS
   if_pos = []
-  for (i, band) in enumerate(uvf_bands):
+  for band in uvf_bands:
     iband = np.where(r_bands==band)[0]
     if_pos.append(iband)
 
@@ -189,7 +189,6 @@ def borrow_cards(hdr, key):
 def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
 
   uvf_list = check_uvf_antab(uvf_list)
-#  uvf_list = ['tmp_AN_update_%d.uvfits' %i for i in range(len(uvf_list))]
   r_bands, if_pos = check_uvf_ifs(uvf_list)
   Nif = len(r_bands)
 
@@ -212,7 +211,7 @@ def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
     all_rjds += list(set(jds))
 
   all_rjds = list(set(all_rjds))
-  all_rjds.sort()
+  all_rjds.sort() # SORTED UNION OF TIMESTAMPS
   Ntime = len(all_rjds)
   print('T-B stamps done!')
 
@@ -220,14 +219,15 @@ def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
   print('Segmenting datasets ...')
   all_bsls = [0 for i in range(Ntime)]
   for (i, rjd) in enumerate(all_rjds):
-    # BASELINES AT A SINGLE TIMESTAMP (FOR EACH UVFIT)
+    # ST_BSLS: BASELINES AT A SINGLE TIMESTAMP (FOR EACH UVFIT, LIST OF LIST).
     # THIS LIST WILL BE USED TO GET THE UVW AND INTTIM
     st_bsls = []
+    # T_BSLS: BASELINES AT A SINGLE TIMESTAMP (FOR ALL UVFITS)
+    t_bsls = []
     st_intts = []
     st_uus, st_vvs, st_wws = [], [], []
     st_data = []
-    # BASELINES AT A SINGLE TIMESTAMP (FOR ALL UVFITS)
-    t_bsls = []
+
     for j in range(Nuvf):
       data = uvf_hdul[j][0].data
       keys = data.parnames
@@ -238,39 +238,36 @@ def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
       bsl = list(data.par(idx[3])[flt])
       t_bsls += bsl
       st_bsls.append(bsl)
+      # THE ORDER OF BSL DOES NOT EFFECT THE ORDER OF U, V, W AND INTTS
       st_uus.append(list(data.par(idx[0])[flt]))
       st_vvs.append(list(data.par(idx[1])[flt]))
       st_wws.append(list(data.par(idx[2])[flt]))
       st_intts.append(list(data.par(idx[6])[flt]))
       st_data.append(data.par(idx[7])[flt])
+#      print data.par(idx[7])[flt].shape
       if mode == 'check_scan':
-        st_data[-1][:,:,:,:,:,:,0] = j + 1
-        st_data[-1][:,:,:,:,:,:,1] = 0
-        st_data[-1][:,:,:,:,:,:,2] = 2
+        st_data[-1][:,:,:,:,:,:,0] = j + 1.0
+        st_data[-1][:,:,:,:,:,:,1] = 0.0
+        st_data[-1][:,:,:,:,:,:,2] = 2.0
 
     t_bsls = list(set(t_bsls))
-    t_bsls.sort() # UNION BASELINES AT A GIVEN TIME
+    t_bsls.sort() # SORTED UNION BASELINES AT A GIVEN TIME
 
     # PREPARE THE UVW AND INTTIM
     for t_bsl in t_bsls:
+      filled = False
+      _arr_st_data = np.zeros((1, 1, Nif, 1, 4, 3), dtype=np.float64)
       # ITERATE ON UVFITS
       for (j, st_bsl) in enumerate(st_bsls):
         if t_bsl in st_bsl:
           k = st_bsl.index(t_bsl)
-          comb_data[0].append(st_uus[j][k])
-          comb_data[1].append(st_vvs[j][k])
-          comb_data[2].append(st_wws[j][k])
-          comb_data[6].append(st_intts[j][k])
-          break
-
-      # NOW IT IS TIME TO WORK ON IFS !!!
-      # THIS IS GOING TO BE COMPLICATE BECAUSE WE ARE DEALING WITH TIME AND IF
-      # AT THE SAME TIME
-      _arr_st_data = np.zeros((1, 1, Nif, 1, 4, 3))
-      # ITERATION ON UVFITS
-      for (j, st_bsl) in enumerate(st_bsls):
-        if t_bsl in st_bsl:
-          k = st_bsl.index(t_bsl)
+          if not filled:
+            comb_data[0].append(st_uus[j][k])
+            comb_data[1].append(st_vvs[j][k])
+            comb_data[2].append(st_wws[j][k])
+            comb_data[6].append(st_intts[j][k])
+            filled = True
+          # NOW IT IS TIME TO WORK ON IFS !!!
           for (l, ip) in enumerate(if_pos[j]):
             _arr_st_data[:,:,ip,:,:,:] = st_data[j][k][:,:,l,:,:,:]
       comb_data[7].append(_arr_st_data)
@@ -373,12 +370,9 @@ def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
   eq_keys = [ek for ek in eq_keys if ek in hdr0.keys()]
   if len(eq_keys) >= 1:
     ek = eq_keys[0]
-    if type(hdr0[ek]) == float:
-      cards.append(('EPOCH', hdr0[ek]))
-    else:
-      cards.append(('EPOCH', int(hdr0[ek][1:])))
-  else:
-      cards.append(('EPOCH', 2000))
+    try: cards.append(('EPOCH', float(hdr0[ek])))
+    except: cards.append(('EPOCH', 2000.0))
+  else: cards.append(('EPOCH', 2000.0))
 
   cards.append(('BSCALE', 1.0))
   cards.append(('BSZERO', 0.0))
@@ -387,9 +381,13 @@ def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
   cards.append(('ALTRPIX', 1.0))
   cards.append(('OBSRA', hdr0['CRVAL6'], ''))
   cards.append(('OBSDEC', hdr0['CRVAL7'], ''))
-  cards.append(('RESTFREQ', 0))
+  cards.append(('RESTFREQ', 0.0))
   for card in cards:
       ghdu.header.append(card)
+
+  # THE VISIBILITIES SHOULD BE ALREADY TB SORTED.
+  # ADD IT TO HISTORY SO THAT AIPS CAN RECOGNIZE IT.
+  ghdu.header['HISTORY'] = "AIPS   SORT ORDER = 'TB'"
 
   # REFORMAT AN AND FQ TABLE
   # IN THE CASE OF SINGLE IF, THE ARRAY HAS TO BE TRANSPOSED
@@ -397,9 +395,7 @@ def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
   antab = uvf_hdul[0]['AIPS AN']
 
   if_freq = (r_bands.real + r_bands.imag)*0.5
-  if_freq = if_freq[1:] - if_freq[:-1]
-  if_freq = [np.sum(if_freq[:i]) for i in range(1, len(if_freq)+1)]
-  if_freq = np.insert(if_freq, 0, 0)[np.newaxis]
+  if_freq = (if_freq - if_freq[0])[np.newaxis]
   ch_width = (r_bands.imag - r_bands.real)[np.newaxis]
   tot_bw = ch_width * 1.0
   sb = np.ones_like(tot_bw)
