@@ -4,8 +4,14 @@
 __author__ = 'Jun LIU'
 __copyright__ = 'Copyright (c) 2019 Jun Liu <jliu@mpifr-bonn.mpg.de>'
 __license__ = 'GPL v3'
-__version__ = '1.4'
+__version__ = '1.5'
 
+###############################################################################
+# UPDATE NOV. 22, 2019:
+# NEW MERGING MODE "IF_FLATTEN" IS ADDED. USING '-M IF_FLATTEN' ENABLE ONE TO
+# MERGE THE MULTIPLE IF UVFITS INTO A SINGLE ONE. THE PURPOSE OF THIS NEW
+# IS TO PROVIDE DATA FOR STATISTICS ON CLOSURE QUANTITIES IN EHTIM.
+# FOR MORE DETAILS, SEE ./UV_COMB.PY -H
 ###############################################################################
 # UPDATE NOV. 11, 2019:
 # NEW COMMAND LINE ARGUMENT 'MODE' IS ADDED, USING '-M CHECK_SCAN' ENABLE
@@ -117,7 +123,7 @@ def check_uvf_antab(uvf_list):
                     '1A', '1E', '0E', '1A', '1E', '0E']
       cols = [pyfits.Column(name=an_keys[k], format=an_formats[k], \
               array=an_data_new[k]) for k in range(len(an_keys))]
-      antab = pyfits.BinTableHDU.from_columns(cols)
+      antab = pyfits.BinTableHDU.from_columns(cols, name='AIPS AN')
       ah = antab.header
       for ahk in ah_old:
         if ahk not in ah:
@@ -185,6 +191,67 @@ def index_uvf_keys(keys, exp_keys):
 
 def borrow_cards(hdr, key):
   return hdr[key] if key in hdr else key
+
+def uvf_if_flatten(uvf, outp='merged.uvfits'):
+
+  # THIS IS TO ADD NEW MERGING MODE: IF_FLATTEN
+  # ASSUMING THE SINGLE UVF IS WELL BEHAVED
+  uvf_hdul = pyfits.open(uvf)
+  f0 = uvf_hdul[0].header['CRVAL4']
+  freqs = uvf_hdul['AIPS FQ'].data['IF FREQ'].flatten() + f0
+  bw = freqs[-1] - freqs[0]
+  Nif = len(freqs)
+  freq0 = freqs.mean()
+
+  data = uvf_hdul[0].data
+  exp_keys = ['UU', 'VV', 'WW',  'BASELINE', 'DATE', 'INTTIM']
+  keys = data.parnames
+  idx, iek = index_uvf_keys(keys, exp_keys)
+  comb_data = [[] for i in range(7)]
+  comb_data.append(np.empty((0, 1, 1, 1, 1, 4, 3)))
+  for i in range(Nif):
+    for j in range(7):
+    # FILLINF UU, VV and WW, BASELINE, DATE, DATE, INTTIM AND DATA
+      if j == 5: # ADD A ONE-SEC OFFSET TO TIMESTAMPS
+        comb_data[j].append(data.par(idx[j]) + i*1.0/86400)
+      else:
+        comb_data[j].append(data.par(idx[j]))
+    comb_data[7] = np.append(comb_data[7], data.data[:,:,:,[i],:,:,:], axis=0)
+
+  # DATA IS READY
+  for i in range(len(iek)-1):
+    comb_data[i] = np.array(comb_data[i], dtype=np.float64).flatten()
+  mjd = comb_data[4] + comb_data[5]
+  idx_tsort = mjd.argsort()
+  for i in range(len(iek)):
+    comb_data[i] = comb_data[i][idx_tsort]
+
+  print(comb_data[-1].shape)
+  gdata = pyfits.GroupData(
+      input = comb_data[-1],
+      parnames = iek[:-1],
+      pardata = comb_data[:-1],
+      bscale = 1.0, bzero = 0.0, bitpix = -32)
+  ghdu = pyfits.GroupsHDU(gdata)
+  ghdu.header = uvf_hdul[0].header
+  ghdu.header['CRVAL4'] = freq0
+  ghdu.header['CDELT4'] = bw
+
+  antab = uvf_hdul['AIPS AN']
+  fq_keys = ['FRQSEL', 'IF FREQ', 'CH WIDTH', 'TOTAL BANDWIDTH', 'SIDEBAND']
+  fq_formats = ['1J', '1D', '1E', '1E', '1J']
+  fq_data = [np.array([1]), [0], [bw], [bw], [1]]
+
+  cols = [pyfits.Column(name=fq_keys[k], format=fq_formats[k], \
+          array=fq_data[k]) for k in range(len(fq_keys))]
+  fqtab = pyfits.BinTableHDU.from_columns(cols, name='AIPS FQ')
+  fh = fqtab.header
+  fh['NO_IF'] = 1
+
+  comb_hdu = pyfits.HDUList([ghdu, antab, fqtab])
+  comb_hdu.writeto(outp,
+      output_verify = 'silentfix',
+      overwrite = True)
 
 def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
 
@@ -406,9 +473,8 @@ def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
 
   cols = [pyfits.Column(name=fq_keys[k], format=fq_formats[k], \
           array=fq_data[k]) for k in range(len(fq_keys))]
-  fqtab = pyfits.BinTableHDU.from_columns(cols)
+  fqtab = pyfits.BinTableHDU.from_columns(cols, name='AIPS FQ')
   fh = fqtab.header
-  fh['EXTNAME'] = 'AIPS FQ'
   fh['NO_IF'] = Nif
 
   comb_hdu = pyfits.HDUList([ghdu, antab, fqtab])
@@ -423,9 +489,9 @@ def uvf_combine(uvf_list, outp='merged.uvfits', mode='normal'):
 
 def main():
   parser = argparse.ArgumentParser(
-      description ='  UV combine version 1.4 \n'
+      description ='  UV combine version 1.5 \n'
       '  jliu@mpifr-bonn.mpg.de \n'
-      '  date: Nov. 11, 2019 \n\n'
+      '  date: Nov. 22, 2019 \n\n'
       '  uv_comb.py is designed to merge arbitrary uvfits files, i.e., \n'
       '  uvfits files with different antenna tables, IFs and timestamps. \n'
       '  Currently multiple-source merging is not supported. \n\n'
@@ -441,7 +507,10 @@ def main():
       '(ii) check_scan -- fake the amplitudes if one wants to check the '
       'scan time for different sources. '
       'In this case, one has to merge uvfits with '
-      'different sources using check_scan mode.')
+      'different sources using check_scan mode.'
+      '(iii) if_flatten --- flaten multiple IFs into a single one by '
+      'shifting the timestamps by one second, the U, V, W and visibilities '
+      'are kept untouched.')
   parser.add_argument('-o','--output', metavar='FILE', type=str, required=False,
                     default='merged.uvfits', help='output merged uvfits file')
   args = parser.parse_args()
@@ -450,10 +519,22 @@ def main():
   uvf_list = args.uvfits
   mode = args.mode
   if len(uvf_list) < 2:
-    print('Error: Please give at least two input UVFITS files!')
-    exit(0)
-
-  uvf_combine(uvf_list, outp, mode)
+    if mode == 'if_flatten':
+      uvf_if_flatten(uvf_list[0], outp)
+    else:
+      print('Error: Please give at least two input UVFITS files for merging mode %s!' %mode)
+      exit(0)
+  else:
+    if mode == 'if_flatten':
+      tmp_out = 'tmp.'+outp
+      try:
+        uvf_combine(uvf_list, tmp_out, 'normal')
+        uvf_if_flatten(tmp_out, outp)
+      except:
+        os.system('rm -rf %s' %tmp_out)
+      os.system('rm -rf %s' %tmp_out)
+    else:
+      uvf_combine(uvf_list, outp, mode)
 
 
 if __name__ == '__main__':
