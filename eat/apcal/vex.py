@@ -9,7 +9,7 @@ import numpy as np
 import re
 import os
 
-
+import math
 import ehtim.array
 
 from ehtim.const_def import *
@@ -276,6 +276,14 @@ class Vex(object):
 
 #=================================================================
 #=================================================================
+
+MJD_0 = 2400000.5
+MJD_JD2000 = 51544.5
+
+def ipart(x):
+    """Return integer part of given number."""
+    return math.modf(x)[1]
+
 
 def gcal2jd(year, month, day):
     """Gregorian calendar date to Julian date.
