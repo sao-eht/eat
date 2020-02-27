@@ -277,15 +277,55 @@ class Vex(object):
 #=================================================================
 #=================================================================
 
+def gcal2jd(year, month, day):
+    """Gregorian calendar date to Julian date.
+    #this is dragged from the jdcal librar written by Prasanth Nair
+    The input and output are for the proleptic Gregorian calendar,
+    i.e., no consideration of historical usage of the calendar is
+    made.
+
+    Parameters
+    ----------
+    year : int
+        Year as an integer.
+    month : int
+        Month as an integer.
+    day : int
+        Day as an integer.
+
+    Returns
+    -------
+    jd1, jd2: 2-element tuple of floats
+        When added together, the numbers give the Julian date for the
+        given Gregorian calendar date. The first number is always
+        MJD_0 i.e., 2451545.5. So the second is the MJD.
+    """
+    year = int(year)
+    month = int(month)
+    day = int(day)
+
+    a = ipart((month - 14) / 12.0)
+    jd = ipart((1461 * (year + 4800 + a)) / 4.0)
+    jd += ipart((367 * (month - 2 - 12 * a)) / 12.0)
+    x = ipart((year + 4900 + a) / 100.0)
+    jd -= ipart((3 * x) / 4.0)
+    jd += day - 2432075.5  # was 32075; add 2400000.5
+
+    jd -= 0.5  # 0 hours; above JD is for midday, switch to midnight.
+
+    return MJD_0, jd
+
+
 # Function to find MJD (int!) and hour in UT from vex format,
 # e.g, 2016y099d05h00m00s
 def vexdate_to_MJD_hr(vexdate):
     """Find the integer MJD and UT hour from vex format date. 
     """
-    import ehtim.observing.jdcal as jdcal
+    #import ehtim.observing.jdcal as jdcal
     time = re.findall("[-+]?\d+[\.]?\d*",vexdate)
     year = int(time[0])
     date = int(time[1])
-    mjd = jdcal.gcal2jd(year,1,1)[1]+date-1
+    #mjd = jdcal.gcal2jd(year,1,1)[1]+date-1
+    mjd = gcal2jd(year,1,1)[1]+date-1
     hour = int(time[2]) + float(time[3])/60. + float(time[4])/60./60.
     return mjd,hour
