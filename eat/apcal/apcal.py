@@ -655,6 +655,91 @@ def prepare_Tsys_data_ALMA(folder_path):
     return Tsfull
 
 
+def prepare_Tsys_data_ALMA_ER6(folder_path):
+    Tsys={}
+    list_files = os.listdir(folder_path)
+    list_files = [f for f in list_files if f[0] =='A']
+
+    Tsyscols = ['Tsys_ch'+str(x) for x in range(1,33)]
+    cols = ['datetime']+Tsyscols+['band']
+    antena='NoAntena'
+    FooDF = pd.DataFrame(columns=cols)
+
+    for f in list_files:
+        fpath = folder_path+f
+    
+        with open(fpath) as f:
+            content = f.readlines()
+        for line in content:
+            #first line of data for given antenna
+            if 'TSYS ' in line:
+                #antena = AZ2Z[line[5:7]]
+                antena = AZ2Z[line.split(' ')[1]]
+                if antena=='A':
+                    print(fpath+', '+antena)
+                if line.split(' ')[2]=='timeoff=':
+                    timeoff = int(float(line.split(' ')[3]))
+                else:
+                    timeoff = 0
+                timeoff = datetime.timedelta(seconds = timeoff)
+                FooDF = pd.DataFrame(columns=cols)
+            
+            #data rows are the ones strarting with sth that can be converted to flow
+            
+            if isfloat(line.split(' ')[0]):
+                foo = line.split(' ')
+                foo = [x for x in foo if len(x)>0]
+                #get the timestamp
+                if antena=='A':
+                    datetime_loc = time2datetime1(foo[0],'00:00:00')
+                    datetime_loc = datetime_loc + ALMAtime2STANDARDtime(foo[1]) + timeoff
+                    #print(datetime_loc)
+                else:
+                    continue
+                    #datetime_loc = time2datetime1(foo[0],foo[1]) + timeoff
+                
+                #get the band
+                #band_loc = dic_band[f.name[-4]]
+                band_loc = f.name.split('.')[0][-2:]
+
+                #now get the Tsys data
+                
+                #JCMT and SMAR have single pol, so we just fill both with same value
+                if antena=='A':
+                    if isfloat(foo[-1]):
+                        TsysAA = list(map(float,foo[2:]))
+                    else:
+                        TsysAA = list(map(float,foo[2:-1]))
+                    #if len(TsysAA)<32:
+                    #    print(datetime_loc,len(TsysAA),isfloat(foo[-1]),len(foo))
+                    if all(np.asarray(TsysAA)>0):
+                        data_loc = [datetime_loc]+TsysAA+[band_loc]
+                        line_df = pd.DataFrame([data_loc], columns = cols)
+                        FooDF = FooDF.append(line_df, ignore_index=True)
+                    else: continue
+                else: continue
+            
+            #lines at the end of data for given antena
+            #print(f.name)
+        
+            #track_loc = f.name.split('_')[3]
+            track_loc = f.name.split('_')[1][3].upper()
+            if line[0]=='/':
+                if antena=='A':
+                    if (antena,track_loc) in Tsys:
+                        Tsys[(antena,track_loc)]=pd.concat([Tsys[(antena,track_loc)],FooDF ])
+                    else:
+                        Tsys[(antena,track_loc)] = FooDF
+                else:
+                    continue
+    #add mjd
+    for key in Tsys:
+        foo = Time(list(Tsys[key].datetime)).mjd
+        Tsys[key]['mjd'] = foo
+    Tsfull = make_single_Tsys_table(Tsys)
+    return Tsfull
+
+
 
 
 def time_scans(a0,expt_no,scan_id, deltat_sec = 0):
