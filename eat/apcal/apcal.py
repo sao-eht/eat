@@ -1363,14 +1363,17 @@ def get_sefds_new(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,ant
     #produce a priori calibration data
     generate_and_save_sefd_data_new(Tsys_match, dp, sourL, antL, exptL)
 
-def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,antL=antL0, exptL = exptL0,pathSave = 'SEFDs_ALMA'):
+def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,antL=antL0, exptL = exptL0,pathSave = 'SEFDs_ALMA',version='ER5'):
     '''
     new version for when files are separate for bands
     '''
     print('Getting the calibration data...')
     #TABLE of CALIBRATION DATA from ANTAB files
     dp, gf = prepare_dicts(antab_path)
-    TsA = prepare_Tsys_data_ALMA(antab_path)
+    if version=='ER6':
+        TsA = prepare_Tsys_data_ALMA_ER6(antab_path)
+    else:
+        TsA = prepare_Tsys_data_ALMA(antab_path)
 
     print('Getting the scans data...')
     #TABLE of SCANS from VEX files, using elevation gain info
