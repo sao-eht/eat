@@ -1194,7 +1194,7 @@ def add_SPT_total_scan(scans):
     return scans
 
 
-def match_scans_Tsys(scans,Tsys):
+def match_scans_Tsys(scans,Tsys,only_ALMA=False):
     #negative labels for ANTAB data taken between scans
 
     #create scan labels to match Tsys with scans
@@ -1265,9 +1265,10 @@ def match_scans_Tsys(scans,Tsys):
     '''
 
     DictSource = dict(zip(list(scans.scan_no_tot), list(scans.source)))
-    DictGainP = dict(zip(list(scans.scan_no_tot), list(scans.gainP)))
-    DictGainZ = dict(zip(list(scans.scan_no_tot), list(scans.gainZ)))
-    DictGainX = dict(zip(list(scans.scan_no_tot), list(scans.gainX)))
+    if only_ALMA==False:
+        DictGainP = dict(zip(list(scans.scan_no_tot), list(scans.gainP)))
+        DictGainZ = dict(zip(list(scans.scan_no_tot), list(scans.gainZ)))
+        DictGainX = dict(zip(list(scans.scan_no_tot), list(scans.gainX)))
     DictTmin = dict(zip(list(scans.scan_no_tot), list(scans.time_min)))
 
 
@@ -1281,10 +1282,10 @@ def match_scans_Tsys(scans,Tsys):
     else:
     '''   
     Tsys.loc[:,'source'] = list(map(lambda x: DictSource[x], Tsys['scan_no_tot']))
-    
-    Tsys.loc[:,'gainP'] = list(map(lambda x: DictGainP[x], Tsys['scan_no_tot']))
-    Tsys.loc[:,'gainZ'] = list(map(lambda x: DictGainZ[x], Tsys['scan_no_tot']))
-    Tsys.loc[:,'gainX'] = list(map(lambda x: DictGainX[x], Tsys['scan_no_tot']))
+    if only_ALMA==False:
+        Tsys.loc[:,'gainP'] = list(map(lambda x: DictGainP[x], Tsys['scan_no_tot']))
+        Tsys.loc[:,'gainZ'] = list(map(lambda x: DictGainZ[x], Tsys['scan_no_tot']))
+        Tsys.loc[:,'gainX'] = list(map(lambda x: DictGainX[x], Tsys['scan_no_tot']))
     Tsys.loc[:,'t_scan'] = list(map(lambda x: DictTmin[x], Tsys['scan_no_tot']))
     
     Tsys = Tsys.sort_values('datetime').reset_index(drop=True)
@@ -1292,14 +1293,14 @@ def match_scans_Tsys(scans,Tsys):
     return Tsys
 
 
-def global_match_scans_Tsys_both_bands(scans,Tsys_full):
-    Tsys_match_lo = global_match_scans_Tsys(scans,Tsys_full[Tsys_full.band=='lo'])   
-    Tsys_match_hi = global_match_scans_Tsys(scans,Tsys_full[Tsys_full.band=='hi'])
+def global_match_scans_Tsys_both_bands(scans,Tsys_full,only_ALMA=False):
+    Tsys_match_lo = global_match_scans_Tsys(scans,Tsys_full[Tsys_full.band=='lo'],only_ALMA=False)   
+    Tsys_match_hi = global_match_scans_Tsys(scans,Tsys_full[Tsys_full.band=='hi'],only_ALMA=False)
 
     Tsys_match = pd.concat([Tsys_match_lo,Tsys_match_hi],ignore_index=True)
     return Tsys_match
 
-def global_match_scans_Tsys(scans,Tsys_full):
+def global_match_scans_Tsys(scans,Tsys_full,only_ALMA=False):
 
     Tsys_match = pd.DataFrame({'source' : []})
 
@@ -1315,7 +1316,7 @@ def global_match_scans_Tsys(scans,Tsys_full):
             scans_loc = scans[(scans.expt == expt)&list(map(lambda x: ant in x,scans.antenas))].sort_values('time_min').reset_index(drop=True)
             #print(np.shape(Tsys_loc),np.shape(scans_loc))
             if(np.shape(Tsys_loc)[0]>0):
-                Tsys_foo = match_scans_Tsys(scans_loc,Tsys_loc)
+                Tsys_foo = match_scans_Tsys(scans_loc,Tsys_loc,only_ALMA=only_ALMA)
                 Tsys_match = pd.concat([Tsys_match,Tsys_foo], ignore_index=True)
             else: continue
 
@@ -1382,7 +1383,7 @@ def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,an
 
     print('Matching calibration to scans...')
     #MATCH CALIBRATION with SCANS to determine the source and 
-    TsysA_match = global_match_scans_Tsys(scans,TsA)
+    TsysA_match = global_match_scans_Tsys(scans,TsA,only_ALMA=only_ALMA)
 
     print('Saving sefd files...')
     #produce a priori calibration data
