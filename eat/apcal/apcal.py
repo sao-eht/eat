@@ -655,7 +655,7 @@ def prepare_Tsys_data_ALMA(folder_path):
     return Tsfull
 
 
-def prepare_Tsys_data_ALMA_ER6(folder_path):
+def prepare_Tsys_data_ALMA_ER6(folder_path,only_ALMA=False):
     Tsys={}
     list_files = os.listdir(folder_path)
     list_files = [f for f in list_files if f[0] =='A']
@@ -674,7 +674,10 @@ def prepare_Tsys_data_ALMA_ER6(folder_path):
             #first line of data for given antenna
             if 'TSYS ' in line:
                 #antena = AZ2Z[line[5:7]]
-                antena = AZ2Z[line.split(' ')[1]]
+                if only_ALMA:
+                    antena='A'
+                else:
+                    antena = AZ2Z[line.split(' ')[1]]
                 if antena=='A':
                     print(fpath+', '+antena)
                 if line.split(' ')[2]=='timeoff=':
@@ -932,7 +935,7 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
         os.makedirs(dirLO)
 
     for band in ['lo','hi']:
-        dirBand = pathSave+'/SEFD_'+band
+        dirBand = pathSave+'/SEFD_'+band.upper()
         if not os.path.exists(dirBand):
             os.makedirs(dirBand)
         for expt in exptL:
@@ -1020,7 +1023,7 @@ def generate_and_save_sefd_data_ALMA(Tsys_full, dict_dpfu, sourL=sourL, antL=ant
     sefds_ch = ['sefd_ch'+str(x) for x in range(1,33)]
 
     for band in ['lo','hi']:
-        dirBand = pathSave+'/SEFD_'+band
+        dirBand = pathSave+'/SEFD_'+band.upper()
         if not os.path.exists(dirBand):
             os.makedirs(dirBand)
         for expt in exptL:
@@ -1377,7 +1380,7 @@ def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None,
     else:
         dp, gf = prepare_dicts(antab_path)
     if version=='ER6':
-        TsA = prepare_Tsys_data_ALMA_ER6(antab_path)
+        TsA = prepare_Tsys_data_ALMA_ER6(antab_path,only_ALMA=only_ALMA)
     else:
         TsA = prepare_Tsys_data_ALMA(antab_path)
 
