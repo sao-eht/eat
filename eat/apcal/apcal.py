@@ -1376,7 +1376,7 @@ def get_sefds_new(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,ant
     #produce a priori calibration data
     generate_and_save_sefd_data_new(Tsys_match, dp, sourL, antL, exptL)
 
-def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None, sourL=sourL,antL=antL0, exptL = exptL0,pathSave = 'SEFDs_ALMA',version='ER5',only_ALMA=False):
+def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None, sourL=sourL,antL=antL0, exptL = exptL0,pathSave = 'SEFDs_ALMA',version='ER5',only_ALMA=False,avg_Tsys=False):
     '''
     new version for when files are separate for bands
     '''
@@ -1388,7 +1388,7 @@ def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None,
     else:
         dp, gf = prepare_dicts(antab_path)
     if version=='ER6':
-        TsA = prepare_Tsys_data_ALMA_ER6(antab_path,only_ALMA=only_ALMA)
+        TsA = prepare_Tsys_data_ALMA_ER6(antab_path,only_ALMA=only_ALMA,avg_Tsys=avg_Tsys)
     else:
         TsA = prepare_Tsys_data_ALMA(antab_path)
 
@@ -1402,7 +1402,10 @@ def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None,
 
     print('Saving sefd files...')
     #produce a priori calibration data
-    generate_and_save_sefd_data_ALMA(TsysA_match, dp, sourL, antL, exptL, pathSave)
+    if avg_Tsys:
+        generate_and_save_sefd_data_new(Tsys_match, dp, sourL, antL, exptL)
+    else:
+        generate_and_save_sefd_data_ALMA(TsysA_match, dp, sourL, antL, exptL, pathSave)
 
 
 def modify_Tsys_match(Tsys_match,dict_dpfu):
