@@ -1078,7 +1078,7 @@ def make_ra_dec_list(fpath):
 
     return dict_ra, dict_dec
 
-def make_scan_list(fpath,dict_gfit,version='new'):
+def make_scan_list(fpath,dict_gfit,version='new',only_ALMA=False):
     '''
     version 'new' means dictionarries with keys (station, track, band, polarization)
     '''
@@ -1146,33 +1146,34 @@ def make_scan_list(fpath,dict_gfit,version='new'):
     scans = scans.sort_values('time_max')
     scans = scans.reset_index(drop=True)
     scans['scan_no_tot'] = scans.index
-
-    scanelevP = [scans.elev[x]['P'] for x in range(scans.shape[0])]
-    scanelevZ = [scans.elev[x]['Z'] for x in range(scans.shape[0])]
-    scanelevX = [scans.elev[x]['X'] for x in range(scans.shape[0])]
-    scans['gainP'] = [1.]*scans.shape[0]
-    scans['gainZ'] = [1.]*scans.shape[0]
-    scans['gainX'] = [1.]*scans.shape[0]
-    if version=='new':
-        gainPf = lambda x: dict_gfit[('P','A','lo','R')][0] + dict_gfit[('P','A','lo','R')][1]*x + dict_gfit[('P','A','lo','R')][2]*x**2
-        gainZf = lambda x: dict_gfit[('Z','A','lo','R')][0] + dict_gfit[('Z','A','lo','R')][1]*x + dict_gfit[('Z','A','lo','R')][2]*x**2
-        gainXf = lambda x: dict_gfit[('X','A','lo','R')][0] + dict_gfit[('X','A','lo','R')][1]*x + dict_gfit[('X','A','lo','R')][2]*x**2
-    else:
-        gainPf = lambda x: dict_gfit[('P','A')][0] + dict_gfit[('P','A')][1]*x + dict_gfit[('P','A')][2]*x**2
-        gainZf = lambda x: dict_gfit[('Z','A')][0] + dict_gfit[('Z','A')][1]*x + dict_gfit[('Z','A')][2]*x**2
-        gainXf = lambda x: dict_gfit[('X','A')][0] + dict_gfit[('X','A')][1]*x + dict_gfit[('X','A')][2]*x**2
-
-    for index, row in scans.iterrows():
-        if 'P' in row.antenas:
-            foo = gainPf(scans.elev[index]['P'])
-            scans.gainP[index] = float(foo)
-        if 'Z' in row.antenas:
-            foo = gainZf(scans.elev[index]['Z'])
-            scans.gainZ[index] = float(foo)
-        if 'X' in row.antenas:
-            foo = gainXf(scans.elev[index]['X'])
-            scans.gainX[index] = float(foo)
     
+    if only_ALMA==False:
+        scanelevP = [scans.elev[x]['P'] for x in range(scans.shape[0])]
+        scanelevZ = [scans.elev[x]['Z'] for x in range(scans.shape[0])]
+        scanelevX = [scans.elev[x]['X'] for x in range(scans.shape[0])]
+        scans['gainP'] = [1.]*scans.shape[0]
+        scans['gainZ'] = [1.]*scans.shape[0]
+        scans['gainX'] = [1.]*scans.shape[0]
+        if version=='new':
+            gainPf = lambda x: dict_gfit[('P','A','lo','R')][0] + dict_gfit[('P','A','lo','R')][1]*x + dict_gfit[('P','A','lo','R')][2]*x**2
+            gainZf = lambda x: dict_gfit[('Z','A','lo','R')][0] + dict_gfit[('Z','A','lo','R')][1]*x + dict_gfit[('Z','A','lo','R')][2]*x**2
+            gainXf = lambda x: dict_gfit[('X','A','lo','R')][0] + dict_gfit[('X','A','lo','R')][1]*x + dict_gfit[('X','A','lo','R')][2]*x**2
+        else:
+            gainPf = lambda x: dict_gfit[('P','A')][0] + dict_gfit[('P','A')][1]*x + dict_gfit[('P','A')][2]*x**2
+            gainZf = lambda x: dict_gfit[('Z','A')][0] + dict_gfit[('Z','A')][1]*x + dict_gfit[('Z','A')][2]*x**2
+            gainXf = lambda x: dict_gfit[('X','A')][0] + dict_gfit[('X','A')][1]*x + dict_gfit[('X','A')][2]*x**2
+
+        for index, row in scans.iterrows():
+            if 'P' in row.antenas:
+                foo = gainPf(scans.elev[index]['P'])
+                scans.gainP[index] = float(foo)
+            if 'Z' in row.antenas:
+                foo = gainZf(scans.elev[index]['Z'])
+                scans.gainZ[index] = float(foo)
+            if 'X' in row.antenas:
+                foo = gainXf(scans.elev[index]['X'])
+                scans.gainX[index] = float(foo)
+        
     #add SPT scan information
     #if SPT_total_scan==True:
     #    scans = add_SPT_total_scan(scans)
