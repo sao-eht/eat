@@ -655,13 +655,14 @@ def prepare_Tsys_data_ALMA(folder_path):
     return Tsfull
 
 
-def prepare_Tsys_data_ALMA_ER6(folder_path,only_ALMA=False):
+def prepare_Tsys_data_ALMA_ER6(folder_path,only_ALMA=False,avg_Tsys=False):
     Tsys={}
     list_files = os.listdir(folder_path)
     list_files = [f for f in list_files if f[0] =='A']
 
     Tsyscols = ['Tsys_ch'+str(x) for x in range(1,33)]
     cols = ['datetime']+Tsyscols+['band']
+    if avg_Tsys: cols = ['datetime','Tsys_st_R','Tsys_st_L','band']
     antena='NoAntena'
     FooDF = pd.DataFrame(columns=cols)
 
@@ -716,9 +717,15 @@ def prepare_Tsys_data_ALMA_ER6(folder_path,only_ALMA=False):
                     #if len(TsysAA)<32:
                     #    print(datetime_loc,len(TsysAA),isfloat(foo[-1]),len(foo))
                     if all(np.asarray(TsysAA)>0):
-                        data_loc = [datetime_loc]+TsysAA+[band_loc]
+                        
+                        if avg_Tsys: # if we want to average down ALMA Tsys across channels
+                            Tsys_R_loc = (1./np.mean(1./np.sqrt(TsysAA)))**2
+                            data_loc = [datetime_loc, Tsys_R_loc, Tsys_R_loc, band_loc]
+                        else:
+                            data_loc = [datetime_loc]+TsysAA+[band_loc]
                         line_df = pd.DataFrame([data_loc], columns = cols)
                         FooDF = FooDF.append(line_df, ignore_index=True)
+                
                     else: continue
                 else: continue
             
@@ -740,6 +747,7 @@ def prepare_Tsys_data_ALMA_ER6(folder_path,only_ALMA=False):
         foo = Time(list(Tsys[key].datetime)).mjd
         Tsys[key]['mjd'] = foo
     Tsfull = make_single_Tsys_table(Tsys)
+        
     return Tsfull
 
 
