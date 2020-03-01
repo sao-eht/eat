@@ -1403,7 +1403,7 @@ def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None,
     print('Saving sefd files...')
     #produce a priori calibration data
     if avg_Tsys:
-        generate_and_save_sefd_data_new(Tsys_match, dp, sourL, antL, exptL)
+        generate_and_save_sefd_data_new(TsysA_match, dp, sourL, antL, exptL)
     else:
         generate_and_save_sefd_data_ALMA(TsysA_match, dp, sourL, antL, exptL, pathSave)
 
