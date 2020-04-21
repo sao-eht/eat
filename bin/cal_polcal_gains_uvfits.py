@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 #hops2uvfits.py
 #take data from all fringe files in a directory and put them in a uvfits file

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 #
 # Maciek Wielgus 02/Oct/2018
 from __future__ import print_function
