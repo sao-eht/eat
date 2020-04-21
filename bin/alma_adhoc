@@ -83,7 +83,7 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
             p = hu.params(rows.iloc[0].path, quiet=True) # representative params
             ttrem = p.baseline.replace(ttref, "")
             segment[ttrem] = [p.start, p.stop] # ad-hoc phased times for REM station
-            print p.timetag + ' ' + p.baseline
+            print(p.timetag + ' ' + p.baseline)
             v = hu.align(rows.path, snrs=rows.snr) # stack data from detected fringes on baseline
             ah = hu.adhoc(v, ref=ttref, snr=np.sqrt((rows.snr**2).sum()), timeoffset=timeoffset, p=p, tcoh=tcoh,
                           prefix='' if outdir == '.' else outdir + '/')
@@ -119,4 +119,3 @@ if not args.no_fix:
 # adhocref(a, outdir=args.outdir, timeoffset=-1.)
 # the original timeoffset was used to address a fourfit indexing bug, which is fixed in current build
 adhocref(a, outdir=args.outdir, timeoffset=0.)
-
