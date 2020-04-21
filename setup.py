@@ -8,7 +8,7 @@ with open(path.join(here, "README.md"), encoding='utf-8') as f:
 
 setup(
     name="eat",
-    version="0.9.0",
+    version="1.6",
     description="EHT Analysis Toolkit",
     long_description=long_description,
 
