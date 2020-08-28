@@ -161,7 +161,7 @@ def add_gmst(df):
         times_unix, format='unix').sidereal_time('mean', 'greenwich').hour # vectorized
     df['gmst'] = 0. # initialize new column
     for (gmst, idx) in zip(times_gmst, indices):
-        df.ix[idx, 'gmst'] = gmst
+        df.loc[idx, 'gmst'] = gmst
 
 def add_mjd(df):
     """add *gmst* column to data frame with *datetime* field using astropy for conversion"""
@@ -180,7 +180,7 @@ def add_mjd(df):
         times_unix, format='unix').mjd # vectorized
     df['mjd'] = 0. # initialize new column
     for (mjd, idx) in zip(times_mjd, indices):
-        df.ix[idx, 'mjd'] = mjd
+        df.loc[idx, 'mjd'] = mjd
 
 def noauto(df):
     """returns new data frame with autocorrelations removed regardless of polarziation"""
