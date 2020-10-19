@@ -591,7 +591,7 @@ def add_mjd_smart(df):
     times_mjd = Time(timestamps).mjd # vectorized
     df['mjdsmart'] = 0. # initialize new column
     for (mjd, idx) in zip(times_mjd, indices):
-        df.ix[idx, 'mjdsmart'] = mjd
+        df.loc[idx, 'mjdsmart'] = mjd
 
 def add_fmjd(alist):
     alist['fmjd'] = list(map(lambda x: x%1 ,Time(list(alist.datetime)).mjd))

@@ -1104,13 +1104,13 @@ def closefringe(a):
         success_rate = ret.success
         cdelay = fit_mbd[b.idish0] - fit_mbd[b.idish1]
         crate = fit_rate[b.idish0] - fit_rate[b.idish1]
-        a.ix[idx,'offset_delay'] = cdelay - b.mbd_unwrap
-        a.ix[idx,'offset_rate'] = crate - b.delay_rate
-        a.ix[idx,'sigmas_delay'] = np.abs(cdelay - b.mbd_unwrap) / b.mbd_err
-        a.ix[idx,'sigmas_rate'] = np.abs(crate - b.delay_rate) / b.rate_err
-        a.ix[idx,'mbd_unwrap'] = cdelay
-        a.ix[idx,'delay_rate'] = crate
-        a.ix[idx,'success'] = success_mbd and success_rate
+        a.loc[idx,'offset_delay'] = cdelay - b.mbd_unwrap
+        a.loc[idx,'offset_rate'] = crate - b.delay_rate
+        a.loc[idx,'sigmas_delay'] = np.abs(cdelay - b.mbd_unwrap) / b.mbd_err
+        a.loc[idx,'sigmas_rate'] = np.abs(crate - b.delay_rate) / b.rate_err
+        a.loc[idx,'mbd_unwrap'] = cdelay
+        a.loc[idx,'delay_rate'] = crate
+        a.loc[idx,'success'] = success_mbd and success_rate
 
     g = a.groupby('timetag')
     scans = sorted(set(a.timetag))
