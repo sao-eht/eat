@@ -60,5 +60,5 @@ if args.grid and 'baseline' in args.columns:
     args.columns.append('rem')
 
 b = util.noauto(a)
-print b.pivot_table(index=args.index, columns=args.columns, values=args.values).to_string()
+print(b.pivot_table(index=args.index, columns=args.columns, values=args.values).to_string())
 
