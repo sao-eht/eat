@@ -23,7 +23,8 @@ sys_par = 2e-6 # 2 ps on fringe delay
 sys_cross = 20e-6 # 20 ps on cross hand delay
 
 # special segments list of restarts in days since year
-restarts = {'X':map(util.tt2dt, ['101-003000'])} # just before M87 scan
+# restarts = {'X':map(util.tt2dt, ['101-003000'])} # just before M87 scan
+restarts = hu.restarts_2018
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename', help='alist txt file')
@@ -33,6 +34,7 @@ parser.add_argument('-c', '--controlcodes', help='construct control codes rather
 parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=2e-6)
 parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
 parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=20e-6)
+parser.add_argument('-r', '--ref', help='reference polarization', default='L')
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
@@ -65,7 +67,7 @@ else:
 
 if args.controlcodes:
     out.write('* ' + statline + '\n')
-    cflines = offs.apply(hu.doff2cf, axis=1, args=(nchan,))
+    cflines = offs.apply(hu.doff2cf, axis=1, args=(nchan, args.ref))
     out.write(''.join(cflines))
 else:
     offs["start stop site LR_delay LR_delay_err".split()].to_csv(out, float_format='%+9.7f', index=False)
