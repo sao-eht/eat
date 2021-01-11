@@ -2,6 +2,7 @@
 
 # hack control file to handle HOPS baseline-dependent channel labels
 # 2018-08-21 Lindy Blackburn
+# 2020-01-30 LLB: adapt for 2018 data
 
 import re
 import os
@@ -42,7 +43,28 @@ if args.band == 'lo':
             newcf.append([cond31, act31])
             newcf.append([cond32, blk[1]])
     cf.cfblocks = newcf
-elif args.band == 'hi':
+elif args.band == 'b4': # one condition where G baselines will be missing the lowest freq channel
+    newcf = []
+    for blk in cf.cfblocks:
+        if blk[0] == 'station G': # assume this is tuned on 31 channel data
+            newcf.append(blk)
+        elif re.match('station \w', blk[0]): # assume this is tuned on 32 channel data
+            # station A and baseline ?G or station A and baseline G?
+            cond31 = ' or '.join((blk[0] + ' and baseline ' + ref + blk[0][-1] for ref in ('G')))
+            # if station A and not baseline ?G and not baseline G?
+            # precedence (not, and, or)
+            cond32 = ' and not '.join([blk[0]] + ['baseline ' + ref + blk[0][-1] for ref in ('G')])
+            act31 = []
+            for act in blk[1]:
+                tok = act[1].split()
+                if tok[0] == 'abcdefghijklmnopqrstuvwxyzABCDEF':
+                    act31.append([act[0], ' '.join([tok[0][:-1]] + tok[2:])])
+                else:
+                    act31.append(act)
+            newcf.append([cond31, act31])
+            newcf.append([cond32, blk[1]])
+    cf.cfblocks = newcf
+elif args.band in ('hi', 'b1', 'b2', 'b3'): # does not need fix
     None
 else:
     raise Exception('unknown band')
