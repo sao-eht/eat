@@ -64,8 +64,8 @@ if len(args.filename) == 0:
     firstline[0] = '6'
 else:
     infiles = args.filename
-    firstline = (a for a in open(args.filename[0])
-        if a[0] is not '*').next().strip().split()
+    firstline = next((a for a in open(args.filename[0])
+        if a[0] != '*')).strip().split()
 if(len(firstline) == len(hops.ffields_v6) and firstline[0] == '6'):
     (readfun, fmt) = (hops.read_alist_v6, hops.fformatters_v5) # use v5 formats for more readability
     if args.long:
@@ -162,6 +162,6 @@ if args.sort_by is not None:
 fmt.update(additional_fmt)
 fmt.pop('source', None) # let source autoformat because HOPS %32s is really long
 if not args.longlong:
-    print a[columns].to_string(formatters=fmt, **to_string_kwargs)
+    print(a[columns].to_string(formatters=fmt, **to_string_kwargs))
 else:
     hops.write_alist_v6(a, sys.stdout)
