@@ -92,7 +92,9 @@ sys_par = 2e-6 # 2 ps on fringe delay
 sys_cross = 20e-6 # 20 ps on cross hand delay
 
 # restart of backend system
-restarts_2017 = {'X':map(util.tt2dt, ['101-003000'])}
+restarts_2017 = {'X':[util.tt2dt(d, year=2017) for d in ['101-003000']]}
+restarts_2018 = {'S':[util.tt2dt(d, year=2018) for d in ['117-050000']],
+                 'X':[util.tt2dt(d, year=2017) for d in ['101-003000']]} # add old 2017 restarts for convenience, dates do not overlap
 
 def getpolarization(f):
     b = mk4.mk4fringe(f)
@@ -1270,10 +1272,12 @@ def wavg(x, sigma=1., col=None, w=None, robust=10.):
     if robust and len(x) >= 5:
         sigsort = np.sort(sigma)
         merr = 1.253 * sigsort / np.sqrt(np.arange(1, 1+len(x)))
-        imin = np.argmin(merr)
+        imin = np.maximum(2, np.argmin(merr)) # require 3
         (merrmin, sigthr) = (merr[imin], sigsort[imin]) # at lowest median error
         median = np.median(x[sigma <= sigthr])
         igood = np.array(np.abs((x-median)/np.sqrt(merrmin**2 + ssq)) < robust)
+        if np.sum(igood) < 3:
+            igood = sigma <= sigthr # require 3
         (x, sigma, ssq) = (x[igood], sigma[igood], ssq[igood])
         noutliers = np.sum(~igood)
     if w is None:
@@ -1283,7 +1287,7 @@ def wavg(x, sigma=1., col=None, w=None, robust=10.):
     ssum = np.sum(wsq * ssq) # total variance
     wsum = np.sum(w)         # common divisor
     xavg = xsum / wsum
-    eavg = np.sqrt(ssum) / wsum
+    eavg = np.sqrt(ssum) / wsum # DOUBLE CHECK THIS
     chi2 = np.sum((x-xavg)**2/ssq)/(max(1, len(x)-1))
     if col is None:
         return xavg, eavg
@@ -1292,7 +1296,7 @@ def wavg(x, sigma=1., col=None, w=None, robust=10.):
         from collections import OrderedDict
         return OrderedDict(zip(col, return_cols[:len(col)]))
 
-def rl_segmented(a, site, restarts={}, boundary=21,
+def rl_segmented(a, site, restarts={}, boundary=19,
                  index="ref_freq expt_no scan_id scan_no source timetag baseline".split()):
     import pandas as pd
     # calibration R-L delay difference at [rem] site using other sites as REF
@@ -1361,8 +1365,8 @@ def rlplot(p, corrected=True, wrap=True, vlines=[]):
 
 # segmented hi-lo delay differences
 # restarts[site] = [pd.Timestamp list of clock resets]
-# assume additional clock reset at 21:00 UT for all sites = boundary [h]
-def hilo_segmented(a1, a2, restarts={}, boundary=21, index="expt_no scan_id source timetag".split(),
+# assume additional clock reset at 19:00 UT for all sites = boundary [h]
+def hilo_segmented(a1, a2, restarts={}, boundary=19, index="expt_no scan_id source timetag".split(),
                     values="mbd_unwrap mbd_err snr path".split(), idcol='ref_freq'):
     """hilo_segmented: general hi-lo delay statistics given alist data
 
@@ -1370,7 +1374,7 @@ def hilo_segmented(a1, a2, restarts={}, boundary=21, index="expt_no scan_id sour
         a1: dataframe from alist file with rates and delays, delay errors are added if missing
         b2: dataframe from alist file with rates and delays, delay errors are added if missing
         restarts: special times in which to segment certain stations
-        boundary: hour boundary for daily segments (default 21h)
+        boundary: hour boundary for daily segments (default 19h)
     """
     import pandas as pd
     
@@ -1430,15 +1434,15 @@ def hiloplot(p, baselines=slice(None), polarizations=slice(None)):
 
 # segmented RR-LL delay differences
 # restarts[site] = [pd.Timestamp list of clock resets]
-# assume additional clock reset at 21:00 UT for all sites = boundary [h]
-def rrll_segmented(a, restarts={}, boundary=21,
+# assume additional clock reset at 19:00 UT for all sites = boundary [h]
+def rrll_segmented(a, restarts={}, boundary=19,
                    index="ref_freq expt_no scan_id scan_no source timetag".split(), aggfunc='first'):
     """rrll_segmented: general RR-LL delay statistics given alist data
 
     Args:
         a: dataframe from alist file with rates and delays, delay errors are added if missing
         restarts: special times in which to segment certain stations
-        boundary: hour boundary for daily segments (default 21h)
+        boundary: hour boundary for daily segments (default 19h)
     """
     import pandas as pd
     b = a[a.polarization.isin({'RR', 'LL'})].copy()
@@ -1863,7 +1867,7 @@ def fixsqrt2(df):
 # allscans: additional data frame of all scans to use for plotting non-detections
 def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, flip=True, col=None,
         ulthreshold=None, cmap=cm.get_cmap('jet', 9), vmin=None, vmax=None, log=True, tag=None,
-        markerleg=True, allscans=None):
+        markerleg=True, allscans=None, year=None):
     import pandas as pd
     import seaborn as sns
     from ..plots import util as pu
@@ -1872,6 +1876,8 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
         df = df[df.source == source].copy()
     else:
         df = df.copy()
+    if year is None:
+        year = df.iloc[0].year
     def constrained(df):
         goodbls = fringegroups(df[df.snr > threshold].baseline, baselines=True)
         return df[df.baseline.isin(goodbls)]
@@ -1924,7 +1930,7 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
     plt.ylim(-9, 9)
     plt.xticks([-8, -6, -4, -2, 0, 2, 4, 6, 8])
     plt.plot(0, 0, 'k.')
-    plt.title('EHT 2017 %s coverage' % source)
+    plt.title('EHT %s %s coverage' % (year, source))
     plt.xlabel('u [G$\lambda$]')
     plt.ylabel('v [G$\lambda$]')
     lines = []
