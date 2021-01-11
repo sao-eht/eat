@@ -171,6 +171,8 @@ parser.add_argument("filename",
                     help="alist file")
 parser.add_argument("-d", "--datadir", default=datadir,
                     help="use fringe files from this data directory")
+parser.add_argument("-a", "--average", default=False, action="store_true",
+                    help="use average L and R phase cal")
 parser.add_argument("-o", "--outfile", default=[sys.stdout], nargs="+",
                     help="output file name(s); "+
                          "if \"-c\" is used, only 1 file name is allowed; "+
@@ -222,9 +224,13 @@ if args.controlcodes:
     else:
         f = args.outfile[0]
     f.write("* {}\n\n".format(statline))
-    f.write("\n".join(mkcf(pcr.index.values, "pc_phases_r", pcr.values) +
-                      mkcf(pcl.index.values, "pc_phases_l", pcl.values) +
-                      mkcf(pcf.index.values, "delay_offs",  delays)))
+    if args.average:
+        f.write("\n".join(mkcf(pcr.index.values, "pc_phases", pcf.values) +
+                          mkcf(pcf.index.values, "delay_offs",  delays)))
+    else:
+        f.write("\n".join(mkcf(pcr.index.values, "pc_phases_r", pcr.values) +
+                          mkcf(pcl.index.values, "pc_phases_l", pcl.values) +
+                          mkcf(pcf.index.values, "delay_offs",  delays)))
     if need_open_close:
         f.close()
 else:
