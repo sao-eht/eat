@@ -100,7 +100,7 @@ def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_system
                             crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
     df['rate_err'] = np.sqrt(df['rate_err']**2 + rate_systematic**2)
 
-def tt2dt(timetag, year=2017):
+def tt2dt(timetag, year=2018):
     """convert HOPS timetag to pandas Timestamp (np.datetime64)"""
     return pd.to_datetime(str(year) + timetag, format="%Y%j-%H%M%S")
 
@@ -186,6 +186,11 @@ def noauto(df):
     """returns new data frame with autocorrelations removed regardless of polarziation"""
     auto = df.baseline.str[0] == df.baseline.str[1]
     return df[~auto].copy()
+
+def debias(df):
+    """amplitude debias by subtracting noise expectation from squared amplitude from df.amp, do not run twice!"""
+    snr_deb = np.sqrt(np.maximum(0.0, df.snr**2 - 1.0))
+    df['amp'] = df['amp'] * snr_deb / df.snr
 
 # a number of polconvert fixes based on rootcode (correlation proc time)
 # optionally undo fix
