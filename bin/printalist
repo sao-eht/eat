@@ -38,7 +38,7 @@ parser = argparse.ArgumentParser(epilog=
 ' [alist v5] ' + ' '.join(map(str.format, hops.ffields_v5)) + 
 ' [tlist v6] ' + ' '.join(map(str.format, hops.tfields_v6))
 )
-parser.add_argument('filename', nargs='+', help='alist txt file[s]')
+parser.add_argument('filename', nargs='*', default=None, help='alist txt file[s]')
 parser.add_argument('-c', '--columns', help='space separated default columns to print (optional)', nargs='*', default=None)
 parser.add_argument('-a', '--add-columns', help='add these columns to the default list', nargs='*', default=None)
 parser.add_argument('-r', '--remove-columns', help='remove these columns from the default list', nargs='*', default=None)
@@ -46,6 +46,8 @@ parser.add_argument('-s', '--sort-by', help='sort by these columns', nargs='*', 
 parser.add_argument('-f', '--filter', help='filter is a set of key value requirements: e.g. -f baseline GE source BLLAC', nargs='*', default=None)
 parser.add_argument('-e', '--expression', help='expression is a python expression to evaluate on each row which evaluates to true if row is to be kept', default=None)
 parser.add_argument('-t', '--threshold', help='signal-to-noise threshold (same as -e "snr > <threshold>")', type=float, default=None)
+parser.add_argument('-l', '--long', help='long format output for more decimal places', action="store_true")
+parser.add_argument('-ll', '--longlong', help='full alist (v6) format output', action="store_true")
 parser.add_argument('-na', '--no-auto', help='do not print autocorrelations', action="store_true")
 parser.add_argument('-nh', '--no-header', help="don't print column header", action="store_true")
 parser.add_argument('-ni', '--no-index', help="don't print index (row number)", action="store_true")
@@ -56,10 +58,18 @@ parser.add_argument('-cp', '--cross-products', help='only show cross hand polari
 args = parser.parse_args()
 
 # which kind of file are we looking at (may not close file until garbage collect?)
-firstline = (a for a in open(args.filename[0])
-    if a[0] is not '*').next().strip().split()
+if len(args.filename) == 0:
+    infiles = [sys.stdin,]
+    firstline = hops.ffields_v6
+    firstline[0] = '6'
+else:
+    infiles = args.filename
+    firstline = (a for a in open(args.filename[0])
+        if a[0] is not '*').next().strip().split()
 if(len(firstline) == len(hops.ffields_v6) and firstline[0] == '6'):
     (readfun, fmt) = (hops.read_alist_v6, hops.fformatters_v5) # use v5 formats for more readability
+    if args.long:
+        fmt = hops.fformatters_v6
     defaultcol = "scan_id timetag source baseline polarization amp snr resid_phas sbdelay mbdelay delay_rate".split()
 elif(len(firstline) == len(hops.ffields_v5) and firstline[0] == '5'):
     (readfun, fmt) = (hops.read_alist_v5, hops.fformatters_v5)
@@ -77,7 +87,7 @@ else:
     (readfun, fmt) = (misc.read_generic, dict())
     defaultcol = None
 
-a = pd.concat([readfun(fname) for fname in args.filename], ignore_index=True)
+a = pd.concat([readfun(fname) for fname in infiles], ignore_index=True)
 
 if not args.no_fix:
     util.fix(a)
@@ -127,7 +137,7 @@ if 'timetag' in a and 'hour' not in a:
 
 if args.filter is not None:
     if len(args.filter) % 2 != 0:
-        sys.exit("one (python expr) or 2N (key==val requirements) filter elements required")
+        sys.exit("2N (key==val requirements) filter elements required")
     keep = reduce(np.bitwise_and, ((a[key] == np.array(val, dtype=a[key].dtype)[()] for key, val in
         zip(args.filter[::2], args.filter[1::2]))))
     a = a[keep]
@@ -151,4 +161,7 @@ if args.sort_by is not None:
 
 fmt.update(additional_fmt)
 fmt.pop('source', None) # let source autoformat because HOPS %32s is really long
-print a[columns].to_string(formatters=fmt, **to_string_kwargs)
+if not args.longlong:
+    print a[columns].to_string(formatters=fmt, **to_string_kwargs)
+else:
+    hops.write_alist_v6(a, sys.stdout)
