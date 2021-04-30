@@ -9,6 +9,11 @@ import numpy as np
 import sys
 import re
 
+try:
+    from functools import reduce 
+except:
+    None
+
 import argparse
 
 additional_fmt = {
