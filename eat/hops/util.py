@@ -97,7 +97,7 @@ restarts_2018 = {'S':[util.tt2dt(d, year=2018) for d in ['117-050000']],
                  'X':[util.tt2dt(d, year=2017) for d in ['101-003000']]} # add old 2017 restarts for convenience, dates do not overlap
 
 def getpolarization(f):
-    b = mk4.mk4fringe(f)
+    b = mk4.mk4fringe(f.encode())
     ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
     return ch0.refpol + ch0.rempol
 
@@ -133,7 +133,7 @@ def getfringefile(b=None, filelist=False, pol=None, quiet=False):
         getfringefile.last = files[-1].split('/')
         if not quiet:
             print(files[-1])
-        b = mk4.mk4fringe(files[-1]) # use last updated file
+        b = mk4.mk4fringe(files[-1].encode()) # use last updated file
     return b
 
 # convenience function to set "datadir" (last file) for getfringefile
@@ -250,6 +250,10 @@ def pop120(b=None, pol=None, fill=0):
     # dfio.clear_mk4corel(ctypes.byref(c)) # now supported in mk4 library
     return data120
 
+# python 2/3 [byte]string normalize
+def fixstr(s):
+    return str(s.decode())
+
 # some HOPS channel parameter info
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
@@ -310,13 +314,13 @@ def params(b=None, pol=None, quiet=None, cf=None):
         name = b
         b = getfringefile(b, pol=pol, quiet=quiet)
     else:
-        name = b.id.contents.name
+        name = fixstr(b.id.contents.name)
     ref_freq = b.t205.contents.ref_freq
     # dimensions -- nlags in fringe files, may be zero padded by 2x
     (nchan, nap, nlags) = (b.n212, b.t212[0].contents.nap, b.t202.contents.nlags)
     nspec = None if not bool(b.t230[0]) else b.t230[0].contents.nspec_pts
-    # channel indexing
-    clabel = [q.ffit_chan_id for q in b.t205.contents.ffit_chan[:nchan]]
+    # channel indexing (some python2/3 cross-compatibility)
+    clabel = [fixstr(q.ffit_chan_id) for q in b.t205.contents.ffit_chan[:nchan]]
     cidx = [q.channels[0] for q in b.t205.contents.ffit_chan[:nchan]]
     cinfo = [b.t203[0].channels[i] for i in cidx] # channel info
     # fourfit delay and rate solution
@@ -363,10 +367,10 @@ def params(b=None, pol=None, quiet=None, cf=None):
     frot[120] = np.exp(-1j * delay * dfvec[120] * 2*np.pi) # assuming nlags120 = nlags230/2
     frot[212] = np.exp(-1j * delay * dfvec[212] * 2*np.pi) # note type_212 is already rotated in data
     p = Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags, days=days,
-        code=clabel, pol=cinfo[0].refpol + cinfo[0].rempol, sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
+        code=clabel, pol=fixstr(cinfo[0].refpol + cinfo[0].rempol), sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
         ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot, frt=frt, frtoff=frtoff,
-        baseline=b.t202.contents.baseline, source=b.t201.contents.source, start=start, stop=stop, utc_central=utc_central,
-        scan_name=b.t200.contents.scan_name, scantime=scantime, timetag=util.dt2tt(scantime),
+        baseline=fixstr(b.t202.contents.baseline), source=fixstr(b.t201.contents.source), start=start, stop=stop, utc_central=utc_central,
+        scan_name=fixstr(b.t200.contents.scan_name), scantime=scantime, timetag=util.dt2tt(scantime),
         scantag=util.dt2tt(scantime + datetime.timedelta(seconds=b.t200.contents.start_offset)),
         expt_no=b.t200.contents.expt_no, startidx=startidx, stopidx=stopidx, apfilter=apfilter)
     if cf is not None:
@@ -1161,7 +1165,7 @@ class ControlFile(object):
         # action keyword match -- needs to match only beginning of keyword but be careful not to match anything else
         action_kw = "adhoc_file adhoc_phase dc_block delay_offs dr_ freqs est_pc gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
         pat_act = '\s*(.+?)\s*(\w*' + '|\w*'.join((kw[::-1] for kw in action_kw)) + ')'
-        pat_blk = '(.*?)\s*(' + '.*|'.join(action_kw) + '.*)'
+        pat_blk = '(.*?)\s*(' + '.*|'.join(action_kw) + '.*|$)' # allow empty block
         if os.path.exists(cf):
             cf = open(cf).read()
         cf = re.sub('\*.*', '', cf) # strip comments, assume DOTALL is not set
@@ -1312,15 +1316,16 @@ def rl_segmented(a, site, restarts={}, boundary=19,
     index = [col for col in index if col in b.columns]
     t0 = b.datetime.min()
     t1 = b.datetime.max()
-    start = pd.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
-    stop  = pd.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
+    start = datetime.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
+    stop  = datetime.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
     drange = list(pd.date_range(start, stop))
     # segments for baseline, adding in any known restarts for either site
     tsbounds = sorted(drange + restarts.get(site, []))
     # leaving this as CategoryIndex (no "get_values") results in slow pivot_table
     # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
     # probably pass aggfunc='first' to handle non-numeric types
-    b['segment'] = pd.cut(b.datetime, tsbounds, right=False, labels=None).get_values()
+    # update: "Series.get_values()" was removed in pandas, hopefully ".values" is the same
+    b['segment'] = pd.cut(b.datetime, tsbounds, right=False, labels=None).values
     # convert segment to start, stop values since only 1D objects supported well in pandas
     # for indexing, lose meta-info about right or left closed segment -- too bad
     b['start'] = b.segment.apply(lambda x: x.left)
@@ -1389,8 +1394,8 @@ def hilo_segmented(a1, a2, restarts={}, boundary=19, index="expt_no scan_id sour
     values = [col for col in values if col in b.columns]
     t0 = b.datetime.min()
     t1 = b.datetime.max()
-    start = pd.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
-    stop  = pd.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
+    start = datetime.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
+    stop  = datetime.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
     drange = list(pd.date_range(start, stop))
     g = b.groupby('baseline')
     for (bl, rows) in g:
@@ -1400,8 +1405,9 @@ def hilo_segmented(a1, a2, restarts={}, boundary=19, index="expt_no scan_id sour
         # leaving this as CategoryIndex (no "get_values") results in slow pivot_table
         # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
         # probably pass aggfunc='first' to handle non-numeric types
+        # update: "Series.get_values()" was removed in pandas, hopefully ".values" is the same
         b.loc[rows.index, 'segment'] = pd.cut(
-            rows.datetime, tsbounds, right=False, labels=None).get_values()
+            rows.datetime, tsbounds, right=False, labels=None).values
     # convert segment to start, stop values since only 1D objects supported well in pandas
     # for indexing, lose meta-info about right or left closed segment -- too bad
     b['start'] = b.segment.apply(lambda x: x.left)
@@ -1455,8 +1461,8 @@ def rrll_segmented(a, restarts={}, boundary=19,
     index = [col for col in index if col in b.columns and col != "baseline"]
     t0 = b.datetime.min()
     t1 = b.datetime.max()
-    start = pd.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
-    stop  = pd.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
+    start = datetime.datetime(t0.year, t0.month, t0.day, boundary) - int(t0.hour < boundary) * pd.DateOffset(1)
+    stop  = datetime.datetime(t1.year, t1.month, t1.day, boundary) + int(t1.hour > boundary) * pd.DateOffset(1)
     drange = list(pd.date_range(start, stop))
     g = b.groupby('baseline')
     for (bl, rows) in g:
@@ -1466,8 +1472,9 @@ def rrll_segmented(a, restarts={}, boundary=19,
         # leaving this as CategoryIndex (no "get_values") results in slow pivot_table
         # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
         # probably pass aggfunc='first' to handle non-numeric types
+        # update: "Series.get_values()" was removed in pandas, hopefully ".values" is the same
         b.loc[rows.index, 'segment'] = pd.cut(
-            rows.datetime, tsbounds, right=False, labels=None).get_values()
+            rows.datetime, tsbounds, right=False, labels=None).values
     # convert segment to start, stop values since only 1D objects supported well in pandas
     # for indexing, lose meta-info about right or left closed segment -- too bad
     b['start'] = b.segment.apply(lambda x: x.left)
