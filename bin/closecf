@@ -5,6 +5,7 @@
 # 2017-07-20 Lindy Blackburn & CK Chan - update for 2015+ data
 # 2017-09-13 Lindy Blackburn, update for 2017 Rev1-Cal
 # 2017-12-22 Lindy Blackburn, update for ER2
+# 2021-05-15 Lindy Blackburn, legacy 2017 systematic errors
 
 from eat.io import hops, util
 from eat.hops import util as hu
@@ -52,7 +53,7 @@ util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_
 a['mbd_err'] = np.sqrt(a['mbd_err']**2 + 50e-6**2*(a.baseline.isin({'JS', 'JR', 'SJ', 'RJ'}))
                        + 1.*(a.baseline.isin({'SR', 'RS'})) + 1.*(a.snr < args.threshold)
                        + 1.5e-3**2*(a.baseline.str.contains('L') & a.polarization.isin({'RL', 'LR'}))
-                       + 23e-3**2*((a.ref_freq > 228100.) & (a.baseline == 'AR') & (a.polarization == 'RL')
+                       + 23e-3**2*((a.ref_freq > 228100.) & (a.baseline == 'AR') & (a.polarization == 'RL') & (a.year == '2017')
                                  & (a.scan_id.isin({'095-0829', '095-0839', '095-0849', '095-0859', '095-0908'}))))
 a['rate_err'] = np.sqrt(a['rate_err']**2 + 0.25*(a.baseline.isin({'SR', 'RS'})) + 4.0*(a.baseline.isin({'JR', 'RJ'})) + 1.*(a.snr < args.threshold))
 
@@ -60,7 +61,7 @@ hu.closefringe(a)
 
 # print out FF control file
 
-print '* ' + statline
+print('* ' + statline)
 g = a.groupby('timetag')
 for (scan, b) in g:
 #     sites = set(chain(*b.baseline))
@@ -73,7 +74,7 @@ for (scan, b) in g:
     connected = hu.fringegroups(b[b.snr >= args.threshold].baseline)
     for c in b.groupby('baseline').first().reset_index().itertuples():
         # hack fix for fourfit issue on one scan with X VEX start offset
-        if c.timetag == '097-051800' and 'X' in c.baseline:
+        if c.year == '2017' and c.timetag == '097-051800' and 'X' in c.baseline:
             timetag = '097-051850'
         else:
             timetag = c.timetag
