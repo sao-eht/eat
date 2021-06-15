@@ -203,9 +203,10 @@ ll = df[df.polarization == 'LL']
 nchan = string.ascii_letters.find(df.columns[-1]) + 1
 chans = list(string.ascii_letters[:nchan])
 
-pcf   = df.groupby('baseline')[chans].mean().apply(np.angle, deg=True)
-pcr   = rr.groupby('baseline')[chans].mean().apply(np.angle, deg=True)
-pcl   = ll.groupby('baseline')[chans].mean().apply(np.angle, deg=True)
+# at some point, pandas.core.groupby.GroupBy.mean() no longer considers numpy.complex128 to be numeric type (?!!)
+pcf   = df.groupby('baseline')[chans].mean(numeric_only=False).apply(np.angle, deg=True)
+pcr   = rr.groupby('baseline')[chans].mean(numeric_only=False).apply(np.angle, deg=True)
+pcl   = ll.groupby('baseline')[chans].mean(numeric_only=False).apply(np.angle, deg=True)
 
 pcf[:] = fix_nan(pcf.apply(unwrap, axis=1).apply(offset, axis=1).values)
 pcr[:] = fix_nan(pcr.apply(unwrap, axis=1).apply(offset, axis=1).values)
