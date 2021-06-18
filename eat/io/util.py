@@ -121,9 +121,10 @@ def add_scanno(df, unique=True):
     else:
         df['scan_no'] = df.scan_id.str[2:].astype(int)
 
-def add_path(df):
-    """add a *path* to each alist line for easier file access"""
-    df['path'] = ['%s/%s/%s.%.1s.%s.%s' % par for par in zip(df.expt_no, df.scan_id, df.baseline, df.freq_code, df.extent_no, df.root_id)]
+def add_path(df, datadir=''):
+    """add a *path* to each alist line for easier file access, with optional root datadir"""
+    df['path'] = [os.path.join(datadir, '%s/%s/%s.%.1s.%s.%s' % par)
+        for par in zip(df.expt_no, df.scan_id, df.baseline, df.freq_code, df.extent_no, df.root_id)]
 
 def add_utime(df):
     """add UNIX time *utime*"""
