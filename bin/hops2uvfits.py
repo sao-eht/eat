@@ -15,6 +15,7 @@ import glob
 import os, sys
 try:
     import eat.hops.util
+    from eat.hops.util import fixstr
     from eat.io import util
     #from eat.plots import util as putil
 except: #work on Maciek's laptop
@@ -291,14 +292,14 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 continue
 
             #print "reading hops fringe file: ", filename
-            a = mk4.mk4fringe(filename)
+            a = mk4.mk4fringe(filename.encode()) # encode() for python3/ctypes compatibility
             b = eat.hops.util.getfringefile(a)
 
             if first_pass_flag: #some info we get only once per baseline
 
                 ###################################  SOURCE INFO ###################################
                 # name of the source
-                srcname = b.t201[0].source
+                srcname = fixstr(b.t201[0].source)
                 if fix_src_name:
                     if srcname == '1921-293':
                         srcname = 'J1924-2914'
@@ -327,8 +328,8 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
                 ###################################  ANTENNA INFO ###################################
                 # names of antennas
-                ant1 = b.t202.contents.ref_intl_id.upper()
-                ant2 = b.t202.contents.rem_intl_id.upper()
+                ant1 = fixstr(b.t202.contents.ref_intl_id).upper() # only used for misc fixes (e.g. pol swap)
+                ant2 = fixstr(b.t202.contents.rem_intl_id).upper()
 
                 scalingFac = 1.0
                 if sqrt2corr:
@@ -337,7 +338,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                     elif ant1== 'AA' or ant2 == 'AA':
                         scalingFac = 1.0 / np.sqrt(2)
 
-                baselineName = b.t202.contents.baseline # first one is ref antenna second one is rem
+                baselineName = fixstr(b.t202.contents.baseline) # first one is ref antenna second one is rem
 
                 # x, y, z coordinate of antenna 1
                 ant1_x = b.t202.contents.ref_xpos # meters
@@ -400,7 +401,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 first_pass_flag = False
 
             # loop through channels and get the frequency, polarization, id, and bandwidth
-            clabel = [q.ffit_chan_id for q in b.t205.contents.ffit_chan[:nchan]]
+            # clabel = [q.ffit_chan_id for q in b.t205.contents.ffit_chan[:nchan]] # not used
             cidx = [q.channels[0] for q in b.t205.contents.ffit_chan[:nchan]]
             cinfo = [b.t203[0].channels[i] for i in cidx]
 
@@ -409,8 +410,9 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             channel_freq_ant2 = np.zeros([len(cinfo)])
             channel_pol_ant1 = []
             channel_pol_ant2 = []
-            channel_id_ant1 = []
-            channel_id_ant2 = []
+            # not used
+            # channel_id_ant1 = []
+            # channel_id_ant2 = []
             channel_bw_ant1 = np.zeros([len(cinfo)])
             channel_bw_ant2 = np.zeros([len(cinfo)])
             count = 0
@@ -425,18 +427,18 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 channel_bw_ant2[count] = 0.5*eat.hops.util.short2int(ch.sample_rate)
 
                 # the polarization 'L' or 'R'
-                channel_pol_ant1.append(ch.refpol)
-                channel_pol_ant2.append(ch.rempol)
+                channel_pol_ant1.append(fixstr(ch.refpol))
+                channel_pol_ant2.append(fixstr(ch.rempol))
 
-                # the channel id
-                channel_id_ant1.append(ch.ref_chan_id)
-                channel_id_ant2.append(ch.rem_chan_id)
+                # the channel id - not used
+                # channel_id_ant1.append(ch.ref_chan_id)
+                # channel_id_ant2.append(ch.rem_chan_id)
                 count = count + 1
 
             channel_pol_ant1 = np.array(channel_pol_ant1)
-            channel_id_ant1= np.array(channel_id_ant1)
+            # channel_id_ant1= np.array(channel_id_ant1)
             channel_pol_ant2 = np.array(channel_pol_ant2)
-            channel_id_ant2= np.array(channel_id_ant2)
+            # channel_id_ant2= np.array(channel_id_ant2)
 
             if len(set(channel_bw_ant1)) != 1:
                 print(channel_bw_ant1)
@@ -511,7 +513,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 delay_mtx = np.matlib.repmat( dfvec.reshape(dfvec.shape[0], 1), 1, nap )
                 shift = shift + (2 * np.pi *  delay * delay_mtx )
 
-            for i in xrange(nchan):
+            for i in range(nchan):
 
                 # visibility  weight corresponds to sigma
                 visweight = 1.0 / (sigma_ind[i,:]**2)
@@ -717,7 +719,7 @@ def load_and_convert_hops_uvfits(filename):
     obsdata = datastruct.data.datatable
 
     # Sites - add names
-    t1 = baseline.astype(int)/256
+    t1 = baseline.astype(int)//256 # python3
     t2 = baseline.astype(int) - t1*256
     t1 = t1 - 1
     t2 = t2 - 1
@@ -742,8 +744,8 @@ def load_and_convert_hops_uvfits(filename):
     # Make a datatable
     # TODO check that the jd not cut off by precision
     datatable = []
-    for i in xrange(len(jds)):
-        for j in xrange(nchan):
+    for i in range(len(jds)):
+        for j in range(nchan):
             freq = j*ch_spacing + ch1_freq
             datatable.append(np.array(
                              (jds[i], freq, tints[i],
@@ -784,7 +786,7 @@ def construct_bl_list(datatable_merge, tkeys):
 
     bl_dict_table = dict()
     bl_set = set()
-    for i in xrange(len(datatable_merge)):
+    for i in range(len(datatable_merge)):
         entry = datatable_merge[i]
         t1num = entry['t1']
         t2num = entry['t2']
@@ -819,12 +821,12 @@ def construct_bl_list(datatable_merge, tkeys):
 
     #now create a look up table into the list of unique entries
     bl_dict_table2 = dict()
-    for n in xrange(len(unique_entries_sorted)):
+    for n in range(len(unique_entries_sorted)):
         bl_dict_table2[ unique_entries_sorted[n] ] = n
 
     #now we need to go through and construct the inverse indexes
     inverse_indexes = []
-    for i in xrange(len(datatable_merge)):
+    for i in range(len(datatable_merge)):
         entry = datatable_merge[i]
         tmp_entry = (entry['time'],entry['t1'],entry['t2'])
         inverse_indexes.append( bl_dict_table2[tmp_entry] )
@@ -991,7 +993,7 @@ def merge_hops_uvfits(fitsFiles):
     outdat[:,:,:,:,:,:,2] = -1.0
 
     vistypes = ['rr','ll','rl','lr']
-    for i in xrange(len(datatable_merge)):
+    for i in range(len(datatable_merge)):
         row_freq_idx = idx_freq[i]
         row_dat_idx = idx_anttime[i]
 
@@ -1078,7 +1080,9 @@ def save_uvfits(datastruct, fname):
     header['OBSRA'] = ra * 180./12.
     header['OBSDEC'] = dec
     header['MJD'] = float(mjd)
-    header['DATE-OBS'] = Time(mjd + MJD_0, format='jd', scale='utc', out_subfmt='date').iso
+    # new astropy broke this subfmt for jd for some reason
+    # header['DATE-OBS'] = Time(mjd + MJD_0, format='jd', scale='utc', out_subfmt='date').iso
+    header['DATE-OBS'] = Time(mjd + MJD_0, format='jd', scale='utc').iso[:10]
     #header['DATE-MAP'] = ??
     #header['VELREF'] = 3
 
@@ -1193,8 +1197,10 @@ def save_uvfits(datastruct, fname):
     #rdate_gstiao_out = RDATE_GSTIA0
     #rdate_offset_out = RDATE_OFFSET
 
-    rdate_tt_new = Time(mjd + MJD_0, format='jd', scale='utc', out_subfmt='date')
-    rdate_out = rdate_tt_new.iso
+    # new astropy broke this subfmt, it should be a day boundary hopefully
+    # rdate_tt_new = Time(mjd + MJD_0, format='jd', scale='utc', out_subfmt='date')
+    rdate_tt_new = Time(mjd + MJD_0, format='jd', scale='utc')
+    rdate_out = rdate_tt_new.iso[:10]
     rdate_jd_out = rdate_tt_new.jd
     rdate_gstiao_out = rdate_tt_new.sidereal_time('apparent','greenwich').degree
     rdate_offset_out = (rdate_tt_new.ut1.datetime.second - rdate_tt_new.utc.datetime.second)
