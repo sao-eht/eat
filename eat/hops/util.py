@@ -250,7 +250,7 @@ def pop120(b=None, pol=None, fill=0):
     # dfio.clear_mk4corel(ctypes.byref(c)) # now supported in mk4 library
     return data120
 
-# python 2/3 [byte]string normalize
+# python 2/3 bytestring normalize
 def fixstr(s):
     return str(s.decode())
 
@@ -722,7 +722,7 @@ def vecplot(vs, dtvec, dfvec, delay, rate, ref_freq, dt=1, df=1):
     plt.plot([0,0], [vtot.real, vtot.imag], 'r.-', lw=2, ms=4, alpha=1.0)
 
 def timeseries(bs, dt=1, pol=None, kind=212, cf=None, delay=None, rate=None, ret=False):
-    if not hasattr(bs, '__iter__'):
+    if type(bs) == type('') or not hasattr(bs, '__iter__'):
         bs = [bs,]
     nrow = len(bs)
     for (i, b) in enumerate(bs):
