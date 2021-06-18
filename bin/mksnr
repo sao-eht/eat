@@ -14,6 +14,7 @@ parser.add_argument('-c', '--columns', help='pivot table columns', nargs='+', de
 parser.add_argument('-v', '--values', help='pivot table values', nargs='+', default=['snr'])
 parser.add_argument('-s', '--source', help='filter by source', default=None)
 parser.add_argument('-p', '--polarization', help='filter by polarization', nargs='+', default=['LL', 'LR', 'RL', 'RR'])
+parser.add_argument('-b', '--groupby', help='group output by columns', nargs='*', default=[])
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
@@ -28,7 +29,8 @@ if len(alists) > 1:
     for (a, tag) in zip(alists, tags):
         a['tag'] = tag
     a = pd.concat(alists, ignore_index=True)
-    args.index.append('tag')
+    if 'tag' not in args.index and 'tag' not in args.columns:
+        args.index.append('tag')
 else:
     a = alists[0]
 
@@ -60,5 +62,10 @@ if args.grid and 'baseline' in args.columns:
     args.columns.append('rem')
 
 b = util.noauto(a)
-print(b.pivot_table(index=args.index, columns=args.columns, values=args.values).to_string())
+
+if len(args.groupby) > 0:
+    for (name, grp) in b.groupby(args.groupby):
+        print(grp.pivot_table(index=args.index, columns=args.columns, values=args.values).to_string(na_rep='.', sparsify=True))
+else:
+    print(b.pivot_table(index=args.index, columns=args.columns, values=args.values).to_string(na_rep='.', sparsify=True))
 
