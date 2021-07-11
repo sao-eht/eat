@@ -13,7 +13,14 @@
 
 ## Installation
 
-`eat` can be used directly by adding the module location to your Python path.
+`eat` can be used directly by adding the module location to your Python path,
+```
+git clone https://github.com/sao-eht/eat.git
+python
+>>> import sys
+>>> sys.path.append('eat')
+>>> import eat
+```
 
 Alternatively for a system install,
 ```
