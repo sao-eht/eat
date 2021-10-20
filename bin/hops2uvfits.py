@@ -427,8 +427,8 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 channel_bw_ant2[count] = 0.5*eat.hops.util.short2int(ch.sample_rate)
 
                 # the polarization 'L' or 'R'
-                channel_pol_ant1.append(fixstr(ch.refpol))
-                channel_pol_ant2.append(fixstr(ch.rempol))
+                channel_pol_ant1.append(fixstr(ch.refpol).translate(dict(zip('XY', 'LR'))))
+                channel_pol_ant2.append(fixstr(ch.rempol).translate(dict(zip('XY', 'LR'))))
 
                 # the channel id - not used
                 # channel_id_ant1.append(ch.ref_chan_id)
