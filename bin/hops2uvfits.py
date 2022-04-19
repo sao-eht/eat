@@ -621,7 +621,7 @@ def load_hops_uvfits(filename):
     rf = hdulist['AIPS AN'].header['FREQ']
 
     if header['CTYPE4'] == 'FREQ':
-        ch1_freq = header['CRVAL4']
+        ch1_freq = header['CRVAL4'] + hdulist['AIPS FQ'].data['IF FREQ'][0][0]
         ch_bw = header['CDELT4']
     else: raise Exception('Cannot find observing frequency/bandwidth!')
 
@@ -1108,7 +1108,8 @@ def save_uvfits(datastruct, fname):
     header['CTYPE4'] = 'FREQ'
     header['NAXIS4'] = nsubchan
     header['CRPIX4'] = 1.e0
-    header['CRVAL4'] = ch1_freq # is this the right ref freq? in Hz
+    # header['CRVAL4'] = ch1_freq # is this the right ref freq? in Hz
+    header['CRVAL4'] = ref_freq # is this the right ref freq? in Hz
     header['CDELT4'] = ch_bw
     header['CROTA4'] = 0.e0
     # frequencies
