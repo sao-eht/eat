@@ -130,12 +130,15 @@ def add_utime(df):
     """add UNIX time *utime*"""
     df['utime'] = 1e-9*np.array(df.datetime).astype('float')
 
-def add_hour(df):
+# add a UT hour between [t0, t0+24h]
+def add_hour(df, t0=-6):
     """add *hour* if HOPS timetag available"""
     if 'timetag' in df:
         df['hour'] = df.timetag.apply(lambda x: float(x[4:6]) + float(x[6:8])/60. + float(x[8:10])/3600.)
     elif 'hhmm' in df:
         df['hour'] = df.hhmm.apply(lambda x: float(x[0:2]) + float(x[2:4])/60.)
+    t0 = np.fmod(t0+24, 24) - 24
+    df.hour = np.fmod(df.hour - t0, 24) + t0
 
 def add_doy(df):
     """add day-of-year *doy* extracted from time-tag"""
