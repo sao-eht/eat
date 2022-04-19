@@ -1316,16 +1316,19 @@ def rl_segmented(a, site, restarts={}, boundary=19,
     index = [col for col in index if col in b.columns]
     t0 = b.datetime.min()
     t1 = b.datetime.max()
-    start = datetime.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
-    stop  = datetime.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
+    start = datetime.datetime(t0.year, t0.month, t0.day, boundary) - int(t0.hour < boundary) * pd.DateOffset(1)
+    stop  = datetime.datetime(t1.year, t1.month, t1.day, boundary) + int(t1.hour > boundary) * pd.DateOffset(1)
     drange = list(pd.date_range(start, stop))
     # segments for baseline, adding in any known restarts for either site
     tsbounds = sorted(drange + restarts.get(site, []))
     # leaving this as CategoryIndex (no "get_values") results in slow pivot_table
     # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
     # probably pass aggfunc='first' to handle non-numeric types
-    # update: "Series.get_values()" was removed in pandas, hopefully ".values" is the same
-    b['segment'] = pd.cut(b.datetime, tsbounds, right=False, labels=None).values
+    # the following does not work on old pandas 0.24 (TypeError: data type not understood)
+    # segment = pd.cut(b.datetime, tsbounds, right=False, labels=None).values
+    # b['segment'] = segment.astype(segment.categories.dtype)
+    # use this instead:
+    b['segment'] = list(pd.cut(b.datetime, tsbounds, right=False, labels=None))
     # convert segment to start, stop values since only 1D objects supported well in pandas
     # for indexing, lose meta-info about right or left closed segment -- too bad
     b['start'] = b.segment.apply(lambda x: x.left)
@@ -1341,9 +1344,9 @@ def rl_segmented(a, site, restarts={}, boundary=19,
     p['LR_err'] = np.sqrt(p.mbd_err.R**2 + p.mbd_err.L**2)
     rl_stats = p.groupby(['start', 'stop', 'site']).apply(lambda df:
         pd.Series(wavg(df.LR, df.LR_err, col=['LR_mean', 'LR_sys'])))
-    p['LR_offset'] = p.LR - rl_stats.LR_mean
+    p['LR_offset'] = (p.LR - rl_stats.LR_mean).values
     p['LR_offset_wrap'] = np.remainder(p.LR_offset + 0.5*ambiguity, ambiguity) - 0.5*ambiguity
-    p['LR_std'] = p.LR_offset / np.sqrt(p.LR_err**2 + rl_stats.LR_sys**2)
+    p['LR_std'] = p.LR_offset / np.sqrt(p.LR_err**2 + rl_stats.LR_sys**2).values
     return((p.sort_index(), rl_stats))
 
 def rlplot(p, corrected=True, wrap=True, vlines=[]):
@@ -1406,6 +1409,7 @@ def hilo_segmented(a1, a2, restarts={}, boundary=19, index="expt_no scan_id sour
         # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
         # probably pass aggfunc='first' to handle non-numeric types
         # update: "Series.get_values()" was removed in pandas, hopefully ".values" is the same
+        # update: probably not.. does not seem to expand out Categorical value
         b.loc[rows.index, 'segment'] = pd.cut(
             rows.datetime, tsbounds, right=False, labels=None).values
     # convert segment to start, stop values since only 1D objects supported well in pandas
@@ -1473,12 +1477,14 @@ def rrll_segmented(a, restarts={}, boundary=19,
         # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
         # probably pass aggfunc='first' to handle non-numeric types
         # update: "Series.get_values()" was removed in pandas, hopefully ".values" is the same
-        b.loc[rows.index, 'segment'] = pd.cut(
-            rows.datetime, tsbounds, right=False, labels=None).values
+        # update: nope.. now we need to explicitly convert categorical values
+        b.loc[rows.index, 'segment'] = list(pd.cut(rows.datetime, tsbounds, right=False, labels=None))
     # convert segment to start, stop values since only 1D objects supported well in pandas
     # for indexing, lose meta-info about right or left closed segment -- too bad
     b['start'] = b.segment.apply(lambda x: x.left)
     b['stop'] = b.segment.apply(lambda x: x.right)
+    # use observed=True to avoid empty Categorical product
+    # not needed anymore since we list(segments), remove for pandas 0.24 backward compat
     p = b.pivot_table(aggfunc=aggfunc, index=['start', 'stop', 'baseline'] + index,
         columns=['polarization'], values=['length', 'snr', 'mbd_unwrap', 'mbd_err']).dropna()
     p.reset_index(index, inplace=True)
@@ -1490,8 +1496,9 @@ def rrll_segmented(a, restarts={}, boundary=19,
                        col=['LLRR_mean', 'LLRR_sys', 'LLRR_x2', 'LLRR_nout'])))
     rrll_stats['LLRR_nout'] = rrll_stats.LLRR_nout.astype(int)
     # subtract mean RR-LL from each scan
-    p['LLRR_offset'] = p.LLRR - rrll_stats.LLRR_mean
-    p['LLRR_std'] = p.LLRR_offset / np.sqrt(p.LLRR_err**2 + rrll_stats.LLRR_sys**2)
+    # take values to handle non-unique multi-index after broadcast (pandas API change)
+    p['LLRR_offset'] = (p.LLRR - rrll_stats.LLRR_mean).values
+    p['LLRR_std'] = p.LLRR_offset / np.sqrt(p.LLRR_err**2 + rrll_stats.LLRR_sys**2).values
     return((p.sort_index(), rrll_stats))
 
 def rrllplot(p, baselines=slice(None), vlines=[]):
@@ -1969,3 +1976,4 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
         tag = tag or col
         plt.sca(ax)
         pu.tag(tag, loc='upper left')
+
