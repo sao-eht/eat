@@ -1832,14 +1832,13 @@ def pickref(df, nosma=True, threshold=6., tcoh=6., full=False):
 def fringegroups(bls, baselines=False):
     groups = []
     for bl in bls:
-        newgroup = True
+        (merged, remaining) = (set(bl), [])
         for g in groups:
             if bl[0] in g or bl[1] in g:
-                newgroup = False
-                g.add(bl[0])
-                g.add(bl[1])
-        if newgroup:
-            groups.append(set(bl))
+                merged |= g # merge sites from g into merged
+            else:
+                remaining.append(g)
+        groups = remaining + [merged]
     if baselines:
         baselinegroups = set((''.join(bl) for bl in itertools.chain(*(itertools.permutations(sites, 2) for sites in groups))))
         return baselinegroups
