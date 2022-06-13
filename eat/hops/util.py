@@ -99,7 +99,7 @@ restarts_2018 = {'S':[util.tt2dt(d, year=2018) for d in ['117-050000']],
 def getpolarization(f):
     b = mk4.mk4fringe(f.encode())
     ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
-    return ch0.refpol + ch0.rempol
+    return fixstr(ch0.refpol + ch0.rempol)
 
 # return mk4fringe based on object, filename, or glob path
 # if glob return the file with latest getmtime time
