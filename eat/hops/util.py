@@ -97,7 +97,10 @@ restarts_2018 = {'S':[util.tt2dt(d, year=2018) for d in ['117-050000']],
                  'X':[util.tt2dt(d, year=2017) for d in ['101-003000']]} # add old 2017 restarts for convenience, dates do not overlap
 
 def getpolarization(f):
-    b = mk4.mk4fringe(f.encode())
+    try:
+        b = mk4.mk4fringe(files[-1])
+    except:
+        b = mk4.mk4fringe(files[-1].encode()) # encode for HOPS <= 3.19
     ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
     return fixstr(ch0.refpol + ch0.rempol)
 
@@ -133,7 +136,10 @@ def getfringefile(b=None, filelist=False, pol=None, quiet=False):
         getfringefile.last = files[-1].split('/')
         if not quiet:
             print(files[-1])
-        b = mk4.mk4fringe(files[-1].encode()) # use last updated file
+        try:
+            b = mk4.mk4fringe(files[-1])
+        except:
+            b = mk4.mk4fringe(files[-1].encode()) # encode for HOPS <= 3.19
     return b
 
 # convenience function to set "datadir" (last file) for getfringefile
@@ -217,7 +223,10 @@ def pop120(b=None, pol=None, fill=0):
         raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
     b = getfringefile(b, pol=pol) # fringe file
     ctok = getfringefile.last[-1].split('.')
-    c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
+    try:
+        c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
+    except:
+        c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]]).encode()) # HOPS <= 3.19
     # use fringe file to get ap length, note that nap in fringe file is not necessarily same as corel
     ap = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds() / b.t212[0].contents.nap
     T = (mk4time(c.t100.contents.stop) - mk4time(c.t100.contents.start)).total_seconds()
