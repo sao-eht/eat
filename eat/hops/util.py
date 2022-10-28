@@ -935,7 +935,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
 
     if bowlfix and p is not None:
         # rfdict = {'A':-0.2156, 'X':0.163} # ps/s
-        rfdict = {'X':0.163} # ps/s (ALMA fixed after Rev7)
+        # rfdict = {'X':0.163} # ps/s (ALMA fixed after Rev7) # remove after 2017 analyses
         ratefix = rfdict.get(p.baseline[1], 0) - rfdict.get(p.baseline[0], 0)
         ratefix_phase = 2*np.pi * p.dfvec[212][None,:] * p.dtvec[:,None] * ratefix*1e-6
         v = v * np.exp(-1j * ratefix_phase) # take bowl effect out of visibs before adhoc phasing
