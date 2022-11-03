@@ -223,10 +223,14 @@ def pop120(b=None, pol=None, fill=0):
         raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
     b = getfringefile(b, pol=pol) # fringe file
     ctok = getfringefile.last[-1].split('.')
+<<<<<<< Updated upstream
     try:
         c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
     except:
         c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]]).encode()) # HOPS <= 3.19
+=======
+    c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]]).encode()) # corel file
+>>>>>>> Stashed changes
     # use fringe file to get ap length, note that nap in fringe file is not necessarily same as corel
     ap = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds() / b.t212[0].contents.nap
     T = (mk4time(c.t100.contents.stop) - mk4time(c.t100.contents.start)).total_seconds()
@@ -236,7 +240,7 @@ def pop120(b=None, pol=None, fill=0):
     data120 = np.zeros((nchan, nap, nspec), dtype=np.complex64)
     # require spectral type (DiFX)
     firstap = next(a.contents.ap for a in c.index[0].t120[0:c.index[0].ap_space] if a)
-    if c.index[0].t120[firstap].contents.type != '\x05':
+    if c.index[0].t120[firstap].contents.type != b'\x05':
         raise Exception("only supports SPECTRAL type from DiFX->Mark4")
     # 120: (ap, channel, spectrum), this is mk4 channels (31, 41, ..) not HOPS channels (A, B, ..)
     for i in range(nchan): # loop over HOPS channels
@@ -1159,7 +1163,7 @@ def fplot(b=None, pol=None, filelist=True, noauto=False):
         pslist.append(b.t221.contents.pplot)
     proc = subprocess.Popen("ps2pdf - -".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     # proc = subprocess.Popen("cat".split(), stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-    out = PDF(proc.communicate(input=''.join(pslist))[0])
+    out = PDF(proc.communicate(input=b''.join(pslist))[0])
     return out
 
 # helper class for HOPS control file parsing

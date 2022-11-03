@@ -35,6 +35,7 @@ parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]
 parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
 parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=20e-6)
 parser.add_argument('-r', '--ref', help='reference polarization', default='L')
+parser.add_argument('-m', '--mixed', help='handle and average ALMA mixed pol (ALMA must be first station)', action='store_true', default=False)
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
@@ -50,9 +51,16 @@ nchan = a.freq_code.str[1:].astype(int).max()
 util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_error,
                      crosspol_systematic=args.crosspol_delay_error)
 
+# handle mixed pols
+if args.mixed:
+    a['ref_pol'] = a.polarization.str.get(0)
+    a['polarization'] = a.polarization.map({'XL':'LL', 'YL':'LL', 'XR':'RR', 'YR':'RR'})
+    index="ref_freq expt_no scan_id scan_no source timetag ref_pol".split()
+else:
+    index="ref_freq expt_no scan_id scan_no source timetag".split()
 
 # RRLL stats after segmentation
-(p, stats) = hu.rrll_segmented(a, restarts=restarts)
+(p, stats) = hu.rrll_segmented(a, restarts=restarts, index=index)
 
 # make delay out table
 offs = stats.reset_index()

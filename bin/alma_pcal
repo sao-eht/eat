@@ -204,9 +204,16 @@ nchan = string.ascii_letters.find(df.columns[-1]) + 1
 chans = list(string.ascii_letters[:nchan])
 
 # at some point, pandas.core.groupby.GroupBy.mean() no longer considers numpy.complex128 to be numeric type (?!!)
-pcf   = df.groupby('baseline')[chans].mean(numeric_only=False).apply(np.angle, deg=True)
-pcr   = rr.groupby('baseline')[chans].mean(numeric_only=False).apply(np.angle, deg=True)
-pcl   = ll.groupby('baseline')[chans].mean(numeric_only=False).apply(np.angle, deg=True)
+# update: previous issue may be related to change in numeric_only default handling in 1.3.0
+# https://github.com/pandas-dev/pandas/issues/42395
+# however as of 1.3.4 groupby aggregation functions are now completely broken for complex values
+# including simple aggregation such as "first()"
+# https://github.com/pandas-dev/pandas/issues/43701
+# here we could replace "mean" with "sum" -- which for some reason still works
+# but since groupby operations on complex values are so common, may want to simply revert pandas
+pcf   = df.groupby('baseline')[chans].sum(numeric_only=False).apply(np.angle, deg=True)
+pcr   = rr.groupby('baseline')[chans].sum(numeric_only=False).apply(np.angle, deg=True)
+pcl   = ll.groupby('baseline')[chans].sum(numeric_only=False).apply(np.angle, deg=True)
 
 pcf[:] = fix_nan(pcf.apply(unwrap, axis=1).apply(offset, axis=1).values)
 pcr[:] = fix_nan(pcr.apply(unwrap, axis=1).apply(offset, axis=1).values)
