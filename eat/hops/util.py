@@ -1817,10 +1817,11 @@ def align(bs, snrs=None, tint=5.):
 # pick a reference station based on maximum sum(log(snr)) of detections
 # remove EB baseline (Effelsberg RDBE & DBBC3)
 # nosma: exclude SMAP, SMAR, JCMT due to sideband leakage
+# nopdb: exclude NOEMA due to channel mismatch
 # threshold: soft threshold at which to being considering fringes as real
 # tcoh: coherence timescale for setting useful number of DOF to fit (5 per tcoh)
 # full: return useful DOF per baseline instead of site with the best total
-def pickref(df, nosma=True, threshold=6., tcoh=6., full=False):
+def pickref(df, nosma=True, nopdb=True, threshold=6., tcoh=6., full=False):
     df = df[~df.baseline.isin({'SR', 'RS'}) & ~df.baseline.isin({'EB', 'BE'}) & (df.baseline.str[0] != df.baseline.str[1])].copy()
     # some arbitrary logistic function to minimize false detections
     df['ssq'] = df.snr**2 * (2./np.pi)*np.arctan(df.snr**4 / threshold**4)
@@ -1836,6 +1837,8 @@ def pickref(df, nosma=True, threshold=6., tcoh=6., full=False):
         sites.discard('J')
         sites.discard('S')
         sites.discard('R')
+    if nopdb:
+        sites.discard('N')
     score = {site: merged[merged.baseline.str.contains(site)].usefuldof.sum() for site in sites}
     ref = max(score, key=score.get) if len(score) > 0 else None
     return (merged, score, ref) if full else ref
