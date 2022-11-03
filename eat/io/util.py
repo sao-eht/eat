@@ -137,7 +137,8 @@ def add_hour(df, t0=-6):
         df['hour'] = df.timetag.apply(lambda x: float(x[4:6]) + float(x[6:8])/60. + float(x[8:10])/3600.)
     elif 'hhmm' in df:
         df['hour'] = df.hhmm.apply(lambda x: float(x[0:2]) + float(x[2:4])/60.)
-    t0 = np.fmod(t0+24, 24) - 24
+    if t0 < 0:
+        t0 = np.fmod(t0+24, 24) - 24
     df.hour = np.fmod(df.hour - t0, 24) + t0
 
 def add_doy(df):
