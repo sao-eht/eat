@@ -223,14 +223,10 @@ def pop120(b=None, pol=None, fill=0):
         raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
     b = getfringefile(b, pol=pol) # fringe file
     ctok = getfringefile.last[-1].split('.')
-<<<<<<< Updated upstream
     try:
         c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
     except:
         c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]]).encode()) # HOPS <= 3.19
-=======
-    c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]]).encode()) # corel file
->>>>>>> Stashed changes
     # use fringe file to get ap length, note that nap in fringe file is not necessarily same as corel
     ap = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds() / b.t212[0].contents.nap
     T = (mk4time(c.t100.contents.stop) - mk4time(c.t100.contents.start)).total_seconds()
@@ -895,7 +891,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
     return outdata
 
 def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0.,
-          roundrobin=True, bowlfix=True, secondorder=True, p=None, tcoh=None, alpha=5./3., ap=None):
+          roundrobin=True, bowlfix=False, secondorder=True, p=None, tcoh=None, alpha=5./3., ap=None):
     """
     create ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
