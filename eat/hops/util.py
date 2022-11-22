@@ -393,19 +393,19 @@ def params(b=None, pol=None, quiet=None, cf=None):
         # precorrections
         df_sbd = p.foffset[120] - np.mean(p.foffset[120], axis=1)[:,None]
         default = ' 0 ' * (1+nchan)
-        sbd_ref = np.array(map(float, p.cf_ref.get('delay_offs', default).split()[1:])) + \
-            np.array(map(float, p.cf_ref.get('delay_offs_%s' % p.pol[0].lower(), default).split()[1:]))
-        sbd_rem = np.array(map(float, p.cf_rem.get('delay_offs', default).split()[1:])) + \
-            np.array(map(float, p.cf_rem.get('delay_offs_%s' % p.pol[1].lower(), default).split()[1:]))
+        sbd_ref = np.array(list(map(float, p.cf_ref.get('delay_offs', default).split()[1:]))) + \
+            np.array(list(map(float, p.cf_ref.get('delay_offs_%s' % p.pol[0].lower(), default).split()[1:])))
+        sbd_rem = np.array(list(map(float, p.cf_rem.get('delay_offs', default).split()[1:]))) + \
+            np.array(list(map(float, p.cf_rem.get('delay_offs_%s' % p.pol[1].lower(), default).split()[1:])))
         df_mbd = p.dfvec[120].mean(axis=1)[:,None]
-        mbd_ref = np.array(map(float, p.cf_ref.get('pc_delay', '0.').split())) + \
-            np.array(map(float, p.cf_ref.get('pc_delay_%s' % p.pol[0].lower(), '0.').split()))
-        mbd_rem = np.array(map(float, p.cf_rem.get('pc_delay', 'a 0.').split()[1:])) + \
-            np.array(map(float, p.cf_rem.get('pc_delay_%s' % p.pol[1].lower(), '0.').split()))
-        pc_ref = np.array(map(float, p.cf_ref.get('pc_phases', default).split()[1:])) + \
-            np.array(map(float, p.cf_ref.get('pc_phases_%s' % p.pol[0].lower(), default).split()[1:]))
-        pc_rem = np.array(map(float, p.cf_rem.get('pc_phases', default).split()[1:])) + \
-            np.array(map(float, p.cf_rem.get('pc_phases_%s' % p.pol[1].lower(), default).split()[1:]))
+        mbd_ref = np.array(list(map(float, p.cf_ref.get('pc_delay', '0.').split()))) + \
+            np.array(list(map(float, p.cf_ref.get('pc_delay_%s' % p.pol[0].lower(), '0.').split())))
+        mbd_rem = np.array(list(map(float, p.cf_rem.get('pc_delay', 'a 0.').split()[1:]))) + \
+            np.array(list(map(float, p.cf_rem.get('pc_delay_%s' % p.pol[1].lower(), '0.').split())))
+        pc_ref = np.array(list(map(float, p.cf_ref.get('pc_phases', default).split()[1:]))) + \
+            np.array(list(map(float, p.cf_ref.get('pc_phases_%s' % p.pol[0].lower(), default).split()[1:])))
+        pc_rem = np.array(list(map(float, p.cf_rem.get('pc_phases', default).split()[1:]))) + \
+            np.array(list(map(float, p.cf_rem.get('pc_phases_%s' % p.pol[1].lower(), default).split()[1:])))
         # do not understand this sign convention
         sbd_rot = np.exp(1j * 1e-3*(sbd_rem - sbd_ref)[:,None] * df_sbd * 2*np.pi)
         mbd_rot = np.exp(1j * 1e-3*(mbd_rem - mbd_ref)[:,None] * df_mbd * 2*np.pi)

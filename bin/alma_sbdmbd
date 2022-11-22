@@ -91,7 +91,7 @@ def doffcalc(e, lastchan=nchan):
             deltaf = np.remainder(np.array(deltaf), 2*np.pi)
             toff.append(np.mean(deltaf) / (2*np.pi * 58.59375))
             if args.verbose:
-                print row.path + ' ' + p.baseline + ' ' + p.pol + ' ' + repr(deltaf) + ' ' + repr(toff[-1])
+                print(row.path + ' ' + p.baseline + ' ' + p.pol + ' ' + repr(deltaf) + ' ' + repr(toff[-1]))
             ftot = np.cumsum(deltaf)[1:] # offset applied to each channel
             # this ends up being a noiser estimate
             fpre = np.mean(deltaf) * np.arange(len(ftot)) # predicted linear trend
@@ -100,7 +100,7 @@ def doffcalc(e, lastchan=nchan):
             tdph.append(deltaf)
         except Exception as e:
              if args.verbose:
-                print e
+                print(e)
              tdph.append(np.zeros(lastchan-1) * np.nan)
              toff.append(np.nan)
              tstd.append(np.nan)
