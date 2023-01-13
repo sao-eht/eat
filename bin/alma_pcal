@@ -63,7 +63,7 @@ def load(file):
 
     # Access corel (per-channel) visibility
     vis = None
-    for i, f in a.path.iteritems():
+    for i, f in a.path.items():
         b = a.baseline[i]
         # p = a.resid_phas[i] * np.pi / 180.0
         # v = hu.pop210(f)

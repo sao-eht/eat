@@ -292,7 +292,10 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
                 continue
 
             #print "reading hops fringe file: ", filename
-            a = mk4.mk4fringe(filename.encode()) # encode() for python3/ctypes compatibility
+            try:
+                a = mk4.mk4fringe(filename) # do not encode; done within hops
+            except:
+                a = mk4.mk4fringe(filename.encode()) # encode() for python3/ctypes compatibility
             b = eat.hops.util.getfringefile(a)
 
             if first_pass_flag: #some info we get only once per baseline
