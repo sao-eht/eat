@@ -98,9 +98,9 @@ restarts_2018 = {'S':[util.tt2dt(d, year=2018) for d in ['117-050000']],
 
 def getpolarization(f):
     try:
-        b = mk4.mk4fringe(files[-1])
+        b = mk4.mk4fringe(f)
     except:
-        b = mk4.mk4fringe(files[-1].encode()) # encode for HOPS <= 3.19
+        b = mk4.mk4fringe(f.encode()) # encode for HOPS <= 3.19
     ch0 = b.t203[0].channels[b.t205.contents.ffit_chan[0].channels[0]]
     return fixstr(ch0.refpol + ch0.rempol)
 
@@ -949,12 +949,12 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         ratefix_phase = 2*np.pi * p.dfvec[212][None,:] * p.dtvec[:,None] * ratefix*1e-6
         v = v * np.exp(-1j * ratefix_phase) # take bowl effect out of visibs before adhoc phasing
     else:
-        ratefix_phase = np.zeros_like(v, dtype=np.float)
+        ratefix_phase = np.zeros_like(v, dtype=float)
 
     (nap, nchan) = v.shape
     vfull = v.sum(axis=1) # full frequency average
     vchop = np.zeros_like(v)
-    phase = np.zeros_like(v, dtype=np.float)
+    phase = np.zeros_like(v, dtype=float)
 
     if p:
         timeoffset = timeoffset * p.ap # use actual AP for HOPS adhoc bug
@@ -1785,7 +1785,7 @@ def align(bs, snrs=None, tint=5.):
     snrs = np.array(snrs if snrs is not None else [p.snr for p in ps]) # in case use custom SNR for weights
     v212 = np.array([pop212(b) for b in bs]) # ff, ap, chan
     vs = v212.mean(axis=-1) # integrate over channels: ff, ap
-    w = np.ones_like(vs, dtype=np.float) * snrs[:,None]**2 # derived weights
+    w = np.ones_like(vs, dtype=float) * snrs[:,None]**2 # derived weights
     w[vs == -1.0] = 0. # HOPS data invalid flag (data loss, etc)
     rates = np.array([p.rate for p in ps])
     r0 = np.sum(rates * snrs**2) / np.sum(snrs**2) # mean rate
