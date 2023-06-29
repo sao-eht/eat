@@ -25,6 +25,22 @@ def get_info(observation='EHT2017',path_vex='VEX/'):
             scans = make_scan_list_EHT2017(path_vex)  
         else: scans = {}
 
+    if observation=='EHT2018':
+
+        stations_2lett_1lett = {'MG': 'Z', 'GL': 'G', 'PV': 'P', 'SW':'S', 'SR':'R','MM':'J', 'AA':'A','AX':'X', 'LM':'L','SZ':'Y'}
+        jd_expt = jd2expt2018
+        if path_vex!='':
+            scans = make_scan_list_EHT2018(path_vex)
+        else: scans = {}
+
+    if observation=='EHT2021':
+        stations_2lett_1lett = {'MG':'Z', 'GL':'G', 'PV':'P', 'SW':'S', 'SR':'R', 'MM':'J', 'AA':'A', 'AX':'X', 'LM':'L','SZ':'Y','NN':'N','KT':'K'}
+        jd_expt = jd2expt2021
+        if path_vex!='':
+            scans = make_scan_list_EHT2021(path_vex)
+        else: scans = {}
+        
+
     if observation=='EHT2017_Dan_Mel':
 
         stations_2lett_1lett = {'ALMA': 'A', 'APEX': 'X', 'JCMT': 'J', 'LMT':'L', 'SMR':'R','SMAP':'S', 'SMA':'S', 'SMT':'Z', 'SMTO':'Z', 'PV':'P', 'PICOVEL':'P','SPT':'Y'}
@@ -40,7 +56,6 @@ def get_info(observation='EHT2017',path_vex='VEX/'):
         if path_vex!='':
             scans = make_scan_list_EHT2017(path_vex)  
         else: scans = {}
-
     return stations_2lett_1lett, jd_expt, scans
 
 def jd2expt2017(jd):
@@ -60,6 +75,49 @@ def jd2expt2017(jd):
     else:
         return None
 
+def jd2expt2018(jd):
+    '''
+    Function translating from jd to expt for April 2018 EHT
+    '''
+    if (jd > 2458229.416)&(jd < 2458230.125):
+        return 3644
+    elif (jd > 2458230.416)&(jd < 2458231.125):
+        return 3645
+    elif (jd > 2458232.625)&(jd < 2458233.167):
+        return 3646
+    elif (jd > 2458233.416)&(jd < 2458234.125):
+        return 3647
+    elif (jd > 2458235.291)&(jd < 2458235.917):
+        return 3648
+    elif (jd > 2458236.375)&(jd < 2458236.917):
+        return 3649
+    else:
+        return None
+
+
+def jd2expt2021(jd):
+    '''
+    Function translating from jd to expt for April 2021 EHT
+    '''
+    if (jd > 2459313.458)&(jd < 2459314.166):
+        return 3762
+    elif (jd > 2459317.291)&(jd < 2459318.042):
+        return 3763
+    elif (jd > 2459318.458)&(jd < 2459319.208):
+        return 3764
+    elif (jd > 2459319.458)&(jd < 2459320.167):
+        return 3765
+    elif (jd > 2459320.458)&(jd < 2459321.167):
+        return 3766
+    elif (jd > 2459321.458)&(jd < 2459322.167):
+        return 3767
+    elif (jd > 2459322.291)&(jd < 2459323.0):
+        return 3768
+    elif (jd > 2459323.541)&(jd < 2459323.792):
+        return 3769
+    else:
+        return None
+
 def make_scan_list_EHT2017(fpath):
     '''
     generates data frame with information about scans for EHT2017
@@ -73,6 +131,137 @@ def make_scan_list_EHT2017(fpath):
 
     for fi in list_files:#loop over vex files in folder
         track_loc = fi[3].upper()
+        vpath = fpath+fi
+        aa = vex.Vex(vpath)
+        dec = []
+        for cou in range(len(aa.source)):
+            dec_h = float(aa.source[cou]['dec'].split('d')[0])
+            dec_m = float((aa.source[cou]['dec'].split('d')[1])[0:2])
+            dec_s = float((aa.source[cou]['dec'].split('d')[1])[3:-1])
+            dec.append(tuple((dec_h,dec_m,dec_s)))    
+        ra = []
+        for cou in range(len(aa.source)):
+            ra_d = float(aa.source[cou]['ra'].split('h')[0])
+            ra_m = float(aa.source[cou]['ra'].split('h')[1].split('m')[0])
+            ra_s = float(aa.source[cou]['ra'].split('h')[1].split('m')[1][:-1])
+            ra.append(tuple((ra_d,ra_m,ra_s)))      
+        sour_name = [aa.source[x]['source'] for x in range(len(aa.source))]
+        dict_ra = dict(zip(sour_name,ra))
+        dict_dec = dict(zip(sour_name,dec))
+        t_min = [aa.sched[x]['start_hr'] for x in range(len(aa.sched))]
+        sour = [aa.sched[x]['source'] for x in range(len(aa.sched))]
+        datet = []
+        elev = []
+        antenas = []
+        duration=[]
+        for x in range(len(aa.sched)):#loop over scans in given file
+            t = Time(aa.sched[x]['mjd_floor'], format='mjd', scale='utc')
+            tiso = Time(t, format='iso', scale='utc')
+            tiso = tiso + TimeDelta(t_min[x]*3600., format='sec')
+            datet.append(tiso)
+            ant_foo = set([nam2lett[aa.sched[x]['scan'][y]['site']] for y in range(len(aa.sched[x]['scan']))])
+            antenas.append(ant_foo)
+            duration_foo =max([aa.sched[x]['scan'][y]['scan_sec'] for y in range(len(aa.sched[x]['scan']))])
+            duration.append(duration_foo)
+        #time_min = [pd.tslib.Timestamp(datet[x].datetime) for x in range(len(datet))]
+        time_min = [pd.Timestamp(datet[x].datetime) for x in range(len(datet))]
+        time_max = [time_min[x] + datetime.timedelta(seconds=duration[x]) for x in range(len(aa.sched))]
+        foo = pd.DataFrame(aa.sched)
+        foo = foo[['source','mjd_floor','start_hr']]
+        foo['time_min']=time_min
+        foo['time_max']=time_max
+        foo['scan_no'] = foo.index
+        foo['scan_no'] = list(map(int,foo['scan_no']))
+        foo['track'] = [track_loc]*foo.shape[0]
+        foo['expt'] = [int(track2expt[track_loc])]*foo.shape[0]
+        foo['antenas'] = antenas
+        foo['duration'] = duration
+        scans = pd.concat([scans,foo], ignore_index=True,sort=True)
+    scans = scans.reindex(['mjd_floor','expt','track','scan_no','source','time_min','time_max','duration','antenas'],axis=1)
+    scans = scans.sort_values('time_max')
+    scans = scans.reset_index(drop=True)
+    scans['scan_no_tot'] = scans.index
+    return scans
+
+def make_scan_list_EHT2018(fpath):
+    '''
+    generates data frame with information about scans for EHT2018
+    '''
+    import ehtim.vex as vex
+    nam2lett = {'ALMA':'A','APEX':'X','THULE':'G','LMT':'L','PICOVEL':'P','SMTO':'Z','SPT':'Y','JCMT':'J','SMAP':'S'}
+    track2expt ={'C21':3644,'E22':3645, 'A24':3646, 'C25':3647,'G27':3648, 'D28':3649}
+    list_files = [x.split('/')[-1] for x in glob.glob(fpath+'/*.vex')]
+    #list_files = os.listdir(fpath)
+    scans = pd.DataFrame({'source' : []})
+
+    for fi in list_files:#loop over vex files in folder
+        track_loc = fi[3:6].upper()
+        vpath = fpath+fi
+        aa = vex.Vex(vpath)
+        dec = []
+        for cou in range(len(aa.source)):
+            dec_h = float(aa.source[cou]['dec'].split('d')[0])
+            dec_m = float((aa.source[cou]['dec'].split('d')[1])[0:2])
+            dec_s = float((aa.source[cou]['dec'].split('d')[1])[3:-1])
+            dec.append(tuple((dec_h,dec_m,dec_s)))    
+        ra = []
+        for cou in range(len(aa.source)):
+            ra_d = float(aa.source[cou]['ra'].split('h')[0])
+            ra_m = float(aa.source[cou]['ra'].split('h')[1].split('m')[0])
+            ra_s = float(aa.source[cou]['ra'].split('h')[1].split('m')[1][:-1])
+            ra.append(tuple((ra_d,ra_m,ra_s)))      
+        sour_name = [aa.source[x]['source'] for x in range(len(aa.source))]
+        dict_ra = dict(zip(sour_name,ra))
+        dict_dec = dict(zip(sour_name,dec))
+        t_min = [aa.sched[x]['start_hr'] for x in range(len(aa.sched))]
+        sour = [aa.sched[x]['source'] for x in range(len(aa.sched))]
+        datet = []
+        elev = []
+        antenas = []
+        duration=[]
+        for x in range(len(aa.sched)):#loop over scans in given file
+            t = Time(aa.sched[x]['mjd_floor'], format='mjd', scale='utc')
+            tiso = Time(t, format='iso', scale='utc')
+            tiso = tiso + TimeDelta(t_min[x]*3600., format='sec')
+            datet.append(tiso)
+            ant_foo = set([nam2lett[aa.sched[x]['scan'][y]['site']] for y in range(len(aa.sched[x]['scan']))])
+            antenas.append(ant_foo)
+            duration_foo =max([aa.sched[x]['scan'][y]['scan_sec'] for y in range(len(aa.sched[x]['scan']))])
+            duration.append(duration_foo)
+        #time_min = [pd.tslib.Timestamp(datet[x].datetime) for x in range(len(datet))]
+        time_min = [pd.Timestamp(datet[x].datetime) for x in range(len(datet))]
+        time_max = [time_min[x] + datetime.timedelta(seconds=duration[x]) for x in range(len(aa.sched))]
+        foo = pd.DataFrame(aa.sched)
+        foo = foo[['source','mjd_floor','start_hr']]
+        foo['time_min']=time_min
+        foo['time_max']=time_max
+        foo['scan_no'] = foo.index
+        foo['scan_no'] = list(map(int,foo['scan_no']))
+        foo['track'] = [track_loc]*foo.shape[0]
+        foo['expt'] = [int(track2expt[track_loc])]*foo.shape[0]
+        foo['antenas'] = antenas
+        foo['duration'] = duration
+        scans = pd.concat([scans,foo], ignore_index=True,sort=True)
+    scans = scans.reindex(['mjd_floor','expt','track','scan_no','source','time_min','time_max','duration','antenas'],axis=1)
+    scans = scans.sort_values('time_max')
+    scans = scans.reset_index(drop=True)
+    scans['scan_no_tot'] = scans.index
+    return scans
+
+def make_scan_list_EHT2021(fpath):
+    '''
+    generates data frame with information about scans for EHT2021
+    '''
+    import ehtim.vex as vex
+    nam2lett = {'ALMA':'A','APEX':'X','THULE':'G','LMT':'L','PICOVEL':'P','SMTO':'Z','SPT':'Y','JCMT':'J','SMAP':'S','NOEMA':'N','KITTPEAK':'K'}
+    track2expt ={'B09':3762,'E13':3763, 'A14':3764, 'D15':3765,'A16':3766, 'A17':3767, 'E18':3768, 'F19':3769}
+    list_files = [x.split('/')[-1] for x in glob.glob(fpath+'/*.vex')]
+    #list_files = os.listdir(fpath)
+    scans = pd.DataFrame({'source' : []})
+    
+
+    for fi in list_files:#loop over vex files in folder
+        track_loc = fi[3:6].upper()
         vpath = fpath+fi
         aa = vex.Vex(vpath)
         dec = []
@@ -145,6 +334,31 @@ def match_scans(scans,data):
     data.drop('scan_no_tot',axis=1,inplace=True)
     return data
 
+def match_scans_bysource(scans,data):
+    '''
+    matches data with scans
+    '''
+    sources = data.source.unique()
+    for sour in sources:
+        scans.drop(scans[scans.source != sour].index, inplace = True)
+    #data =data0.copy()
+    bins_labels = [None]*(2*scans.shape[0]-1)
+    bins_labels[1::2] = map(lambda x: -x-1,list(scans['scan_no_tot'])[:-1])
+    bins_labels[::2] = list(scans['scan_no_tot'])
+    dtmin = datetime.timedelta(seconds = 2.) 
+    dtmax = datetime.timedelta(seconds = 2.)
+    binsT = [None]*(2*scans.shape[0])
+    binsT[::2] = list(map(lambda x: x - dtmin,list(scans.time_min)))
+    binsT[1::2] = list(map(lambda x: x + dtmax,list(scans.time_max)))
+    ordered_labels = pd.cut(data.datetime, binsT,labels = bins_labels)
+    data['scan_no_tot'] = ordered_labels
+    data = data[list(map(lambda x: x >= 0, data['scan_no_tot']))]
+    data['scan_id'] = data['scan_no_tot']
+    data.drop('scan_no_tot',axis=1,inplace=True)
+    return data
+
+
+
 def round_time(t,round_s=1):
     """rounding time to given accuracy
     Args:
@@ -215,7 +429,6 @@ def obsdata_2_df(obs):
     if 'sigma' not in df.columns:
         try: df['sigma'] = df['rrsigma']
         except: pass
-
     return df
 
 
@@ -270,7 +483,9 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         else: 
             obsXX = eh.io.load.load_obs_uvfits(pathf)
             print('Polrep unspecified')
+        
         dfXX = obsdata_2_df(obsXX)
+        
         if 'RR' in filen:
             dfXX['polarization'] = 'RR'    
         elif 'LL' in filen:
@@ -353,8 +568,11 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
             obs10 = obs.avg_coherent(10.)
             rsc= obs10.estimate_noise_rescale_factor()
             df['sigma']=rsc*df['sigma']
+     
 
     stations_2lett_1lett, jd_2_expt, scans = get_info(observation=observation,path_vex=path_vex)
+
+    
     df['datetime'] = Time(df['mjd'], format='mjd').datetime
     df['datetime'] =list(map(lambda x: round_time(x,round_s=round_s),df['datetime']))
     df['expt_no'] = list(map(jd_2_expt,df['jd']))
@@ -363,6 +581,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
     except AttributeError:
         df['baseline'] = list(map(lambda x: stations_2lett_1lett[x[0]]+stations_2lett_1lett[x[1]],zip(df['t1'],df['t2'])))
     df = df[df.baseline.str[0]!=df.baseline.str[1]]
+    
     #is_alphabetic = list(map(lambda x: float(x== ''.join(sorted([x[0],x[1]]))),df['baseline']))
     #df['baseline'] = list(map(lambda x: ''.join(sorted([x[0],x[1]])),df['baseline']))
     if 'vis' in df.columns:
@@ -371,6 +590,6 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         df['phase'] = np.angle(df['vis'])*180./np.pi
     #conjugate phase if baseline letters order has been reversed to make it alphabetic
     #df['phase'] = list(map(lambda x: (2.*x[1]-1.)*(180./np.pi)*np.angle(x[0]),zip(df['vis'],is_alphabetic)))
-    if path_vex!='':   
-        df = match_scans(scans,df)          
+    if path_vex!='': 
+        df = match_scans_bysource(scans,df)   
     return df
