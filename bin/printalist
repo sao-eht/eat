@@ -21,26 +21,34 @@ additional_fmt = {
 }
 
 """
-[alist v6] version root_id two extent_no duration length offset expt_no
-scan_id procdate year timetag scan_offset source baseline quality freq_code
-polarization lags amp snr resid_phas phase_snr datatype sbdelay mbdelay
-ambiguity delay_rate ref_elev rem_elev ref_az rem_az u v esdesp epoch ref_freq
-total_phas total_rate total_mbdelay total_sbresid srch_cotime noloss_cotime
-ra_hrs dec_deg resid_delay [alist v5] version root_id two extent_no duration
-length offset expt_no scan_id procdate year timetag scan_offset source
-baseline quality freq_code polarization lags amp snr resid_phas phase_snr
-datatype sbdelay mbdelay ambiguity delay_rate ref_elev rem_elev ref_az rem_az
-u v esdesp epoch ref_freq total_phas total_rate total_mbdelay total_sbresid
-srch_cotime noloss_cotime [tlist v6] version expt_no three scan_id year
-timetag scan_offset source freq_code lags triangle roots extents lengths
-duration offset scan_quality data_quality esdesp bis_amp bis_snr bis_phas
-datatype csbdelay cmbdelay ambiguity cdelay_rate elevations azimuths epoch
-ref_freq cotime
+[extra possible cols] gmst mbd_unwrap utime path doy
+
+[alist v6]
+version root_id two extent_no duration length offset expt_no scan_id procdate
+year timetag scan_offset source baseline quality freq_code polarization lags
+amp snr resid_phas phase_snr datatype sbdelay mbdelay ambiguity delay_rate
+ref_elev rem_elev ref_az rem_az u v esdesp epoch ref_freq total_phas total_rate
+total_mbdelay total_sbresid srch_cotime noloss_cotime ra_hrs dec_deg
+resid_delay
+
+[alist v5]
+version root_id two extent_no duration length offset expt_no scan_id procdate
+year timetag scan_offset source baseline quality freq_code polarization lags
+amp snr resid_phas phase_snr datatype sbdelay mbdelay ambiguity delay_rate
+ref_elev rem_elev ref_az rem_az u v esdesp epoch ref_freq total_phas total_rate
+total_mbdelay total_sbresid srch_cotime noloss_cotime
+
+[tlist v6]
+version expt_no three scan_id year timetag scan_offset source freq_code lags
+triangle roots extents lengths duration offset scan_quality data_quality esdesp
+bis_amp bis_snr bis_phas datatype csbdelay cmbdelay ambiguity cdelay_rate
+elevations azimuths epoch ref_freq cotime
 """
 
 parser = argparse.ArgumentParser(epilog=
-'[alist v6] ' + ' '.join(map(str, hops.ffields_v6)) + 
-' [alist v5] ' + ' '.join(map(str.format, hops.ffields_v5)) + 
+'[extra possible cols] gmst mbd_unwrap utime path doy\n\n' + 
+'[alist v6] ' + ' '.join(map(str, hops.ffields_v6)) + '\n\n' + 
+' [alist v5] ' + ' '.join(map(str.format, hops.ffields_v5)) + '\n\n' + 
 ' [tlist v6] ' + ' '.join(map(str.format, hops.tfields_v6))
 )
 parser.add_argument('filename', nargs='*', default=None, help='alist txt file[s]')
@@ -52,14 +60,16 @@ parser.add_argument('-f', '--filter', help='filter is a set of key value require
 parser.add_argument('-e', '--expression', help='expression is a python expression to evaluate on each row which evaluates to true if row is to be kept', default=None)
 parser.add_argument('-t', '--threshold', help='signal-to-noise threshold (same as -e "snr > <threshold>")', type=float, default=None)
 parser.add_argument('-l', '--long', help='long format output for more decimal places', action="store_true")
-parser.add_argument('-ll', '--longlong', help='full alist (v6) format output', action="store_true")
+parser.add_argument('-ll', '--longlong', help='full alist format output all columns', action="store_true")
 parser.add_argument('-na', '--no-auto', help='do not print autocorrelations', action="store_true")
 parser.add_argument('-nh', '--no-header', help="don't print column header", action="store_true")
-parser.add_argument('-ni', '--no-index', help="don't print index (row number)", action="store_true")
+# parser.add_argument('-ni', '--no-index', help="don't print index (row number)", action="store_true")
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 parser.add_argument('-bs', '--baseline-sites', help='only use baseline formed from sites (no spaces)', default=None)
 parser.add_argument('-pp', '--parallel-products', help='only show parallel hand polarization products', action="store_true")
 parser.add_argument('-cp', '--cross-products', help='only show cross hand polarization products', action="store_true")
+parser.add_argument('-dup', '--duplicates',  help='remove duplicates keeping last sorted value (-s), default groupby: expt_no scan_id baseline polarization', nargs='*', default=None)
+# "expt_no scan_id baseline polarization".split())
 args = parser.parse_args()
 
 # which kind of file are we looking at (may not close file until garbage collect?)
@@ -72,18 +82,18 @@ else:
     firstline = next((a for a in open(args.filename[0])
         if a[0] != '*')).strip().split()
 if(len(firstline) == len(hops.ffields_v6) and firstline[0] == '6'):
-    (readfun, fmt) = (hops.read_alist_v6, hops.fformatters_v5) # use v5 formats for more readability
+    (readfun, writefun, fmt) = (hops.read_alist_v6, hops.write_alist_v5, hops.fformatters_v5) # use v5 formats for more readability
     if args.long:
         fmt = hops.fformatters_v6
     defaultcol = "scan_id timetag source baseline polarization amp snr resid_phas sbdelay mbdelay delay_rate".split()
 elif(len(firstline) == len(hops.ffields_v5) and firstline[0] == '5'):
-    (readfun, fmt) = (hops.read_alist_v5, hops.fformatters_v5)
+    (readfun, writefun, fmt) = (hops.read_alist_v5, hops.write_alist_v5, hops.fformatters_v5)
     defaultcol = "scan_id timetag source baseline polarization amp snr resid_phas sbdelay mbdelay delay_rate".split()
 elif(len(firstline) == len(hops.tfields_v6) and firstline[0] == '6'):
-    (readfun, fmt) = (hops.read_tlist_v6, hops.tformatters_v6)
+    (readfun, writefun, fmt) = (hops.read_tlist_v6, hops.write_tlist_v6, hops.tformatters_v6)
     defaultcol = "scan_id timetag source triangle duration bis_snr bis_phas cmbdelay cdelay_rate".split()
 elif(len(firstline) == len(hops.tfields_v6) and firstline[0] == '5'): # it appears this can happen
-    (readfun, fmt) = (hops.read_tlist_v6, hops.tformatters_v6)
+    (readfun, writefun, fmt) = (hops.read_tlist_v6, hops.write_tlist_v6, hops.tformatters_v6)
     defaultcol = "scan_id timetag source triangle duration bis_snr bis_phas cmbdelay cdelay_rate".split()
 elif(len(firstline) == len(misc.RLULIST_FIELDS) and firstline[0] == "#dd"):
     (readfun, fmt) = (misc.read_rlulist, misc.rluformatters)
@@ -123,8 +133,9 @@ if args.no_auto:
 to_string_kwargs = dict()
 if args.no_header:
     to_string_kwargs['header'] = False
-if args.no_index:
-    to_string_kwargs["index"] = False
+# if args.no_index:
+# make this automatic
+to_string_kwargs["index"] = False
 
 if 'gmst' in columns:
     util.add_gmst(a)
@@ -143,8 +154,12 @@ if 'timetag' in a and 'hour' not in a:
 if args.filter is not None:
     if len(args.filter) % 2 != 0:
         sys.exit("2N (key==val requirements) filter elements required")
-    keep = reduce(np.bitwise_and, ((a[key] == np.array(val, dtype=a[key].dtype)[()] for key, val in
-        zip(args.filter[::2], args.filter[1::2]))))
+    # old version to match only a single element
+    # keep = reduce(np.bitwise_and, ((a[key] == np.array(val, dtype=a[key].dtype)[()] for key, val in
+    #     zip(args.filter[::2], args.filter[1::2]))))
+    # new version to allow for multiple matches, e.g. polarization RL,LR (no spaces)
+    keep = reduce(np.bitwise_and, (a[key].isin(np.array(val, dtype=a[key].dtype)) for key, val in
+        zip(args.filter[::2], (val.split(',') for val in args.filter[1::2]))))
     a = a[keep]
 
 if args.threshold is not None:
@@ -164,9 +179,14 @@ if args.sort_by is not None:
     else:
         a = a.sort_values([col for col in ['expt_no', 'scan_id', 'timetag', 'triangle', 'baseline', 'polarization'] if col in a.columns])
 
+if args.duplicates is not None:
+    if args.duplicates == []:
+        args.duplicates = "expt_no scan_id baseline polarization".split()
+    a = a.groupby(args.duplicates, sort=False).last().reset_index()
+
 fmt.update(additional_fmt)
 fmt.pop('source', None) # let source autoformat because HOPS %32s is really long
 if not args.longlong:
     print(a[columns].to_string(formatters=fmt, **to_string_kwargs))
 else:
-    hops.write_alist_v6(a, sys.stdout)
+    writefun(a, sys.stdout)
