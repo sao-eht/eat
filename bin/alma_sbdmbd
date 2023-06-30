@@ -125,8 +125,8 @@ def sbdmbd_segmented(a, restarts={}, boundary=21):
     util.add_delayerr(b, mbd_systematic=3e-6/32) # used to estimate error on sbd
     t0 = b.datetime.min()
     t1 = b.datetime.max()
-    start = pd.datetime(t0.year, t0.month, t0.day, boundary) - (t0.hour < boundary) * pd.DateOffset(1)
-    stop  = pd.datetime(t1.year, t1.month, t1.day, boundary) + (t1.hour > boundary) * pd.DateOffset(1)
+    start = datetime.datetime(t0.year, t0.month, t0.day, boundary) - int(t0.hour < boundary) * pd.DateOffset(1)
+    stop  = datetime.datetime(t1.year, t1.month, t1.day, boundary) + int(t1.hour > boundary) * pd.DateOffset(1)
     drange = list(pd.date_range(start, stop))
     g = b.groupby('baseline')
     for (bl, rows) in g:
@@ -136,8 +136,8 @@ def sbdmbd_segmented(a, restarts={}, boundary=21):
         # leaving this as CategoryIndex (no "get_values") results in slow pivot_table
         # https://stackoverflow.com/questions/39229005/pivot-table-no-numeric-types-to-aggregate
         # probably pass aggfunc='first' to handle non-numeric types
-        b.loc[rows.index, 'segment'] = pd.cut(
-            rows.datetime, tsbounds, right=False, labels=None).get_values()
+        # update: for pandas changes, adapt to form in eat.hops.util
+        b.loc[rows.index, 'segment'] = list(pd.cut(rows.datetime, tsbounds, right=False, labels=None))
     # convert segment to start, stop values since only 1D objects supported well in pandas
     # for indexing, lose meta-info about right or left closed segment -- too bad
     b['start'] = b.segment.apply(lambda x: x.left)
