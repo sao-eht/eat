@@ -57,7 +57,11 @@ def load(file):
     a = a[a.snr > 50]
     a = a[a.baseline.str.contains("A")] # must contain ALMA
     a = a[(a.polarization == 'LL')|
-          (a.polarization == 'RR')]
+          (a.polarization == 'RR')|
+          (a.polarization == 'XR')|
+          (a.polarization == 'XL')|
+          (a.polarization == 'YR')|
+          (a.polarization == 'YL')]
     a = a.reset_index(drop=True)
     util.add_path(a)
 
@@ -197,8 +201,8 @@ if args.datadir is not None:
     hu.set_datadir(args.datadir)
 
 df = load(args.filename)
-rr = df[df.polarization == 'RR']
-ll = df[df.polarization == 'LL']
+rr = df[df.polarization.str[1] == 'R'] # support mixed products: RR, XR, YR
+ll = df[df.polarization.str[1] == 'L']
 
 nchan = string.ascii_letters.find(df.columns[-1]) + 1
 chans = list(string.ascii_letters[:nchan])

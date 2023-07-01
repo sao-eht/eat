@@ -12,7 +12,7 @@ import os,sys,importlib,glob
 
 VEX_DEFAULT='/home/maciek/VEX/'
 
-def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name='hops',tavg='scan',
+def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,observation='EHT2017',pipeline_name='hops',tavg='scan',
     only_parallel=False,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep='circ', 
     old_format=True,path_ehtim='',closure='',tavg_closures='scan',precoh_avg_time=0.,fix_sigma=0,scale_sigma=1.):
     '''
@@ -22,6 +22,7 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
     print('path_vex = ', path_vex)
     print('path_out = ', path_out)
     print('out_name = ', out_name)
+    print('observation= ', observation)
     print('pipeline_name= ', pipeline_name)
     print('scale_sigma = ', scale_sigma)
     if fix_sigma>0:
@@ -43,7 +44,7 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
         print('processing ', filen)
         print("********************************************************")
         try:
-            df_foo = uvfits.get_df_from_uvfit(filen,path_vex=path_vex,force_singlepol='no',band=bandname,round_s=0.1,
+            df_foo = uvfits.get_df_from_uvfit(filen,observation=observation,path_vex=path_vex,force_singlepol='no',band=bandname,round_s=0.1,
         only_parallel=only_parallel,rescale_noise=rescale_noise,polrep=polrep,path_ehtim=path_ehtim,fix_sigma=fix_sigma,scale_sigma=scale_sigma)
             print('Found datapoints: ',np.shape(df_foo)[0])
             #CONVERT TO OLD DF FORMATTING (SEPARATE DATA RECORD FOR EACH POLARIZATION)
@@ -146,14 +147,14 @@ def import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_n
 ##################################################################################################################################
 ##########################  Main FUNCTION ########################################################################################
 ##################################################################################################################################
-def main(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name='hops',tavg='scan',
+def main(path_data_0,path_vex,path_out,out_name,bandname,observation='EHT2017',pipeline_name='hops',tavg='scan',
     only_parallel=True,filend=".uvfits",incoh_avg=False,out_type='hdf',rescale_noise=False,polrep=None, old_format=True,path_ehtim='',closure='',tavg_closures='scan',precoh_avg_time=0.,fix_sigma=0,scale_sigma=1.):
 
     print("********************************************************")
     print("*********************IMPORT DATA************************")
     print("********************************************************")
 
-    import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name=pipeline_name,tavg=tavg,
+    import_uvfits_set(path_data_0,path_vex,path_out,out_name,bandname,observation=observation,pipeline_name=pipeline_name,tavg=tavg,
     only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type=out_type,rescale_noise=rescale_noise,polrep=polrep, old_format=old_format,
     path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures,precoh_avg_time=precoh_avg_time,fix_sigma=fix_sigma,scale_sigma=scale_sigma)
     return 0
@@ -170,6 +171,12 @@ if __name__=='__main__':
                 path_data_0 = sys.argv[a+1]
     else:
         raise Exception("must provide data directory!")
+
+    if "--observation" in sys.argv:
+        for a in range(0, len(sys.argv)):
+            if(sys.argv[a] == '--observation'):
+                observation = sys.argv[a+1]
+    else:   observation = 'EHT2017'
 
     if "--pipeline" in sys.argv:
         for a in range(0, len(sys.argv)):
@@ -281,9 +288,10 @@ if __name__=='__main__':
     print('path_vex = ', path_vex)
     print('path_out = ', path_out)
     print('out_name = ', out_name)
+    print('observation= ', observation)
     print('pipeline_name= ', pipeline_name)
     print('tavg = ', tavg)
     print('out_type = ', out_type)
-    main(path_data_0,path_vex,path_out,out_name,bandname,pipeline_name=pipeline_name,tavg=tavg,
+    main(path_data_0,path_vex,path_out,out_name,bandname,observation=observation,pipeline_name=pipeline_name,tavg=tavg,
     only_parallel=False,filend=filend,incoh_avg=incoh_avg,out_type=out_type,rescale_noise=rescale_noise,polrep=polrep, 
     old_format=True,path_ehtim=path_ehtim,closure=closure,tavg_closures=tavg_closures,precoh_avg_time=precoh_avg_time,fix_sigma=fix_sigma,scale_sigma=scale_sigma)
