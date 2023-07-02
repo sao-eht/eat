@@ -6,18 +6,7 @@ from __future__ import print_function
 # if 'zip' in dir(builtins):
 #     zip = builtins.zip
 #     range = builtins.range
-from pkg_resources import parse_version
 import pandas as pd
-# allow storing of metadata in attribute "metadata"
-if 'metadata' not in pd.DataFrame._metadata:
-    pd.DataFrame._metadata.append('metadata')
-try:
-    assert(parse_version(pd.__version__) >= parse_version('0.15.1dev'))
-except:
-    if type(pd).__name__ == "_MockModule":
-        print("processed by autodoc; pandas version comparison failed")
-    else:
-        print("pandas version too old")
 import datetime
 import numpy as np
 import os
