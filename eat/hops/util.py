@@ -642,7 +642,7 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
                 v = v * p.pre_rot[:,None,:]
         showchan = np.arange(p.nchan)[slice(*channels)]
         nshow = showchan[-1] - showchan[0] + 1
-        nrow = bool(timeseries) + np.int(np.ceil(nshow / ncol))
+        nrow = bool(timeseries) + int(np.ceil(nshow / ncol))
         delay = p.delay if delay is None else delay
         rate = p.rate if rate is None else rate
         trot = np.exp(-1j * rate * p.dtvec * 2*np.pi*p.ref_freq)
