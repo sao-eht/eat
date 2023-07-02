@@ -220,14 +220,17 @@ tsumm_pandasargs = dict(
 
 def read_alist_v5(filename):
     table = pd.read_csv(filename, **fsumm_v5_pandasargs)
+    table.attrs = {'file':filename} # pandas 1.0+ will preserve attrs dict
     return table
 
 def read_alist_v6(filename):
     table = pd.read_csv(filename, **fsumm_v6_pandasargs)
+    table.attrs = {'file':filename} # pandas 1.0+ will preserve attrs dict
     return table
 
 def read_tlist_v6(filename):
     table = pd.read_csv(filename, names=tfields_v6, **tsumm_pandasargs)
+    table.attrs = {'file':filename} # pandas 1.0+ will preserve attrs dict
     return table
 
 fformatters_v5 = {col:lambda x, fmt=fmt: fmt % x for col,fmt in zip(ffields_v5, fformat_v5)}
