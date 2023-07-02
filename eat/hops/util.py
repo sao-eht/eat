@@ -1224,12 +1224,18 @@ class ControlFile(object):
         if tok[0] == "scan":
             if scan is None:
                 return not dropmissing
-            if len(tok) == 2: # scan xxx
+            elif len(tok) == 2: # scan xxx
                 return bool(re.match(tok[1].replace('?', '.*'), scan))
-            if len(tok) == 3: # scan < xxx
-                return cmp(scan, tok[2]) == {'<':-1, '>':1}[tok[1]]
-            if len(tok) == 4 and tok[2] == 'to': # scan xxx to yyy
+            elif len(tok) == 3: # scan < xxx
+                if tok[1] == '<':
+                    return(scan < tok[2])
+                if tok[1] == '>':
+                    return(scan > tok[2])
+                # cmp operator no longer in python 3
+                # return cmp(scan, tok[2]) == {'<':-1, '>':1}[tok[1]]
+            elif len(tok) == 4 and tok[2] == 'to': # scan xxx to yyy
                 return((tok[1] <= scan) and (scan <= tok[3]))
+        raise(Exception("could not parse: " + cond))
 
     # filter control file dictionary using parameters given to function
     # see evaluate() for details
