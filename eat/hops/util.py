@@ -614,10 +614,11 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # do_adhoc: adhoc phase correct before time-average
 # cf: take precorrections from control file
 # channels: (A, B) to only show channels[A:B]
+# pad: leave space for <pad> empty channels at beginning
 # ret: if True, return spectrum no plot
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
              timeseries=False, centerphase=False, snrweight=True, kind=120, pol=None, grid=True,
-             do_adhoc=True, cf=None, channels=(None,None), ret=False, figwidth=8.):
+             do_adhoc=True, cf=None, channels=(None,None), ret=False, figwidth=8., pad=0):
     if type(bs) is str:
         bs = getfringefile(bs, filelist=True, pol=pol)
     if not hasattr(bs, '__len__'):
@@ -641,7 +642,7 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
             if cf is not None:
                 v = v * p.pre_rot[:,None,:]
         showchan = np.arange(p.nchan)[slice(*channels)]
-        nshow = showchan[-1] - showchan[0] + 1
+        nshow = showchan[-1] - showchan[0] + 1 + pad
         nrow = bool(timeseries) + int(np.ceil(nshow / ncol))
         delay = p.delay if delay is None else delay
         rate = p.rate if rate is None else rate
@@ -670,11 +671,12 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         spec = vs[n].sum(axis=0) # sum over time
         spec = spec.reshape((-1, df)).sum(axis=1) # re-bin over frequencies
         ax1 = locals().get('ax1')
-        ax1 = plt.subplot(nrow, ncol, 1+n-showchan[0], sharey=ax1, sharex=ax1)
+        ax1 = plt.subplot(nrow, ncol, 1+n-showchan[0]+pad, sharey=ax1, sharex=ax1)
         amp = np.abs(spec)
         phase = np.angle(spec)
         plt.plot(amp, 'b.-')
-        plt.ylim(0, plt.ylim()[1])
+        # scale up to largest amplitude plotted so far
+        plt.ylim(0, max(np.max(amp), plt.ylim()[1]))
         ax2 = plt.twinx()
         plt.plot(phase, 'r.-')
         plt.ylim(-np.pi, np.pi)
