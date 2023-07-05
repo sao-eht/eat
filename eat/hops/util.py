@@ -1174,7 +1174,7 @@ class ControlFile(object):
     # statements: list of [action, value]
     def open(self, cf):
         # action keyword match -- needs to match only beginning of keyword but be careful not to match anything else
-        action_kw = "adhoc_file adhoc_phase dc_block delay_offs dr_ freqs est_pc gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
+        action_kw = "adhoc_file adhoc_phase chan_ids dc_block delay_offs dr_ freqs est_pc gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
         pat_act = '\s*(.+?)\s*(\w*' + '|\w*'.join((kw[::-1] for kw in action_kw)) + ')'
         pat_blk = '(.*?)\s*(' + '.*|'.join(action_kw) + '.*|$)' # allow empty block
         if os.path.exists(cf):
