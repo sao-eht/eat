@@ -66,32 +66,37 @@ def load(file):
     util.add_path(a)
 
     # Access corel (per-channel) visibility
-    vis = None
+    dflist = []
     for i, f in a.path.items():
-        b = a.baseline[i]
-        # p = a.resid_phas[i] * np.pi / 180.0
-        # v = hu.pop210(f)
-        v = hu.adhoc(f, roundrobin=False).vcorr.mean(axis=0)
-        p = np.angle(np.mean(v))
-        l = len(v)
-        if vis is None: # allocate after pop210() to get number of channels
-            vis = np.empty((len(a), l), dtype=np.complex64)
-            vis.fill(np.nan)
-        elif l != vis.shape[1]:
-            print("WARNING: \"{}\" has {} less channel(s) than expected".
-                  format(f, vis.shape[1] - l), file=sys.stderr)
+       ff_df = hu.params(f)
 
-        vis[i,:l] = v * np.exp(-1j * p)
+       # perform quick adhoc phase correction and obtain a single averaged value
+       v = hu.adhoc(f, roundrobin=False).vcorr.mean(axis=0)
+       p = np.angle(np.mean(v))
 
-        if b[1] == "A": # need to swap baseline and negate vis
-            a.baseline[i] = b[::-1]
-            vis[i,:]      = np.conj(vis[i,:])
-            print("WARNING: ALMA is not the reference", file=sys.stderr)
+       # compute vis
+       vis = v * np.exp(-1j * p)
 
-    # Construct and return final Pandas DataFrame
-    chans = list(string.ascii_letters[:vis.shape[1]])
+       # if ALMA is not the reference, reverse baseline label and negate vis
+       b = a.baseline[i]
+       if b[1] == "A":
+           a.loc[i, 'baseline'] = b[::-1]
+           vis = np.conj(vis)
+           print("WARNING: ALMA is not the reference", file=sys.stderr)
+
+       # construct temp dataframe
+       tempdf = pd.DataFrame(vis[np.newaxis,:], columns=ff_df.fedge)
+       dflist.append(tempdf)
+
+    df = pd.concat(dflist)
+    df = df.reset_index(drop=True)
+    df = df.sort_index(axis=1)
+    df.columns = list(string.ascii_letters[:df.columns.shape[0]]) # assign ASCII channel codes to frequencies
+
+    # add metadata from a to df
     cols  = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas']
-    return pd.concat([a[cols], pd.DataFrame(vis, columns=chans)], axis=1)
+    return pd.concat([a[cols], df], axis=1)
+
 
 def qfit(y1, y2, y3):
     """Quadratic fits
