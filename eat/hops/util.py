@@ -267,7 +267,7 @@ def fixstr(s):
 # same function as HOPS param_struct (unfortunately)
 # frot and trot rotate opposite the detected fringe location
 # i.e. they subtract the delay, rate under multiplication
-# cf: path to control file, can pull some apriori calibration information from control file
+# cf: path to separate control file, in case there is no t222 is not present (otherwise fields are missing)
 def params(b=None, pol=None, quiet=None, cf=None):
     """extract many basic parameters from fringe file for easy access
 
@@ -384,33 +384,50 @@ def params(b=None, pol=None, quiet=None, cf=None):
         expt_no=b.t200.contents.expt_no, startidx=startidx, stopidx=stopidx, apfilter=apfilter)
     if cf is not None:
         cf = ControlFile(cf)
-        cf_ref = cf.filter(station=p.baseline[0], baseline=p.baseline,
-                 source=p.source, scan=p.scantag, dropmissing=True)
-        cf_rem = cf.filter(station=p.baseline[1], baseline=p.baseline,
-                 source=p.source, scan=p.scantag, dropmissing=True)
-        p.cf_ref = cf_ref.actions()
-        p.cf_rem = cf_rem.actions()
-        # precorrections
-        df_sbd = p.foffset[120] - np.mean(p.foffset[120], axis=1)[:,None]
-        default = ' 0 ' * (1+nchan)
-        sbd_ref = np.array(list(map(float, p.cf_ref.get('delay_offs', default).split()[1:]))) + \
-            np.array(list(map(float, p.cf_ref.get('delay_offs_%s' % p.pol[0].lower(), default).split()[1:])))
-        sbd_rem = np.array(list(map(float, p.cf_rem.get('delay_offs', default).split()[1:]))) + \
-            np.array(list(map(float, p.cf_rem.get('delay_offs_%s' % p.pol[1].lower(), default).split()[1:])))
-        df_mbd = p.dfvec[120].mean(axis=1)[:,None]
-        mbd_ref = np.array(list(map(float, p.cf_ref.get('pc_delay', '0.').split()))) + \
-            np.array(list(map(float, p.cf_ref.get('pc_delay_%s' % p.pol[0].lower(), '0.').split())))
-        mbd_rem = np.array(list(map(float, p.cf_rem.get('pc_delay', 'a 0.').split()[1:]))) + \
-            np.array(list(map(float, p.cf_rem.get('pc_delay_%s' % p.pol[1].lower(), '0.').split())))
-        pc_ref = np.array(list(map(float, p.cf_ref.get('pc_phases', default).split()[1:]))) + \
-            np.array(list(map(float, p.cf_ref.get('pc_phases_%s' % p.pol[0].lower(), default).split()[1:])))
-        pc_rem = np.array(list(map(float, p.cf_rem.get('pc_phases', default).split()[1:]))) + \
-            np.array(list(map(float, p.cf_rem.get('pc_phases_%s' % p.pol[1].lower(), default).split()[1:])))
-        # do not understand this sign convention
-        sbd_rot = np.exp(1j * 1e-3*(sbd_rem - sbd_ref)[:,None] * df_sbd * 2*np.pi)
-        mbd_rot = np.exp(1j * 1e-3*(mbd_rem - mbd_ref)[:,None] * df_mbd * 2*np.pi)
-        pc_rot = np.exp(1j * (pc_rem - pc_ref)*np.pi/180.)[:,None]
-        p.pre_rot = sbd_rot * mbd_rot * pc_rot
+    elif bool(b.t222): # mk4 fringe object includes valid type 222 record
+        cf = fixstr(b.t222.contents.control_contents).replace('\x00', '') # strip NULL bytes that might occur in type 222
+        cf = ControlFile(cf)
+    else:
+        return p # return parameters without control file elements
+    cf_ref = cf.filter(station=p.baseline[0], baseline=p.baseline,
+             source=p.source, scan=p.scantag, dropmissing=True)
+    cf_rem = cf.filter(station=p.baseline[1], baseline=p.baseline,
+             source=p.source, scan=p.scantag, dropmissing=True)
+    p.cf_ref = cf_ref.actions()
+    p.cf_rem = cf_rem.actions()
+    p.cf = cf
+    # precorrections to apply to type 120 data according to control file
+    default = ''.join(clabel) + ' 0 ' * nchan # abcd 0. 0. 0. 0.
+    def getcodes(line, codes): # get values for each channel code according to cf line
+        fields = line.split()
+        if len(fields) == 1: # only one value, return for all codes
+            return np.array([float(fields[0]) for c in codes])
+        else:
+            d = dict(zip(fields[0], fields[1:])) # abc 1 2 3 -> {a:1, b:2, c:3}
+            return np.array([float(d[c]) for c in codes])
+    # place sbd df vector centered in middle of each HOPS channel
+    df_sbd = p.foffset[120] - np.mean(p.foffset[120], axis=1)[:,None]
+    sbd_ref = getcodes(p.cf_ref.get('delay_offs', default), clabel) + \
+        getcodes(p.cf_ref.get('delay_offs_%s' % p.pol[0].lower(), default), clabel)
+    sbd_rem = getcodes(p.cf_rem.get('delay_offs', default), clabel) + \
+        getcodes(p.cf_rem.get('delay_offs_%s' % p.pol[1].lower(), default), clabel)
+    # already relative to the defined ref_freq
+    df_mbd = p.dfvec[120].mean(axis=1)[:,None]
+    # note that currently pc_delay (no pol) is not implemented in HOPS and should not exist in cf
+    # although mbd is only one value, we use function getcodes to preserve array shape
+    mbd_ref = getcodes(p.cf_ref.get('pc_delay', '0.'), clabel) + \
+        getcodes(p.cf_ref.get('pc_delay_%s' % p.pol[0].lower(), '0.'), clabel)
+    mbd_rem = getcodes(p.cf_rem.get('pc_delay', '0.'), clabel) + \
+        getcodes(p.cf_rem.get('pc_delay_%s' % p.pol[1].lower(), '0.'), clabel)
+    pc_ref = getcodes(p.cf_ref.get('pc_phases', default), clabel) + \
+        getcodes(p.cf_ref.get('pc_phases_%s' % p.pol[0].lower(), default), clabel)
+    pc_rem = getcodes(p.cf_rem.get('pc_phases', default), clabel) + \
+        getcodes(p.cf_rem.get('pc_phases_%s' % p.pol[1].lower(), default), clabel)
+    # do not understand this sign convention
+    sbd_rot = np.exp(1j * 1e-3*(sbd_rem - sbd_ref)[:,None] * df_sbd * 2*np.pi)
+    mbd_rot = np.exp(1j * 1e-3*(mbd_rem - mbd_ref)[:,None] * df_mbd * 2*np.pi)
+    pc_rot = np.exp(1j * (pc_rem - pc_ref)*np.pi/180.)[:,None]
+    p.pre_rot = sbd_rot * mbd_rot * pc_rot
     return p
 
 # some unstructured channel info for quick printing
@@ -612,13 +629,14 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # df: decimation factor in time if timeseires==True
 # centerphase: subtract out mean phase for fewer wraps
 # do_adhoc: adhoc phase correct before time-average
-# cf: take precorrections from control file
+# precorrect: precorrect type 120 data using type 222 control file
+# cf: take precorrections from explicit control file
 # channels: (A, B) to only show channels[A:B]
 # pad: leave space for <pad> empty channels at beginning
 # ret: if True, return spectrum no plot
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
              timeseries=False, centerphase=False, snrweight=True, kind=120, pol=None, grid=True,
-             do_adhoc=True, cf=None, channels=(None,None), ret=False, figwidth=8., pad=0):
+             do_adhoc=True, precorrect=False, cf=None, channels=(None,None), ret=False, figwidth=8., pad=0):
     if type(bs) is str:
         bs = getfringefile(bs, filelist=True, pol=pol)
     if not hasattr(bs, '__len__'):
@@ -639,7 +657,7 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
             v = pop230(b)   # visib array (nchan, nap, nspec/2)
         elif kind==120:
             v = pop120(b)[:,p.startidx:p.stopidx,:]   # visib array (nchan, nap, nspec/2)
-            if cf is not None:
+            if precorrect:
                 v = v * p.pre_rot[:,None,:]
         showchan = np.arange(p.nchan)[slice(*channels)]
         nshow = showchan[-1] - showchan[0] + 1 + pad
