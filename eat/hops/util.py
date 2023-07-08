@@ -301,6 +301,7 @@ def params(b=None, pol=None, quiet=None, cf=None):
         dfvec: a frequency vector by visib type with zero at ref_freq
         trot: time rotators to rotate out fringe solution
         fedge: frequency edge of each channel
+        flip: 1 for USB (vs fedge) and -1 for LSB for each channel
         bw: bandwidth of all channels as derived as best as possible from sample frequency info
         foffset: offset of middle of channel from channel edge
         baseline: baseline code
@@ -381,7 +382,7 @@ def params(b=None, pol=None, quiet=None, cf=None):
         baseline=fixstr(b.t202.contents.baseline), source=fixstr(b.t201.contents.source), start=start, stop=stop, utc_central=utc_central,
         scan_name=fixstr(b.t200.contents.scan_name), scantime=scantime, timetag=util.dt2tt(scantime),
         scantag=util.dt2tt(scantime + datetime.timedelta(seconds=b.t200.contents.start_offset)),
-        expt_no=b.t200.contents.expt_no, startidx=startidx, stopidx=stopidx, apfilter=apfilter)
+        expt_no=b.t200.contents.expt_no, startidx=startidx, stopidx=stopidx, apfilter=apfilter, flip=flip)
     if cf is not None:
         cf = ControlFile(cf)
     elif bool(b.t222): # mk4 fringe object includes valid type 222 record
@@ -396,6 +397,8 @@ def params(b=None, pol=None, quiet=None, cf=None):
     p.cf_ref = cf_ref.actions()
     p.cf_rem = cf_rem.actions()
     p.cf = cf
+    if('chan_ids') in p.cf_rem:
+        p.chan_ids = p.cf_rem['chan_ids']
     # precorrections to apply to type 120 data according to control file
     default = ''.join(clabel) + ' 0 ' * nchan # abcd 0. 0. 0. 0.
     def getcodes(line, codes): # get values for each channel code according to cf line
@@ -632,7 +635,7 @@ def stackfringe(b1, b2, d1=0., d2=0., r1=0., r2=0., p1=0., p2=0., coherent=True,
 # precorrect: precorrect type 120 data using type 222 control file
 # cf: take precorrections from explicit control file
 # channels: (A, B) to only show channels[A:B]
-# pad: leave space for <pad> empty channels at beginning
+# pad: leave space for <pad> empty channels at beginning or end
 # ret: if True, return spectrum no plot
 def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr=0.,
              timeseries=False, centerphase=False, snrweight=True, kind=120, pol=None, grid=True,
@@ -910,14 +913,15 @@ def compare_alist_v6(alist1,baseline1,polarization1,
         outdata = pd.concat([outdata,outdata_tmp], ignore_index=True)
     return outdata
 
-def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, prefix='', timeoffset=0.,
-          roundrobin=True, bowlfix=False, secondorder=True, p=None, tcoh=None, alpha=5./3., ap=None):
+def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=None, ref=None, prefix='', timeoffset=0.,
+          roundrobin=True, bowlfix=False, secondorder=True, p=None, tcoh=None, alpha=5./3., ap=None, timetag=None):
     """
-    create ad-hoc phases from fringe file (type 212)
+    create self-corrective ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
     use round-robin training/evaluation to avoid self-tuning bias
     some SNR-based selection of averaging timescale is done to tune Sav-Gol filter
     compensate for delay-rate rotator bias for frequencies away from reference frequency
+    allow for generation of corrective phases outside of data range (using chan_ids)
     check for -1 bad flag data in type212 and interpolate over (not done)
 
     Args:
@@ -927,16 +931,18 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
         window_length: odd integer length of scipy.signal.savgol_filter applied to data for smoothing (default=7)
         polyorder: order of piecewise smoothing polynomial (default=3)
         snr: manually set SNR to auto determine window_length and polyorder, else take from fringe file
-        ref: 0 (first site), 1 (second site), or station letter (e.g. A), for control file string (phases to apply to REM)
+        ap: accumulation period ap if no params
+        baseline: baseline string, default is pulled from fringe file (if available) else AB
+        timetag: need to specify if no params available
+        ref: reference station (default is same as data) for adhoc phases, corrective phases apply to REM station
         prefix: add prefix to adhoc_filenames (e.g. source directory) as described in control file string
         timeoffset: add timeoffset [units of AP] to each timestamp in the adhoc string
         roundrobin: True to use frequency-slicing round-robing training to avoid self-tuning
         bowlfix: fix bowl effect in 2017 data (must send fringe file for parameters)
         secondorder: fix the second-order effect from delay change over time
-        p: custom params
+        p: custom params, if chan_ids is available adhoc corrections are generated for all chan_ids
         tcoh: coherence timescale in seconds, if no AP is available it is assumed to be 1.0s
         alpha: structure function index
-        ap: overwrite ap
 
     Returns:
         v: visibility vector from which adhoc phase is estimated (not normalized)
@@ -953,82 +959,106 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
     from scipy.signal import savgol_filter
     if type(b) is np.ndarray:
         v = b
-        ap = ap or 0.5
-        tcoh = tcoh or 6.0
     else:
         b = getfringefile(b, pol=pol, quiet=True)
         p = p if p is not None else params(b)
         v = pop212(b)
-        ap = ap or p.ap
-        tcoh = tcoh or 6.0 * (220e3 / p.ref_freq) * 2./alpha
 
-    if bowlfix and p is not None:
+    # there are variations in channel labeling that may be present in various data files
+    # the visibility baseline data may not cover all channels that need to be assigned a station correction
+    # depending on fourfit setup, the channels may not receive consistent labels across baselines
+    # depending on fourfit setup, the channel assignment data may not be available to this function
+    # channels are assigned letter codes, and these are not necessarily in increasing frequency
+    # fourfit fringe data is in increasing frequency by construction
+    # the choice here is to output adhoc phase corrections in order of increasing frequency
+    # while also matching any predefined chan_ids if made available via control file (or type 222)
+    # corrected visibility data will be output with the same coverage and order as the input data
+    (nap, nchan) = v.shape
+    if p is None: # no parameters defined and ndarray sent for v, fill in some reasonable defaults
+        p = Namespace(ap=0.4, bw=58.59375, ref_freq=220e3, nap=nap, nchan=nchan)
+        import string
+        p.code = string.ascii_letters[:nchan]
+        p.fedge = p.ref_freq + np.array(nchan) * p.bw # edge freq of visib data channels
+        p.baseline = baseline or 'AB' # fake baseline if not set
+        # note there will be problems here if timetag, start, scantag are not the same for the data
+        p.timetag = timetag
+        p.scantag = timetag # including any vex start offset (very rare)
+        p.days = util.tt2days(p.timetag) + (p.ap * np.arange(nap) + p.ap/2.)/86400.
+        p.snr = 100.*np.sqrt(p.nap / 300.) # some default
+        p.scan_name = p.timetag[:8]
+    if 'chan_ids' not in p: # possible that original cf did not use chan_ids
+        p.chan_ids = ''.join(p.code) + ' ' + ' '.join([str(f) for f in p.fedge])
+
+    snr = snr or p.snr # overwrite if defined (e.g. from incoherent average)
+    tcoh = tcoh or 6. * (220e3 / p.ref_freq) * 2./alpha # assumed coherence time [seconds]
+    ref = ref or p.baseline[0] # pick first station if ref is not defined
+
+    # this will define the channel set for adhoc phase corrections
+    fields = p.chan_ids.split() # redunant if chan_ids not set, but provides common code path
+    chan_freqs = np.array([float(f) for f in fields[1:]])  # edge freqs to calculate adhoc phases
+    freq2id = dict(zip(chan_freqs, fields[0])) # translate from freq to channel id
+    sorted_freqs = sorted(chan_freqs) # ascending order for model freqs
+    freq2idx = {f:i for (i, f) in enumerate(sorted_freqs)} # index into ascending frequencies
+
+    timeoffset = timeoffset * p.ap  # shift phases in time to compensate for index bug (old versions of HOPS)
+    parity = -1 if ref == p.baseline[1] else 1 # in most cases do not reverse parity of adhoc phases
+    # these vectors are meant to cover the full frequency range in chan_ids when defined
+    dtvec = p.ap * np.arange(nap)
+    dfvec = sorted_freqs - np.mean(p.fedge) # model freq vs middle of data (assume SB is same)
+
+    if bowlfix: # correction capability for residual LO offset
         # rfdict = {'A':-0.2156, 'X':0.163} # ps/s
         # rfdict = {'X':0.163} # ps/s (ALMA fixed after Rev7) # remove after 2017 analyses
+        rfdict = {} # make sure to add LO offsets if using this flag
         ratefix = rfdict.get(p.baseline[1], 0) - rfdict.get(p.baseline[0], 0)
-        ratefix_phase = 2*np.pi * p.dfvec[212][None,:] * p.dtvec[:,None] * ratefix*1e-6
+        ratefix_phase = 2*np.pi * dfvec[None,:] * dtvec[:,None] * ratefix*1e-6
         v = v * np.exp(-1j * ratefix_phase) # take bowl effect out of visibs before adhoc phasing
     else:
         ratefix_phase = np.zeros_like(v, dtype=float)
 
-    (nap, nchan) = v.shape
-    vfull = v.sum(axis=1) # full frequency average
-    vchop = np.zeros_like(v)
-    phase = np.zeros_like(v, dtype=float)
-
-    if p:
-        timeoffset = timeoffset * p.ap # use actual AP for HOPS adhoc bug
-        if snr is None:
-            snr = p.snr
-        if ref == p.baseline[0]:
-            parity = 1
-        if ref == p.baseline[1]:
-            parity = -1
-    else:
-        if snr is None:
-            snr = 100.*np.sqrt(nap/300.) # some default
-    if ref == 0:
-        parity = 1
-    if ref == 1:
-        parity = -1
-
-    # # old method used SNRDOF to set window length
-    # # note that snr=10 per measurement is 36deg phase error
-    # # this should really be balanced against how rapidly the phase may vary between estimates
-    # nfit = max(1, int((snr / snrdof)**2)) # number of parameters we might be able to fit
-    # # qualitative behavior of fit depends primarily on window_length/polyorder which sets
-    # # timescale for free parameters. actual poly degree doesn't matter as much.
-    # # savgol constraints: polyorder < window_length, window_length is positive odd integer
-    # if polyorder is None:
-    #     polyorder = min(nfit, 2)
-    # if window_length is None:
-    #     window_length = 1+2*max(1, int(0.5 + float(nap * polyorder) / float(nfit) / 2.))
-
-    # new method balances window length against coherence timescale
-    r0 = tcoh / ap # put r0 in units of AP
-    # uh oh why is there a (2pi)^2 here.. mistake in thermal error?
-    # yes mistake, but it's really close to correct factor for a=5./3. (39 vs 38)
+    # new method for savegol parameters balances window length against coherence timescale
+    r0 = tcoh / p.ap # put r0 in units of AP
     R = (r0**alpha * 4*np.pi**2 * nap/snr**2)**(1./(1+alpha)) # optimal integration time per DOF [in APs]
     if polyorder is None:
         polyorder = 2
     if window_length is None:
         window_length = max(1+polyorder, 1+2*int((1+polyorder)*R/2.))
 
-    # basic constraints
+    # savgol constraints: polyorder < window_length, window_length is positive odd integer
     if window_length > nap:
         window_length = 1+2*((nap-1)//2)
     if polyorder >= window_length:
         polyorder = max(0, window_length-1)
 
-    Tdof = ap * window_length / (1.+polyorder) # effectve T per DOF
+    Tdof = p.ap * window_length / (1.+polyorder) # effectve T per DOF
     snrdof = snr * np.sqrt(window_length / (1.+polyorder) / nap)
     # not used, no good way here to transition to zero correction at low SNR and maintain independence
     fac = np.exp(-1./snrdof**2) if snrdof > 0 else 0
 
-    if roundrobin: # apply round-robin training to avoid self-tuning
-        for i in range(nchan): # i is the channel to exclude in fit
-            # remove evaluation channel
-            vtemp = vfull - v[:,i]
+    # containers for visiblity and phase data
+    vfull = v.sum(axis=1) # full frequency average timeseries
+    vchop = np.zeros((nap, len(sorted_freqs)), dtype=v.dtype) # filtered visibilities
+    phase = np.zeros((nap, len(sorted_freqs)), dtype=float)   # phase of filtered visibilities
+
+    # first fill vchop solution over all chan_ids using the full data average solution
+    # vchop will be of length (freqs) and in the same order that freqs is defined
+    fidx = {f:i for i,f in enumerate(sorted_freqs)} # get index location of each fedge in vchop
+    vtemp = vfull
+    try:
+        re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
+        im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
+    except:
+        warnings.warn("failed to fit adhoc phases" + " to %s" % b.name if type(b) is mk4.mk4_fringe else '')
+        re = np.ones_like(vtemp.real)
+        im = np.zeros_like(vtemp.imag)
+    vchop[:,:] = re[:,None] + 1j*im[:,None]
+    phase[:,:] = np.unwrap(np.arctan2(im[:,None], re[:,None]))
+    if roundrobin: # apply round-robin training to data channels to avoid self-tuning
+        for (i, f) in enumerate(p.fedge): # loop over data frequencies
+            if(p.code[i] != freq2id[f]):
+                raise(Exception("chan_id %s does not match code %s for frequency %f" % (freq2id[f], p.code[i], f)))
+            j = freq2idx[f]        # index into phase solution matrix
+            vtemp = vfull - v[:,i] # remove evaluation channel for training
             try:
                 re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
                 im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
@@ -1036,51 +1066,38 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, ref=0, pref
                 warnings.warn("failed to fit adhoc phases" + " to %s" % b.name if type(b) is mk4.mk4_fringe else '')
                 re = np.ones_like(vtemp.real)
                 im = np.zeros_like(vtemp.imag)
-            vchop[:,i] = re + 1j*im
-            phase[:,i] = np.unwrap(np.arctan2(im, re))
-    else: # no round-robin, may self-tune but avoid bandpass systematics
-        vtemp = vfull
-        try:
-            re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
-            im = savgol_filter(vtemp.imag, window_length=window_length, polyorder=polyorder)
-        except:
-            warnings.warn("failed to fit adhoc phases" + " to %s" % b.name if type(b) is mk4.mk4_fringe else '')
-            re = np.ones_like(vtemp.real)
-            im = np.zeros_like(vtemp.imag)
-        vchop[:,:] = re[:,None] + 1j*im[:,None]
-        phase[:,:] = np.unwrap(np.arctan2(im[:,None], re[:,None]))
+            vchop[:,j] = re + 1j*im
+            phase[:,j] = np.unwrap(np.arctan2(im, re))
 
     # add estimated phase from small true change in delay over time
     if secondorder:
-        if p:
-            phase += phase * p.dfvec[212] / p.ref_freq
-        else: # guess fractional bandwidth
-            df = (np.arange(nchan) * 58.59375)
-            df -= np.mean(df)
-            phase += phase * df / 228000.
+        phase += phase * dfvec / p.ref_freq
 
     # note that ratefix is already taken out of v
-    vcorr = v * np.exp(-1j * phase)
+    # make correction for data matrix using phase correction matrix
+    jidx = [freq2idx[f] for f in p.fedge] # index into the phase matrix of data freqs
+    vcorr = v * np.exp(-1j * phase[:,jidx]) # corrected data matrix (ratefix_phase already applied to v)
 
-    # add estimated phase from bowl effect (unphysical delay drift)
-    # is bowl effect same for different arrays? correlation parameters?
+    # add estimated phase from bowl effect (unphysical delay drift from residual LO offset)
     phase += ratefix_phase
 
-    if p:
-        (ref, rem) = [p.baseline[0], p.baseline[1]][::parity]
-        adhoc_filename = prefix + "adhoc_%s_%s.dat" % (rem, p.timetag)
-        cf = """
+    # may lead to confusion is use specified baseline is different than fringe file
+    (ref, rem) = [p.baseline[0], p.baseline[1]][::parity]
+    adhoc_filename = prefix + "adhoc_%s_%s.dat" % (rem, p.timetag)
+    # output control codes using all chan_ids (ascending in frequency)
+    # use scantag to include possible vex start offset (very rare)
+    cf = """
 if station %s and scan %s * from %s per %.1f s
     adhoc_phase file
     adhoc_file %s
     adhoc_file_chans %s
-""" % (rem, p.scantag, ref, Tdof, adhoc_filename, ''.join(p.code)) # use scantag to include possible VEX start offset
-        string = '\n'.join(("%.10f " % (timeoffset/86400. + day) + np.array_str(-ph, precision=3, max_line_width=1e6)[1:-1]
-            for (day, ph) in zip(p.days, parity*phase*180/np.pi))) # note adhoc phase file needs sign flip, i.e. phase to be added to data
-        return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, vcorr=vcorr, scan_name=p.scan_name, scantime=p.scantime,
-                         timetag=p.timetag, filename=adhoc_filename, cfcode=cf, string=string, ratefix_phase=ratefix_phase)
-    else:
-        return Namespace(v=vchop, phase=phase, vcorr=vcorr)
+""" % (rem, p.scantag, ref, Tdof,
+       adhoc_filename,
+       ''.join([freq2id[f] for f in sorted_freqs]))
+    outstring = '\n'.join(("%.10f " % (timeoffset/86400. + day) + np.array_str(-ph, precision=3, max_line_width=1e6)[1:-1]
+        for (day, ph) in zip(p.days, parity*phase*180/np.pi))) # note adhoc phase file needs sign flip, i.e. phase to be added to data
+    return Namespace(code=p.code, days=p.days, phase=phase, v=vchop, vcorr=vcorr, scan_name=p.scan_name, scantime=p.scantime,
+                     timetag=p.timetag, filename=adhoc_filename, cfcode=cf, string=outstring, ratefix_phase=ratefix_phase)
 
 # close in place alist fringe solution based on mbd errors
 # assume R-L has been delay corrected
