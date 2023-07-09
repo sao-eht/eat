@@ -978,11 +978,12 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=No
         p = Namespace(ap=0.4, bw=58.59375, ref_freq=220e3, nap=nap, nchan=nchan)
         import string
         p.code = string.ascii_letters[:nchan]
-        p.fedge = p.ref_freq + np.array(nchan) * p.bw # edge freq of visib data channels
+        p.fedge = p.ref_freq + np.arange(nchan) * p.bw # edge freq of visib data channels
         p.baseline = baseline or 'AB' # fake baseline if not set
         # note there will be problems here if timetag, start, scantag are not the same for the data
         p.timetag = timetag
         p.scantag = timetag # including any vex start offset (very rare)
+        p.scantime = util.tt2dt(timetag)
         p.days = util.tt2days(p.timetag) + (p.ap * np.arange(nap) + p.ap/2.)/86400.
         p.snr = 100.*np.sqrt(p.nap / 300.) # some default
         p.scan_name = p.timetag[:8]
@@ -1005,6 +1006,8 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=No
     # these vectors are meant to cover the full frequency range in chan_ids when defined
     dtvec = p.ap * np.arange(nap)
     dfvec = sorted_freqs - np.mean(p.fedge) # model freq vs middle of data (assume SB is same)
+    jidx = [freq2idx[f] for f in p.fedge]   # index into the phase matrix of data freqs
+    # vcorr = v * np.exp(-1j * phase[:,jidx]) # corrected data matrix (ratefix_phase already applied to v)
 
     if bowlfix: # correction capability for residual LO offset
         # rfdict = {'A':-0.2156, 'X':0.163} # ps/s
@@ -1012,9 +1015,9 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=No
         rfdict = {} # make sure to add LO offsets if using this flag
         ratefix = rfdict.get(p.baseline[1], 0) - rfdict.get(p.baseline[0], 0)
         ratefix_phase = 2*np.pi * dfvec[None,:] * dtvec[:,None] * ratefix*1e-6
-        v = v * np.exp(-1j * ratefix_phase) # take bowl effect out of visibs before adhoc phasing
+        v = v * np.exp(-1j * ratefix_phase[:,jidx]) # take bowl effect out of visibs before adhoc phasing
     else:
-        ratefix_phase = np.zeros_like(v, dtype=float)
+        ratefix_phase = np.zeros((nap, len(sorted_freqs)), dtype=float)
 
     # new method for savegol parameters balances window length against coherence timescale
     r0 = tcoh / p.ap # put r0 in units of AP
@@ -1042,7 +1045,6 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=No
 
     # first fill vchop solution over all chan_ids using the full data average solution
     # vchop will be of length (freqs) and in the same order that freqs is defined
-    fidx = {f:i for i,f in enumerate(sorted_freqs)} # get index location of each fedge in vchop
     vtemp = vfull
     try:
         re = savgol_filter(vtemp.real, window_length=window_length, polyorder=polyorder)
@@ -1075,7 +1077,6 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=No
 
     # note that ratefix is already taken out of v
     # make correction for data matrix using phase correction matrix
-    jidx = [freq2idx[f] for f in p.fedge] # index into the phase matrix of data freqs
     vcorr = v * np.exp(-1j * phase[:,jidx]) # corrected data matrix (ratefix_phase already applied to v)
 
     # add estimated phase from bowl effect (unphysical delay drift from residual LO offset)
