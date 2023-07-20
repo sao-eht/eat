@@ -17,6 +17,7 @@ import matplotlib.cm     as cm
 
 import pandas as pd
 import numpy  as np
+from scipy import interpolate
 
 from eat.io   import hops, util
 from eat.hops import util as hu
@@ -65,6 +66,7 @@ def load(file):
     a = a.reset_index(drop=True)
     util.add_path(a)
 
+    # TODO: obtain chan_ids from the control files / fringe files / user
     # Access corel (per-channel) visibility
     dflist = []
     for i, f in a.path.items():
@@ -85,7 +87,9 @@ def load(file):
            print("WARNING: ALMA is not the reference", file=sys.stderr)
 
        # construct temp dataframe
+       # TODO: add metadata from a to tempdf here and avoid concatenating at the very end
        tempdf = pd.DataFrame(vis[np.newaxis,:], columns=ff_df.fedge)
+       #tempdf = pd.concat((a[a['path']==f][extractcols], tempdf), axis=1) # add metadata from DataFrame a
        dflist.append(tempdf)
 
     df = pd.concat(dflist)
@@ -94,8 +98,8 @@ def load(file):
     df.columns = list(string.ascii_letters[:df.columns.shape[0]]) # assign ASCII channel codes to frequencies
 
     # add metadata from a to df
-    cols  = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas']
-    return pd.concat([a[cols], df], axis=1)
+    extractcols  = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas'] # metadata cols to extract from DataFrame a
+    return pd.concat([a[extractcols], df], axis=1)
 
 
 def qfit(y1, y2, y3):
@@ -113,6 +117,19 @@ def fix_nan(y):
     last    = a + 3.0*b + 9.0*c # == a + b x + c x**2 at x == 3
     m       = np.isnan(y[:,-1])
     y[m,-1] = last[m]
+    return y
+
+def fix_nan_v2(y):
+    """
+    Extrapolate for missing channels
+    """
+    nbl = y.shape[0]
+    nchan = y.shape[1]
+    for ii in np.arange(nbl):
+        ind = np.where(~np.isnan(y[ii,:]))[0] # get first element (np.ndarray) of returned tuple
+        f = interpolate.interp1d(ind, y[ii,ind], kind='linear', bounds_error=False, fill_value='extrapolate')
+        y[ii,:] = f(np.arange(nchan)) # apply f to the entire array to extrapolate
+
     return y
 
 def derivative(y, dx=1.0):
@@ -224,9 +241,9 @@ pcf   = df.groupby('baseline')[chans].sum(numeric_only=False).apply(np.angle, de
 pcr   = rr.groupby('baseline')[chans].sum(numeric_only=False).apply(np.angle, deg=True)
 pcl   = ll.groupby('baseline')[chans].sum(numeric_only=False).apply(np.angle, deg=True)
 
-pcf[:] = fix_nan(pcf.apply(unwrap, axis=1).apply(offset, axis=1).values)
-pcr[:] = fix_nan(pcr.apply(unwrap, axis=1).apply(offset, axis=1).values)
-pcl[:] = fix_nan(pcl.apply(unwrap, axis=1).apply(offset, axis=1).values)
+pcf[:] = fix_nan_v2(pcf.apply(unwrap, axis=1).apply(offset, axis=1).values)
+pcr[:] = fix_nan_v2(pcr.apply(unwrap, axis=1).apply(offset, axis=1).values)
+pcl[:] = fix_nan_v2(pcl.apply(unwrap, axis=1).apply(offset, axis=1).values)
 
 slopes = derivative(pcf.values)
 d_nu   = 58.59375e6 # hard wire separation between channels
