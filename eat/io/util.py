@@ -104,6 +104,10 @@ def tt2dt(timetag, year=2018):
     """convert HOPS timetag to pandas Timestamp (np.datetime64)"""
     return pd.to_datetime(str(year) + timetag, format="%Y%j-%H%M%S")
 
+def tt2days(timetag):
+    """convert HOPS timetag DOY-HHMMSS to days since Jan 1 00:00:00"""
+    return float(timetag[:3]) - 1. + (float(timetag[4:6]) + (float(timetag[6:8]) + float(timetag[8:10])/60.)/60.)/24.
+
 def dt2tt(dt):
     """convert datetime to HOPS timetag"""
     return dt.strftime("%j-%H%M%S")
