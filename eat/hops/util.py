@@ -1786,7 +1786,9 @@ hoffs={
 def trendplot(df, site='', offs={}, col='sbdelay', vlines=None, bltrans=lambda bl: bl, rem=True, tag=True, **kwargs):
     from ..plots import util as pu
     from matplotlib.legend import Legend
-    mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_')))
+    mk = OrderedDict((('LL','.'), ('RR','x'), ('RL','|'), ('LR','_'),
+                      ('XL','.'), ('XR','x'), ('YL','|'), ('YR','_'),
+                      ('LX','.'), ('RX','x'), ('LY','|'), ('RY','_')))
     b = df[df.baseline.str.contains(site)].copy()
     if rem is True:
         flip(b, b.baseline.str[0] == site)
@@ -1794,23 +1796,25 @@ def trendplot(df, site='', offs={}, col='sbdelay', vlines=None, bltrans=lambda b
         flip(b, b.baseline.str[1] == site)
     color = dict(zip(sorted(set(b.baseline)),
            itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])))
-    lines = []
-    labels = []
     for (name, rows) in b.groupby(['baseline', 'polarization']):
         (bl, pol) = name
-        label = bltrans(bl) if pol == 'LL' else '_nolegend_'
         offset = np.array([offs.get((bl[1], expt), 0.) - offs.get((bl[0], expt), 0.)
                            for expt in rows.expt_no])
         val = (1e3 if ('mbd' in col or 'sbd' in col or 'delay' in col) and (not 'rate' in col) else 1.) * rows[col]
         h = plt.plot(rows.scan_no, val - offset, marker=mk[pol], ls='none',
-                color=color[bl], label=label, **kwargs)
-    lines = [plt.Line2D([0], [0], color='k', marker=mk[pol], ls='none') for pol in mk.keys()]
-    leg = Legend(plt.gca(), lines, mk.keys(), loc='lower right', ncol=1)
+                color=color[bl], **kwargs)
+    bset = sorted(set(b.baseline))
+    print(bset)
+    lines = [plt.Line2D([0], [0], color=color[bl], marker='.', ls='none') for bl in bset]
+    leg = Legend(plt.gca(), lines, bset, loc='upper right', ncol=1)
+    plt.gca().add_artist(leg)
+    pset = sorted(set(b.polarization))
+    lines = [plt.Line2D([0], [0], color='k', marker=mk[pol], ls='none') for pol in pset] 
+    leg = Legend(plt.gca(), lines, pset, loc='lower left', ncol=1)
     plt.gca().add_artist(leg)
     plt.xlabel('scan')
     plt.ylabel('%s' % col)
     plt.xlim(0, plt.xlim()[1]*1.06)
-    plt.legend(loc='upper right')
     if tag:
         putil.tag('%s' % site, loc='upper left')
     plt.grid(alpha=0.25)
