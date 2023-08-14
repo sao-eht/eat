@@ -92,9 +92,9 @@ sys_par = 2e-6 # 2 ps on fringe delay
 sys_cross = 20e-6 # 20 ps on cross hand delay
 
 # restart of backend system
-restarts_2017 = {'X':[util.tt2dt(d, year=2017) for d in ['101-003000']]}
-restarts_2018 = {'S':[util.tt2dt(d, year=2018) for d in ['117-050000']],
-                 'X':[util.tt2dt(d, year=2017) for d in ['101-003000']]} # add old 2017 restarts for convenience, dates do not overlap
+restarts = {'X':[util.tt2dt(d, year=2017) for d in ['101-003000']],
+            'S':[util.tt2dt(d, year=2018) for d in ['117-050000']],
+            'N':[util.tt2dt(d, year=2022) for d in ['086-031500']]}
 
 def getpolarization(f):
     try:
@@ -1551,13 +1551,18 @@ def rrll_segmented(a, restarts={}, boundary=19,
     # subtract mean RR-LL from each scan
     # take values to handle non-unique multi-index after broadcast (pandas API change)
     p['LLRR_offset'] = (p.LLRR - rrll_stats.LLRR_mean).values
+    ambiguity = b.iloc[0].ambiguity
+    p['LLRR_offset_wrap'] = np.remainder(p.LLRR_offset + 0.5*ambiguity, ambiguity) - 0.5*ambiguity
     p['LLRR_std'] = p.LLRR_offset / np.sqrt(p.LLRR_err**2 + rrll_stats.LLRR_sys**2).values
     return((p.sort_index(), rrll_stats))
 
-def rrllplot(p, baselines=slice(None), vlines=[]):
+def rrllplot(p, baselines=slice(None), wrap=False, vlines=[]):
     from ..plots import util as pu
     for (bl, rows) in p.loc[(slice(None),slice(None),baselines),:].groupby('baseline'):
-        h = plt.errorbar(rows.scan_no, 1e6*rows.LLRR_offset, yerr=1e6*rows.LLRR_err, fmt='.', label=bl)
+        if wrap:
+            h = plt.errorbar(rows.scan_no, 1e6*rows.LLRR_offset_wrap, yerr=1e6*rows.LLRR_err, fmt='.', label=bl)
+        else:
+            h = plt.errorbar(rows.scan_no, 1e6*rows.LLRR_offset, yerr=1e6*rows.LLRR_err, fmt='.', label=bl)
     plt.grid(alpha=0.25)
     pu.multline(vlines)
     plt.xlabel('scan')
