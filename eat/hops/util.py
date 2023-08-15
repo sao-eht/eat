@@ -386,7 +386,15 @@ def params(b=None, pol=None, quiet=None, cf=None):
     if cf is not None:
         cf = ControlFile(cf)
     elif bool(b.t222): # mk4 fringe object includes valid type 222 record
-        cf = fixstr(b.t222.contents.control_contents).replace('\x00', '') # strip NULL bytes that might occur in type 222
+        # cf = fixstr(b.t222.contents.control_contents).replace('\x00', '') # strip NULL bytes that might occur in type 222
+        # note we use this helper function in mk4.py to extract the control file, may require new version of HOPS
+        # otherwise the bytestring includes the set string, followed by control file, separated by \x00
+        # although the set string comes first in bytestring, it should be evaluated *after* the control block
+        # also it may include double if condition "if if ..", currently cannot be processed by ControlFile object here
+        # set string may be an intentional command line setting, but often it is also used to filter and process baselines in parallel
+        # and thus may cause problems if taken from one baseline fringe file, and e.g. applied to another
+        # so for the time being, we only pass the control_file_contents() and ignore set_string_contents()
+        cf = fixstr(b.t222.contents.get_control_file_contents())
         cf = ControlFile(cf)
     else:
         return p # return parameters without control file elements
