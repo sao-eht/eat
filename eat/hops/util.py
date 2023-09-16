@@ -680,7 +680,8 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         vrot = v * trot[None,:,None] * frot[:,None,:]
         if do_adhoc:
             ah = adhoc(b, bowlfix=False, roundrobin=False)
-            vrot = vrot * np.exp(-1j*ah.phase.T)[:,:,None]
+            # frequency-average adhoc phases to avoid dimension mismatch for baselines with missing channels
+            vrot = vrot * np.exp(-1j*np.mean(ah.phase.T, axis=0))[None,:,None]
         if centerphase: # rotate out the average phase over all channels
             crot = vrot.sum()
             crot = crot / np.abs(crot)
