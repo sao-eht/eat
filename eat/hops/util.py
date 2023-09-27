@@ -40,6 +40,7 @@ from scipy.optimize import least_squares
 import glob
 import re
 import os
+from collections import OrderedDict
 
 # convenient reduces columns to print
 showcol = "timetag scan_id source baseline polarization amp resid_phas snr mbdelay delay_rate".split()
@@ -697,18 +698,53 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         spec = vs.sum(axis=1) # sum over time
         # return (p.fedge[:,None] + p.foffset[120], spec)
         return (p, spec)
+
+    ### compute where phase jumps occur in zoom bands for NOEMA baselines; TODO extend to both stations
+    # define helper functions
+    def overlap(frange1, frange2):
+        return np.maximum(frange1[0], frange2[0]) <= np.minimum(frange1[1], frange2[1])
+
+    def parsenotches(nlist):
+        tmplist = []
+        for ii in range(0,len(nlist),2):
+            tmplist.append((nlist[ii], nlist[ii+1]))
+        return tmplist
+
+    notchlist = [] # notches as list of tuples
+    notchdict = OrderedDict()
+
+    if 'notches' in p.cf_ref:
+        notchlist.extend(parsenotches([float(val) for val in p.cf_ref['notches'].split()]))
+    elif 'notches' in p.cf_rem:
+        notchlist.extend(parsenotches([float(val) for val in p.cf_rem['notches'].split()]))
+
+    for notch in notchlist:
+        for chanidx in range(p.nchan):
+            chbegin = p.fedge[chanidx]
+            chend = p.fedge[chanidx]+p.bw[chanidx]
+            zoomchfreq = (chbegin, chend) # loop through notches outside nchan
+
+            # if the ranges overlap, assign notch to chanidx in notchdict
+            if overlap(zoomchfreq, notch):
+                notchdict[chanidx] = notch
+                continue
+
     for n in showchan:
         spec = vs[n].sum(axis=0) # sum over time
         spec = spec.reshape((-1, df)).sum(axis=1) # re-bin over frequencies
         ax1 = locals().get('ax1')
-        ax1 = plt.subplot(nrow, ncol, 1+n-showchan[0]+pad, sharey=ax1, sharex=ax1)
+        #ax1 = plt.subplot(nrow, ncol, 1+n-showchan[0]+pad, sharey=ax1, sharex=ax1)
+        ax1 = plt.subplot(nrow, ncol, 1+n-showchan[0]+pad, sharey=ax1) # do not sharex with ax1; the x-axis will correspond to frequency offsets from ref_freq for a given band
         amp = np.abs(spec)
         phase = np.angle(spec)
-        plt.plot(amp, 'b.-')
+        plt.plot(p.dfvec[120][n,:], amp, 'b.-')
         # scale up to largest amplitude plotted so far
         plt.ylim(0, max(np.max(amp), plt.ylim()[1]))
         ax2 = plt.twinx()
-        plt.plot(phase, 'r.-')
+        plt.plot(p.dfvec[120][n,:], phase, 'r.-')
+        # shade notched region in plot
+        if notchdict and n in notchdict.keys():
+            ax2.axvspan(notchdict[n][0]-p.ref_freq, notchdict[n][1]-p.ref_freq, alpha=0.5, color='red')
         plt.ylim(-np.pi, np.pi)
         ax2.set_yticklabels([])
         ax2.set_xticklabels([])
@@ -718,7 +754,7 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         ax2.add_artist(AnchoredText(p.code[n], loc=1, frameon=False, borderpad=0))
     ax1.set_yticklabels([])
     ax1.set_xticklabels([])
-    ax1.set_xlim(-0.5, -0.5+len(spec))
+    #ax1.set_xlim(-0.5, -0.5+len(spec)) # do not set xlimits
     if timeseries:
         nt = len(p.dtvec)
         dt = min(dt, nt)
