@@ -322,8 +322,8 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             else:
                 elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
 
-            elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo,
-                                                kind=elev_interp_kind)
+            # INI: extrapolate elevation to values outside the range
+            elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo, kind=elev_interp_kind, fill_value='extrapolate')
 
         try:
             caltable.data[site]
