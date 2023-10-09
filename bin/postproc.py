@@ -155,41 +155,37 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
             # AIPS can only handle 8-character source name so "source" may
             # be truncated.  Therefore, we match a pattern (note the "*")
             # and proceed only if there is one match
-            pattern   = tabledir + "/" + source + '*_' + site + '.txt'
+            pattern = os.path.join(tabledir, f'{source}*_{site}.txt')
             filenames = glob.glob(pattern)
             if len(filenames) == 1:
                 try:
                     data = np.loadtxt(filenames[0], dtype=bytes).astype(str)
                 except IOError:
-                    print("CORRUPTED FILE: " + filenames[0])
+                    print(f'Skipping corrupted file: {filenames[0]}')
                     continue
 
-                filename_source = filenames[0].\
-                    replace(tabledir+'/', '').\
-                    replace('_'+site+'.txt', '')
+                filename_source = filenames[0].replace(tabledir+'/', '').replace(f'_{site}.txt', '')
                 if source != filename_source:
-                    print('WARNING: the filename indicates a different source name')
+                    print('WARNING: name of source in filename is different from the one in the EHTIM datastruct')
                     if filename_source.startswith(source):
-                        print('which is probably due to AIPS source name truncation,'+
-                            ' use the full name "'+filename_source+'"instead')
+                        print(f'which is probably due to AIPS source name truncation; using the full name {filename_source} from the filename...')
                         source = filename_source
             elif len(filenames) == 0:
-                print("NO FILE MATCHING: " + pattern)
+                print(f'No file matching {pattern} exists! Skipping...')
                 continue
             else:
-                print("MULTIPLE FILES MATCHING: " + pattern)
+                print(f'More than one file matching pattern {pattern}. Skipping...')
                 continue
 
             datatable = []
 
             # ANDREW HACKY WAY TO MAKE IT WORK WITH ONLY ONE ENTRY
             onerowonly=False
-            try: data.shape[1]
-            except IndexError:
-                data = data.reshape(1,len(data))
+            if data.ndim == 1:
+                data = np.expand_dims(data, axis=0)
                 onerowonly = True
-            for row in data:
 
+            for row in data:
                 time = (float(row[0]) - mjd) * 24.0 # time is given in mjd
 
     #            # Maciek's old convention had a square root
@@ -323,7 +319,10 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                 elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
 
             # INI: extrapolate elevation to values outside the range
-            elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo, kind=elev_interp_kind, fill_value='extrapolate')
+            if extrapolate:
+                elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo, kind=elev_interp_kind, fill_value='extrapolate')
+            else:
+                elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo, kind=elev_interp_kind)
 
         try:
             caltable.data[site]
@@ -615,11 +614,11 @@ def create_parser():
     p.add_argument("outdir", help="Directory to which calibrated UVFITS files must be written")
     p.add_argument('--identifier', type=str, default='', help="Identifier tag to suffix uvfits filenames with (apart from the automatic identifiers introduced by this script)")
     p.add_argument('--interpkind', type=str, default='linear', help="Kind of interpolation to perform (scipy-compatible)")
-    p.add_argument('--skipextrapolate', action='store_true', help='Toggle whether to extrapolate gain tables')
+    p.add_argument('--extrapolate', action='store_true', help='Toggle whether to extrapolate gain tables')
     p.add_argument('--sqrtgains', action='store_true', help='Toggle whether to take square root of gains before applying')
     p.add_argument('--skipfluxcal', action='store_true', help='Toggle whether to perform a priori flux calibration')
     p.add_argument('--skipfrotcorr', action='store_true', help='Toggle whether to perform field angle rotation correction')
-    p.add_argument('--skipllphaserot', action='store_true', help='Toggle whether to keep absolute phase of LL* (i.e. do not rotate)')
+    p.add_argument('--keepllabsphase', action='store_true', help='Toggle whether to keep absolute phase of LL* (i.e. do not rotate)')
     p.add_argument('--elevmodule', type=str, default='astropy', choices=['astropy', 'ehtim'], help="Python module to use to compute elevation")
     p.add_argument('--elevinterpkind', type=str, default='cubic', help="kind of interpolation to perform (scipy-compatible)")
     p.add_argument('--interpolatedt', type=float, default=1., help="Interpolation resolution for integration time dt in seconds")
@@ -664,8 +663,8 @@ def main(args):
             continue
 
         outname = os.path.join(args.outdir, os.path.basename(uvfitsfile).replace('.uvfits', args.identifier+'.apriori.uvfits'))
-        apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=args.interpkind, extrapolate=not(args.skipextrapolate), frotcal=not(args.skipfrotcorr), elev_function=args.elevmodule,
-                interp_dt=args.interpolatedt, elev_interp_kind=args.elevinterpkind, err_scale=args.errorscale, skip_fluxcal=args.skipfluxcal, keep_absolute_phase=args.skipllphaserot)
+        apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=args.interpkind, extrapolate=args.extrapolate, frotcal=not(args.skipfrotcorr), elev_function=args.elevmodule,
+                interp_dt=args.interpolatedt, elev_interp_kind=args.elevinterpkind, err_scale=args.errorscale, skip_fluxcal=args.skipfluxcal, keep_absolute_phase=args.keepllabsphase)
 
         print(f'Saved calibrated data to {outname}')
     
