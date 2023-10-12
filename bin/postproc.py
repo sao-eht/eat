@@ -238,17 +238,22 @@ def xyz_2_latlong(obsvecs):
     #if out.shape[0]==1: out = out[0]
     return out
 
-def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True,frotcal=True,elev_function='astropy',interp_dt=1.,elev_interp_kind='cubic',err_scale=1.,skip_fluxcal=False,keep_absolute_phase=True):
+def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True, frotcal=True, elev_function='astropy', interp_dt=1., \
+        elev_interp_kind='cubic', err_scale=1., skip_fluxcal=False, keep_absolute_phase=True):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
         datastruct (Datastruct) :  input data structure in EHTIM format
         filename_out (str) :  uvfits output file name
+        interp (str) : kind of interpolation to perform for gain tables
+        extrapolate (bool) : toggle extrapolation for gain tables and elevation computation
         frotcal (bool): whether apply field rotation angle correction
-        elev_function (string): 'ehtim' for ehtim's function of calculating elevation, anything else
-        for astropy functions
-        skip_fluxcal (bool): whether SEFDS should be applied (FALSE), or just the field rotation (TRUE)
-        keep_absolute_phase (bool): whether absolute phase of LL* visibilities should be kept
+        elev_function (str): 'astropy' or 'ehtim' for calculating elevation
+        interp_dt (float) : time resolution for interpolation
+        elev_interp_kind (str) : kind of interpolation to perform for elevation computation
+        err_scale (float) : scaling factor for error
+        skip_fluxcal (bool): toggle whether SEFDs should be applied (i.e. flux calibration)
+        keep_absolute_phase (bool): toggle whether absolute phase of LL* visibilities should be kept
     """
 
     if datastruct.dtype != "EHTIM":
@@ -257,7 +262,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     if not (caltable.tarr == datastruct.antenna_info).all():
         raise Exception("The telescope array in the Caltable is not the same as in the Datastruct")
 
-    # interpolate the calibration  table
+    # interpolate the calibration table
     rinterp = {}
     linterp = {}
     skipsites = []
@@ -638,6 +643,16 @@ def main(args):
     uvfitsfiles = sorted(glob.glob(os.path.join(args.datadir, '*.uvfits')))
     print(f'List of files: {uvfitsfiles}')
 
+    # exclude previously averaged uvfits files
+    excludepattern = "+avg.uvfits"
+    '''reslist = []
+    for uvf in uvfitsfiles:
+        if excludepattern not in uvf:
+            res.append(uvf)
+    uvfitsfiles = reslist'''
+    uvfitsfiles = [uvf for uvf in uvfitsfiles if excludepattern not in uvf]
+    print(f'List of files: {uvfitsfiles}')
+
     # For each uvfitsfile, perform requested calibration steps and write output to a new uvfits file
     for uvfitsfile in uvfitsfiles:
         print(f"A priori calibrating: {uvfitsfile}")
@@ -663,6 +678,7 @@ def main(args):
             continue
 
         outname = os.path.join(args.outdir, os.path.basename(uvfitsfile).replace('.uvfits', args.identifier+'.apriori.uvfits'))
+
         apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=args.interpkind, extrapolate=args.extrapolate, frotcal=not(args.skipfrotcorr), elev_function=args.elevmodule,
                 interp_dt=args.interpolatedt, elev_interp_kind=args.elevinterpkind, err_scale=args.errorscale, skip_fluxcal=args.skipfluxcal, keep_absolute_phase=args.keepllabsphase)
 

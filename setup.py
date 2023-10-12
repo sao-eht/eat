@@ -52,6 +52,7 @@ setup(
              "bin/noauto",
              "bin/ovex2codes",
              "bin/phases.pl",
+             "bin/postproc.py",
              "bin/printalist",
              "bin/runall.py",
              "bin/uv_comb.py"]
