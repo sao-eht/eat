@@ -468,7 +468,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     xyz = np.array([[tarr[i]['x'],tarr[i]['y'],tarr[i]['z']] for i in np.arange(len(tarr))])
 
     # uvfits format output data table
-    bl_list = []
+    bl_arr = np.empty((len(datatable)), dtype=BLTYPE)
     for i in range(len(datatable)):
         entry = datatable[i]
         t1num = entry['t1']
@@ -486,8 +486,8 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             entry['rl'] = np.conj(lr)
             entry['lr'] = np.conj(rl)
             datatable[i] = entry
-        bl_list.append(np.array((entry['time'],entry['t1'],entry['t2']),dtype=BLTYPE))
-    _, unique_idx_anttime, idx_anttime = np.unique(bl_list, return_index=True, return_inverse=True)
+        bl_arr[i] = np.array((entry['time'],entry['t1'],entry['t2']),dtype=BLTYPE)
+    _, unique_idx_anttime, idx_anttime = np.unique(bl_arr, return_index=True, return_inverse=True)
     _, unique_idx_freq, idx_freq = np.unique(datatable['freq'], return_index=True, return_inverse=True)
 
     # random group params
@@ -641,15 +641,9 @@ def main(args):
     else: print('INFO:: Will perform field angle rotation correction')
 
     uvfitsfiles = sorted(glob.glob(os.path.join(args.datadir, '*.uvfits')))
-    print(f'List of files: {uvfitsfiles}')
 
     # exclude previously averaged uvfits files
     excludepattern = "+avg.uvfits"
-    '''reslist = []
-    for uvf in uvfitsfiles:
-        if excludepattern not in uvf:
-            res.append(uvf)
-    uvfitsfiles = reslist'''
     uvfitsfiles = [uvf for uvf in uvfitsfiles if excludepattern not in uvf]
     print(f'List of files: {uvfitsfiles}')
 

@@ -746,19 +746,15 @@ def load_and_convert_hops_uvfits(filename):
 
     # Make a datatable
     # TODO check that the jd not cut off by precision
-    datatable = []
+    datatable = np.empty((len(jds)*nchan), dtype=DTPOL)
+    idx = 0
     for i in range(len(jds)):
         for j in range(nchan):
             freq = j*ch_spacing + ch1_freq
-            datatable.append(np.array(
-                             (jds[i], freq, tints[i],
-                              t1[i], t2[i],
-                              u[i], v[i],
-                              rr[i,j], ll[i,j], rl[i,j], lr[i,j],
-                              rrweight[i,j], llweight[i,j], rlweight[i,j], lrweight[i,j]), dtype=DTPOL
-                             )
-                            )
-    datatable = np.array(datatable)
+            datatable[idx] = np.array((jds[i], freq, tints[i], t1[i], t2[i], u[i], v[i], rr[i,j], ll[i,j], rl[i,j], lr[i,j], \
+                              rrweight[i,j], llweight[i,j], rlweight[i,j], lrweight[i,j]), dtype=DTPOL)
+
+            idx += 1
 
     datastruct_out = Datastruct(datastruct.obs_info, tarr, datatable, dtype="EHTIM")
 
