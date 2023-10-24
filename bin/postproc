@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import glob
+import argparse
+from hops2uvfits import load_and_convert_hops_uvfits
+from eat.postproc import fluxcal as pf
+
+def create_parser():
+    p = argparse.ArgumentParser()
+
+    p.add_argument("datadir", help="Directory containing input UVFITS files")
+    p.add_argument("caldir", help="Directory containing input calibration tables")
+    p.add_argument("outdir", help="Directory to which calibrated UVFITS files must be written")
+    p.add_argument('--identifier', type=str, default='', help="Identifier tag to suffix uvfits filenames with (apart from the automatic identifiers introduced by this script)")
+    p.add_argument('--interpkind', type=str, default='linear', help="Kind of interpolation to perform (scipy-compatible)")
+    p.add_argument('--extrapolate', action='store_true', help='Toggle whether to extrapolate gain tables')
+    p.add_argument('--sqrtgains', action='store_true', help='Toggle whether to take square root of gains before applying')
+    p.add_argument('--skipfluxcal', action='store_true', help='Toggle whether to perform a priori flux calibration')
+    p.add_argument('--skipfrotcorr', action='store_true', help='Toggle whether to perform field angle rotation correction')
+    p.add_argument('--keepllabsphase', action='store_true', help='Toggle whether to keep absolute phase of LL* (i.e. do not rotate)')
+    p.add_argument('--elevmodule', type=str, default='astropy', choices=['astropy', 'ehtim'], help="Python module to use to compute elevation")
+    p.add_argument('--elevinterpkind', type=str, default='cubic', help="kind of interpolation to perform (scipy-compatible)")
+    p.add_argument('--interpolatedt', type=float, default=1., help="Interpolation resolution for integration time dt in seconds")
+    p.add_argument('--errorscale', type=float, default=1., help="Error scaling factor")
+
+    return p
+
+def main(args):
+    print('**************** Post-processing HOPS results ****************')
+    print(f"Applying calibration tables from {args.caldir}\nto uvfits files in {args.datadir}\nand writing results to {args.outdir}")
+
+    if args.skipfluxcal: print('WARNING:: Will skip a priori flux calibration')
+    else: print('INFO:: Will perform a priori flux calibration')
+    if args.skipfrotcorr: print('WARNING:: Will skip field angle rotation correction')
+    else: print('INFO:: Will perform field angle rotation correction')
+
+    uvfitsfiles = sorted(glob.glob(os.path.join(args.datadir, '*.uvfits')))
+
+    # exclude previously averaged uvfits files
+    excludepattern = "+avg.uvfits"
+    uvfitsfiles = [uvf for uvf in uvfitsfiles if excludepattern not in uvf]
+    print(f'List of files: {uvfitsfiles}')
+
+    # For each uvfitsfile, perform requested calibration steps and write output to a new uvfits file
+    for uvfitsfile in uvfitsfiles:
+        print(f"A priori calibrating: {uvfitsfile}")
+
+        tok = uvfitsfile.split('/')[-1].replace('.uvfits', '').split('_', 2)
+        print(f"cal pipeline: {tok[0]}")
+        print(f"expt no: {tok[1]}")
+        print(f"source: {tok[2]}")
+
+        # convert uvfits to ehtim data structure
+        datastruct_ehtim = load_and_convert_hops_uvfits(uvfitsfile)
+
+        # ensure source names are consistent between ehtim data structure and the input uvfits filenames
+        source = datastruct_ehtim.obs_info.src
+        if len(source) <= 8 and source != tok[2]:
+            print(f"WARNING:: Source name {source} inside the uvfits file does not match source name {tok[2]} in the filename! Using name {tok[2]} from filename instead...")
+            source = tok[2]
+            datastruct_ehtim.obs_info.src = tok[2]
+
+        caltable = pf.load_caltable_ds(datastruct_ehtim, args.caldir, sqrt_gains=args.sqrtgains, skip_fluxcal=args.skipfluxcal)
+        if not caltable:
+            print(f'Could not find caltable in {args.caldir} for {source}! Skipping {uvfitsfile}')
+            continue
+
+        outname = os.path.join(args.outdir, os.path.basename(uvfitsfile).replace('.uvfits', args.identifier+'.apriori.uvfits'))
+
+        pf.apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=args.interpkind, extrapolate=args.extrapolate, frotcal=not(args.skipfrotcorr), elev_function=args.elevmodule,
+                interp_dt=args.interpolatedt, elev_interp_kind=args.elevinterpkind, err_scale=args.errorscale, skip_fluxcal=args.skipfluxcal, keep_absolute_phase=args.keepllabsphase)
+
+        print(f'Saved calibrated data to {outname}')
+    
+    return 0
+
+if __name__=='__main__':
+    args = create_parser().parse_args()
+    ret = main(args)
+    sys.exit(ret)
