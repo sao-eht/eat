@@ -5,7 +5,7 @@ import sys
 import glob
 import argparse
 from hops2uvfits import load_and_convert_hops_uvfits
-from eat.postproc import fluxcal as pf
+from eat.postproc import cal_amplitude_farotate as caf
 
 def create_parser():
     p = argparse.ArgumentParser()
@@ -62,14 +62,14 @@ def main(args):
             source = tok[2]
             datastruct_ehtim.obs_info.src = tok[2]
 
-        caltable = pf.load_caltable_ds(datastruct_ehtim, args.caldir, sqrt_gains=args.sqrtgains, skip_fluxcal=args.skipfluxcal)
+        caltable = caf.load_caltable_ds(datastruct_ehtim, args.caldir, sqrt_gains=args.sqrtgains, skip_fluxcal=args.skipfluxcal)
         if not caltable:
             print(f'Could not find caltable in {args.caldir} for {source}! Skipping {uvfitsfile}')
             continue
 
         outname = os.path.join(args.outdir, os.path.basename(uvfitsfile).replace('.uvfits', args.identifier+'.apriori.uvfits'))
 
-        pf.apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=args.interpkind, extrapolate=args.extrapolate, frotcal=not(args.skipfrotcorr), elev_function=args.elevmodule,
+        caf.apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=args.interpkind, extrapolate=args.extrapolate, frotcal=not(args.skipfrotcorr), elev_function=args.elevmodule,
                 interp_dt=args.interpolatedt, elev_interp_kind=args.elevinterpkind, err_scale=args.errorscale, skip_fluxcal=args.skipfluxcal, keep_absolute_phase=args.keepllabsphase)
 
         print(f'Saved calibrated data to {outname}')
