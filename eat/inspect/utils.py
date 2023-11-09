@@ -1681,7 +1681,7 @@ def avg_camp(frame,tavg='scan',debias='no'):
         grouping = groupingSc+['round_time']
         frame_avg = frame.groupby(grouping).agg(aggregating)
         frame_avg = frame_avg.reset_index()
-        frame_avg['datetime'] =  list(map(lambda x: date0 + datetime.timedelta(seconds= int(dt*x)), frame_avg['round_time']))
+        frame_avg['datetime'] =  list(map(lambda x: date0 + datetime.timedelta(seconds= int(tavg*x)), frame_avg['round_time']))
     
     frame_avg['snr'] = frame_avg['camp']/frame_avg['sigmaCA']
 
