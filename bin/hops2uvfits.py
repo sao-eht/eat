@@ -10,33 +10,15 @@ import datetime
 import ctypes
 import astropy.io.fits as fits
 import astropy.time as at
-from argparse import Namespace
+from astropy.time import Time
 import glob
 import os, sys
-try:
-    import eat.hops.util
-    from eat.hops.util import fixstr
-    from eat.io import util
-    #from eat.plots import util as putil
-except: #work on Maciek's laptop
-    sys.path.append('/Users/mwielgus/Dropbox (Smithsonian External)/EHT/Data/MasterEAT/eat/')
-    import eat.hops.util
-    from eat.io import util
-    #from eat.plots import util as putil
-
-from astropy.time import Time
-import numpy.matlib
-
-# For Andrew:
-#DATADIR_DEFAULT = '/home/achael/EHT/hops/data/3554/' #/098-0924/'
-DATADIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/er1-hops-hi/5.+close/data/3601'
-OUTDIR_DEFAULT = '/Users/klbouman/Research/vlbi_imaging/software/hops/tmpout2'
-
-
-# For Katie
-#DATADIR_DEFAULT = '/Users/klbouman/Downloads/newscans/apr2017s/3601' #3600' #'/Users/klbouman/Downloads/apr2017s/3597' #3598_orig' #'../3554/'# /098-0916/'
-# source hops.bash in /Users/klbouman/Research/vlbi_imaging/software/hops/build
-# run this from /Users/klbouman/Research/vlbi_imaging/software/hops/eat
+import eat.hops.util
+from eat.hops.util import fixstr
+from eat.io import util
+#from eat.plots import util as putil
+#from argparse import Namespace
+import argparse
 
 #reference date
 RDATE = '2017-04-04'
@@ -236,7 +218,7 @@ class Datastruct(object):
 #######################################################################
 ##########################  Load/Save FUNCTIONS #######################
 #######################################################################
-def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=False, recompute_uv=False,
+def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_uv=False,
                            sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False, fix_src_name=False):
     """read all fringe files in a directory and produce single baseline uvfits files
 
@@ -280,9 +262,13 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
         #if len(baselineName)==1:
         #    continue
 
-        # remove auto correlations
-        if baselineName[0] == baselineName[1]:
-            continue
+        # remove auto correlations # INI: comment the following to include autocorrs
+        #if baselineName[0] == baselineName[1]:
+        #    continue
+
+        # INI: pick only AN
+        #if baselineName != 'NN':
+        #    continue
 
         print("Making uvfits for baseline: ", baselineName)
         for filename in glob.glob(datadir + baselineName + '*'):
@@ -465,6 +451,8 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
             for i in range(0,nchan):
                 for j in range(0,nap):
                     weights[i,j] = b.t212[i].contents.data[j].weight
+            # INI save weights
+            #np.save(f'weights_{os.path.basename(filename)}.npy', weights)
 
             # the integration time for each measurement
             inttime = inttime_fixed*weights
@@ -482,6 +470,7 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
 
             # get the complex visibilities
             visibilities = eat.hops.util.pop212(a)
+            visibilities = visibilities*weights.T # INI: scale vis. amp. by scaling factor TODO renormalize weights and apply
             if antennas[ant2] < antennas[ant1]:
                 visibilities =  visibilities.conj() #TODO ???? Is this right ???
 
@@ -577,8 +566,12 @@ def convert_bl_fringefiles(datadir=DATADIR_DEFAULT, rot_rate=False, rot_delay=Fa
         # recompute uv points if necessary
         if recompute_uv:
             print("    recomputing uv points!")
-            site1vec = xyz[0]
-            site2vec = xyz[1]
+            if baselineName[0] == baselineName[1]:
+                site1vec = xyz[0]
+                site2vec = xyz[0]
+            else:
+                site1vec = xyz[0]
+                site2vec = xyz[1]
 
             #ANDREW TODO is ref_freq_hops correct?
             times = fractimes * 24 # in hours
@@ -1322,23 +1315,33 @@ def save_uvfits(datastruct, fname):
 
     return 0
 
-##################################################################################################################################
-##########################  Main FUNCTION ########################################################################################
-##################################################################################################################################
-def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_fits=True,
-         recompute_uv=False,clean_bl_fits=False, rot_rate=False, rot_delay=False,
-         sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False, fix_src_name=False):
+def create_parser():
+    p = argparse.ArgumentParser()
 
+    p.add_argument("datadir", help="Directory containing input fringe files organised by epoch and scan")
+    p.add_argument("outdir", help="Directory to which UVFITS files must be written")
+    p.add_argument('--recomputeblfits', action='store_true', help='Recompute baseline fits (?!)')
+    p.add_argument('--clean', action='store_true', help='Remove individual baseline files after merging')
+    p.add_argument('--recomputeuv', action='store_true', help='Recompute uv-coordinates')
+    p.add_argument('--rotrate', action='store_true', help='Remove rate solution in fringe files')
+    p.add_argument('--rotdelay', action='store_true', help='Remove delay solution in fringe files')
+    p.add_argument('--sqrt2corr', action='store_true', help='Perform sqrt(2) correction to ALMA baselines')
+    p.add_argument('--flipALMApol', action='store_true', help='Flip LR and RL in ALMA')
+    p.add_argument('--flipSPTpol', action='store_true', help='Flip LR and RL in SPT')
+    p.add_argument('--fixsrcname', action='store_true', help='Fix source name')
+    p.add_argument('--idtag', type=str, default='', help="Custom identifier tag for UVFITS files")
 
-    print("********************************************************")
+    return p
+
+def main(args):
+    print('Converting fringe files to UVFITS files...')
+    print(f'Arguments passed: {args}')
+
     print("*********************HOPS2UVFITS************************")
-    print("********************************************************")
+    print("Creating merged single-source uvfits files from hops fringe files...")
+    print("Data directory: ", args.datadir)
 
-    print("Creating merged single-source uvfits files from hops fringe files")
-    print("directory: ", datadir)
-    print(' ')
-
-    scandirs = [os.path.join(datadir,o) for o in os.listdir(datadir) if os.path.isdir(os.path.join(datadir,o))]
+    scandirs = [os.path.join(args.datadir,o) for o in os.listdir(args.datadir) if os.path.isdir(os.path.join(args.datadir,o))]
 
     scan_fitsFiles = []
     scan_sources = []
@@ -1359,22 +1362,22 @@ def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_
 
         scandir = scandir + '/'
 
-        if recompute_bl_fits:
+        if args.recomputeblfits:
             # convert the finge files to baseline uv files
             print("---------------------------------------------------------")
             print("---------------------------------------------------------")
             print("scan directory %i/%i: %s" % (i,N, scandir))
             # clean up the files in case there were extra ones already there that we no longer want
-            if clean_bl_fits:
+            if args.clean:
                 print('    REMOVING old uvfits baseline files due to --clean flag')
                 for filename in glob.glob(scandir + '*_hops_baseline.uvfits'):
                     os.remove(filename)
-            if not recompute_bl_fits:
+            if not args.recomputeuv: # INI: this was recompute_bl_fits! Should've been recompute_uv
                 print('    WARNING - not recomputing U,V coordinates!')
             print("---------------------------------------------------------")
             print("---------------------------------------------------------")
-            convert_bl_fringefiles(datadir=scandir, rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv,
-                                   sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol, flip_SPT_pol=flip_SPT_pol, fix_src_name=fix_src_name)
+            convert_bl_fringefiles(datadir=scandir, rot_rate=args.rotrate, rot_delay=args.rotdelay, recompute_uv=args.recomputeuv,
+                                   sqrt2corr=args.sqrt2corr, flip_ALMA_pol=args.flipALMApol, flip_SPT_pol=args.flipSPTpol, fix_src_name=args.fixsrcname)
 
         print(' ')
         print("Merging baseline uvfits files in directory: ", scandir)
@@ -1396,7 +1399,6 @@ def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_
         scan_fitsFiles.append(outname)
         scan_sources.append(datastruct.obs_info.src)
 
-
         print("Saved scan merged data to ", outname)
         print(' ')
 
@@ -1405,17 +1407,16 @@ def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_
     print("---------------------------------------------------------")
     print("---------------------------------------------------------")
     #print scan_sources
-    print(' ')
     unique_sources = set(scan_sources)
     scan_fitsFiles = np.array(scan_fitsFiles)
     scan_sources = np.array(scan_sources)
     for source in unique_sources:
         print(' ')
-        print("Merging all scan uvfits files in directory: ", datadir, "for source: ", source)
+        print("Merging all scan uvfits files in directory: ", args.datadir, "for source: ", source)
         #print 'WARNING - U,V coordinate units unknown!'
         source_scan_fitsFiles = scan_fitsFiles[scan_sources==source]
         datastruct = merge_hops_uvfits(source_scan_fitsFiles)
-        outname = outdir + '/hops_' + os.path.basename(os.path.normpath(datadir)) + '_' + source + ident + '.uvfits'
+        outname = args.outdir + '/hops_' + os.path.basename(os.path.normpath(args.datadir)) + '_' + source + args.idtag + '.uvfits'
         save_uvfits(datastruct, outname)
         print("Saved full merged data to ", outname)
     print("---------------------------------------------------------")
@@ -1424,73 +1425,7 @@ def main(datadir=DATADIR_DEFAULT, outdir=OUTDIR_DEFAULT, ident='', recompute_bl_
     print(' ')
     return 0
 
-
 if __name__=='__main__':
-    if len(sys.argv) == 1:
-        datadir = DATADIR_DEFAULT
-    else: datadir = sys.argv[-1]
-    if datadir[0] == '-': datadir=DATADIR_DEFAULT
-
-    if ("-h" in sys.argv) or ("--h" in sys.argv):
-        print("usage: hops2uvfits.py datadir \n" +
-              "options: \n" +
-              "   --outdir outdir : specifiy output directory for uvfits files \n" +
-              "   --ident : specify identifying for uvfits files \n"
-              "   --skip_bl : specify to skip step of recomputing individual basline files \n" +
-              "   --clean : specify to remove individual baseline files after they are merged \n" +
-              "   --rot_rate : specify to remove rate solution in fringe files \n" +
-              "   --rot_delay : specify to remove delay rate solution in fringe files \n" +
-              "   --uv : specify to recompute uv points \n" +
-              "   --sqrt2corr : specify to include the sqrt(2) correction to ALMA baselines"
-              "   --flip_ALMA_pol : flip RL and LR for ALMA"
-              "   --flip_SPT_pol : flip RL and LR for SPT"
-              "   --fix_src_name : rename '1921-293' to 'J1924-2914'"
-             )
-        sys.exit()
-
-
-    recompute_bl_fits = True
-    if "--skip_bl" in sys.argv: recompute_bl_fits = False
-
-    clean_bl_fits = False
-    if "--clean" in sys.argv: clean_bl_fits = True
-
-    recompute_uv = False
-    if "--uv" in  sys.argv: recompute_uv = True
-
-    rot_rate = False
-    if "--rot_rate" in sys.argv: rot_rate = True
-
-    rot_delay = False
-    if "--rot_delay" in sys.argv: rot_delay = True
-
-    sqrt2corr = False
-    if "--sqrt2corr" in sys.argv: sqrt2corr = True
-
-    flip_ALMA_pol = False
-    if "--flip_ALMA_pol" in sys.argv: flip_ALMA_pol = True
-
-    flip_SPT_pol = False
-    if "--flip_SPT_pol" in sys.argv: flip_SPT_pol = True
-
-    fix_src_name = False
-    if "--fix_src_name" in sys.argv: fix_src_name = True
-
-    ident = ""
-    if "--ident" in sys.argv:
-        for a in range(0, len(sys.argv)):
-            if(sys.argv[a] == '--ident'):
-                ident = "_" + sys.argv[a+1]
-
-    outdir = datadir
-    if "--outdir" in sys.argv:
-        for a in range(0, len(sys.argv)):
-            if(sys.argv[a] == '--outdir'):
-                outdir = sys.argv[a+1]
-    else:
-        outdir = OUTDIR_DEFAULT
-
-    main(datadir=datadir, outdir=outdir, ident=ident,
-         recompute_bl_fits=recompute_bl_fits, clean_bl_fits=clean_bl_fits,
-         rot_rate=rot_rate, rot_delay=rot_delay, recompute_uv=recompute_uv,
-         sqrt2corr=sqrt2corr, flip_ALMA_pol=flip_ALMA_pol, flip_SPT_pol=flip_SPT_pol, fix_src_name=fix_src_name)
+    args = create_parser().parse_args()
+    ret = main(args)
+    sys.exit(ret)
