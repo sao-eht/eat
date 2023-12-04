@@ -478,11 +478,12 @@ def expmean(x, s=8, n=4): # robust mean of exponential distribution
 # delay_off, rate_off: subtract this from the data before doing search
 # manual offsets will show up in axis labels, automatic offsets (from centering) will not
 # replacedata: new visibility array to substitute with actual data before fringe fitting
-# cf: use control file to preprocess data (only type 120)
+# cf: use specific control file when precorrecting data (only type 120), else pull from t222
+# precorrect: if True, use available precorrections, default false but set to true if cf is set
 def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None, None),
                dt=2, df=None, ni=1, ret=False, showhops=False,
                delay_off=0., rate_off=0., flip=False, segment=(None, None), channels=(None,None),
-               pol=None, unrotate_212=True, replacedata=None, cf=None, aspect=None):
+               pol=None, unrotate_212=True, replacedata=None, cf=None, aspect=None, precorrect=False):
     b = getfringefile(fringefile, pol=pol)
     p = params(b, cf=cf)
     (nchan, nap) = (b.n212, b.t212[0].contents.nap)
@@ -504,7 +505,7 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
             v = replacedata
         else:
             v = pop120(b)[:,p.startidx:p.stopidx,:]   # visib array (nchan, nap, nspec/2)
-            if cf is not None:
+            if (cf is not None) or precorrect:
                 v = v * p.pre_rot[:,None,:]
         v = np.swapaxes(v, 1, 0)  # put AP as axis 0
         df = df or 2 # arbitrary, but compensate for type_230 inflation factor of x2 (SSB)
@@ -680,9 +681,8 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
         frot = np.exp(-1j * delay * p.dfvec[kind] * 2*np.pi)
         vrot = v * trot[None,:,None] * frot[:,None,:]
         if do_adhoc:
-            ah = adhoc(b, bowlfix=False, roundrobin=False)
-            # frequency-average adhoc phases to avoid dimension mismatch for baselines with missing channels
-            vrot = vrot * np.exp(-1j*np.mean(ah.phase.T, axis=0))[None,:,None]
+            ah = adhoc(b, bowlfix=False, roundrobin=False, use_chan_ids=False)
+            vrot = vrot * np.exp(-1j*ah.phase.T)[:,:,None]
         if centerphase: # rotate out the average phase over all channels
             crot = vrot.sum()
             crot = crot / np.abs(crot)
@@ -959,7 +959,7 @@ def compare_alist_v6(alist1,baseline1,polarization1,
     return outdata
 
 def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=None, ref=None, prefix='', timeoffset=0.,
-          roundrobin=True, bowlfix=False, secondorder=True, p=None, tcoh=None, alpha=5./3., ap=None, timetag=None):
+          roundrobin=True, bowlfix=False, secondorder=True, p=None, tcoh=None, alpha=5./3., ap=None, timetag=None, use_chan_ids=True):
     """
     create self-corrective ad-hoc phases from fringe file (type 212)
     assume a-priori phase bandpass and fringe rotation (delay) has been applied
@@ -988,6 +988,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=No
         p: custom params, if chan_ids is available adhoc corrections are generated for all chan_ids
         tcoh: coherence timescale in seconds, if no AP is available it is assumed to be 1.0s
         alpha: structure function index
+        use_chan_ids: if True (default), use full set of chan_ids even if larger than data coverage
 
     Returns:
         v: visibility vector from which adhoc phase is estimated (not normalized)
@@ -1040,8 +1041,12 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=No
     ref = ref or p.baseline[0] # pick first station if ref is not defined
 
     # this will define the channel set for adhoc phase corrections
-    fields = p.chan_ids.split() # redunant if chan_ids not set, but provides common code path
-    chan_freqs = np.array([float(f) for f in fields[1:]])  # edge freqs to calculate adhoc phases
+    if(use_chan_ids):
+        fields = p.chan_ids.split() # redunant if chan_ids not set, but provides common code path
+        chan_freqs = np.array([float(f) for f in fields[1:]])  # edge freqs to calculate adhoc phases
+    else:
+        fields = [p.code, None]
+        chan_freqs = p.fedge
     freq2id = dict(zip(chan_freqs, fields[0])) # translate from freq to channel id
     sorted_freqs = sorted(chan_freqs) # ascending order for model freqs
     freq2idx = {f:i for (i, f) in enumerate(sorted_freqs)} # index into ascending frequencies
