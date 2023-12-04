@@ -713,10 +713,11 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
     notchlist = [] # notches as list of tuples
     notchdict = OrderedDict()
 
-    if 'notches' in p.cf_ref:
-        notchlist.extend(parsenotches([float(val) for val in p.cf_ref['notches'].split()]))
-    elif 'notches' in p.cf_rem:
-        notchlist.extend(parsenotches([float(val) for val in p.cf_rem['notches'].split()]))
+    if hasattr(p, 'cf_ref') and hasattr(p, 'cf_rem'):
+        if 'notches' in p.cf_ref:
+            notchlist.extend(parsenotches([float(val) for val in p.cf_ref['notches'].split()]))
+        elif 'notches' in p.cf_rem:
+            notchlist.extend(parsenotches([float(val) for val in p.cf_rem['notches'].split()]))
 
     for notch in notchlist:
         for chanidx in range(p.nchan):
