@@ -171,6 +171,24 @@ def mk4time(time):
         "%Y-%j %H:%M:%S.%f")
 
 # populate the type_210 visib data into array
+# (nchan, nsideband)
+def pop206(b=None):
+    """
+    Populate the ap-averaged nchan-length weights from type_206 record into array
+
+    Parameters:
+    - b (mk4.mk4fringe): fringe file.
+
+    Returns:
+    Array of size nchan x nsidebands containing the weights
+    """
+    b = getfringefile(b)
+    nchan = b.n212
+    q = (mk4.sbweights*nchan).from_address(ctypes.addressof(b.t206.contents.weights))
+    weights206 = np.frombuffer(q, dtype=np.float64, count=-1).reshape((nchan, 2))
+    return weights206
+
+# populate the type_210 visib data into array
 # (nchan)
 def pop210(b=None, pol=None):
     b = getfringefile(b, pol=pol)
