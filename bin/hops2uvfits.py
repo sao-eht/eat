@@ -266,8 +266,8 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
         #if baselineName[0] == baselineName[1]:
         #    continue
 
-        # INI: pick only AN
-        #if baselineName != 'NN':
+        # INI: pick only some baselines for testing
+        #if baselineName not in ['NN', 'AA', 'AN']:
         #    continue
 
         print("Making uvfits for baseline: ", baselineName)
@@ -446,17 +446,12 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
             #print 'ERROR: REMOVE THIS!'
             #channel_bw = channel_spacing
 
-            # the fraction of data used to generate each measurement.
-            weights = np.zeros([nchan,nap])
-            for i in range(0,nchan):
-                for j in range(0,nap):
-                    weights[i,j] = b.t212[i].contents.data[j].weight
-            # INI save weights
-            #np.save(f'weights_{os.path.basename(filename)}.npy', weights)
+            # INI: get visibilities and weights from 212 record
+            (visibilities, weights) = eat.hops.util.pop212(a, weights=True)
 
             # the integration time for each measurement
             inttime = inttime_fixed*weights
-            tints = np.mean(inttime,axis=0)
+            tints = np.mean(inttime, axis=1) # INI: was axis=0; weights now being obtained from pop212 and transposed relative to previous convention
             mjd_start = Time(eat.hops.util.mk4time(b.t205.contents.start)).mjd
             mjd_stop = Time(eat.hops.util.mk4time(b.t205.contents.stop)).mjd
             jd_start = MJD_0 + mjd_start
@@ -468,9 +463,8 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
             jds = jds + fractimes
             jds = jds + ( (0.5 * inttime_fixed) / 86400. )
 
-            # get the complex visibilities
-            visibilities = eat.hops.util.pop212(a)
-            visibilities = visibilities*weights.T # INI: scale vis. amp. by scaling factor TODO renormalize weights and apply
+            # INI: apply weights to visibilities. TODO the "weights" are a weird scaling factor as of now; renormalize them appropriately
+            visibilities = visibilities*weights
             if antennas[ant2] < antennas[ant1]:
                 visibilities =  visibilities.conj() #TODO ???? Is this right ???
 
@@ -1064,7 +1058,7 @@ def save_uvfits(datastruct, fname):
     header['BSCALE'] = 1.0
     header['BZERO'] = 0.0
     header['BUNIT'] = 'JY'
-    header['EQUINOX'] = 'J2000'
+    header['EQUINOX'] = 2000
     header['ALTRPIX'] = 1.e0
     header['ALTRVAL'] = 0.e0
 

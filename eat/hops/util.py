@@ -170,7 +170,7 @@ def mk4time(time):
         (time.year, time.day, time.hour, time.minute, int(time.second), int(0.5+1e6*(time.second-int(time.second)))),
         "%Y-%j %H:%M:%S.%f")
 
-# populate the type_210 visib data into array
+# populate the type_206 visib data into array
 # (nchan, nsideband)
 def pop206(b=None):
     """
