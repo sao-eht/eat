@@ -448,10 +448,11 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
 
             # INI: get visibilities and weights from 212 record
             (visibilities, weights) = eat.hops.util.pop212(a, weights=True)
+            weights = weights.T # INI: transpose to match pre-existing code
 
             # the integration time for each measurement
             inttime = inttime_fixed*weights
-            tints = np.mean(inttime, axis=1) # INI: was axis=0; weights now being obtained from pop212 and transposed relative to previous convention
+            tints = np.mean(inttime,axis=0)
             mjd_start = Time(eat.hops.util.mk4time(b.t205.contents.start)).mjd
             mjd_stop = Time(eat.hops.util.mk4time(b.t205.contents.stop)).mjd
             jd_start = MJD_0 + mjd_start
@@ -463,8 +464,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
             jds = jds + fractimes
             jds = jds + ( (0.5 * inttime_fixed) / 86400. )
 
-            # INI: apply weights to visibilities. TODO the "weights" are a weird scaling factor as of now; renormalize them appropriately
-            visibilities = visibilities*weights
+            visibilities = visibilities*weights.T # INI: scale vis. amp. by scaling factor TODO renormalize weights and apply
             if antennas[ant2] < antennas[ant1]:
                 visibilities =  visibilities.conj() #TODO ???? Is this right ???
 
