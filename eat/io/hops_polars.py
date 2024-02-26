@@ -362,7 +362,7 @@ NETWORKSOL_FIELDS = (
 #    ('syserr_fraction', float),
 )
 
-networksolfields = [a[0] for a in NETWORKSOL_FIELDS
+networksolfields = [a[0] for a in NETWORKSOL_FIELDS]
 
 networksol_polarsargs = dict()
 
