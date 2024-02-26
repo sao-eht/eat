@@ -7,6 +7,7 @@ from __future__ import print_function
 #     zip = builtins.zip
 #     range = builtins.range
 import pandas as pd
+import polars as pl
 import datetime
 import numpy as np
 import os
@@ -206,6 +207,18 @@ tsumm_pandasargs = dict(
     # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
     date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%Y%j-%H%M%S') for (x,y) in zip(years,times)],
 )
+
+# INI: read alist file using polars
+def read_alist_polars(filename, columns):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    # strip whitespaces
+    data = [[val.strip() for val in line.split() if val] for line in lines if line[0] != '*']
+    table = pl.DataFrame(data).transpose()
+    table.columns = columns
+
+    return table
 
 def read_alist_v5(filename):
     table = pd.read_csv(filename, **fsumm_v5_pandasargs)
