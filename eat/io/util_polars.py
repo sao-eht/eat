@@ -3,6 +3,7 @@
 # 2024-02-26 Updated to use Polars by Iniyan Natarajan
 
 import polars as pl
+import polars.functions as pf
 import datetime
 import numpy as np
 import os
@@ -131,20 +132,77 @@ def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_system
     return df
     
 def tt2dt(timetag, year=2018):
-    """convert HOPS timetag to pandas Timestamp (np.datetime64)"""
-    return pd.to_datetime(str(year) + timetag, format="%Y%j-%H%M%S")
+    """
+    Convert HOPS timetag to polars Datetime.
+
+    Parameters
+    ----------
+    timetag : str
+        HOPS timetag in format DOY-HHMMSS.
+    year : int
+        Year to use for conversion.
+
+    Returns
+    -------
+    datetime : datetime.datetime
+        Datetime object corresponding to the input timetag.
+    """
+    return pl.Series([str(year)+timetag]).str.strptime(pl.Datetime, "%Y%j-%H%M%S")[0]
 
 def tt2days(timetag):
-    """convert HOPS timetag DOY-HHMMSS to days since Jan 1 00:00:00"""
+    """
+    Convert HOPS timetag DOY-HHMMSS to days since Jan 1 00:00:00.
+
+    Parameters
+    ----------
+    timetag : str
+        HOPS timetag in format DOY-HHMMSS.
+
+    Returns
+    -------
+    days : float
+        Decimal days since Jan 1 00:00:00.
+    """
     return float(timetag[:3]) - 1. + (float(timetag[4:6]) + (float(timetag[6:8]) + float(timetag[8:10])/60.)/60.)/24.
 
 def dt2tt(dt):
-    """convert datetime to HOPS timetag"""
+    """
+    Convert datetime to HOPS timetag.
+
+    Parameters
+    ----------
+    dt : datetime.datetime
+        Datetime object.
+
+    Returns
+    -------
+    timetag : str
+        HOPS timetag in format DOY-HHMMSS.
+    """
     return dt.strftime("%j-%H%M%S")
 
 def add_id(df, col=['timetag', 'baseline', 'polarization']):
-    """add unique *id* tuple to data frame based on columns"""
-    df['id'] = list(zip(*[df[c] for c in col]))
+    """
+    Add unique *id* described by a tuple of values generated from input columns.
+
+    Parameters
+    ----------
+    df : Polars.DataFrame 
+        Input dataframe.
+    col : list
+        List of columns to use for creating the unique id. These columns must be present in the input dataframe.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with additional column "id" added to the input dataframe.
+
+    Notes
+    -----
+        The 'tuple' is stored as a list since Polars does not support tuples.
+    """
+    df = df.with_columns(id=pl.Series(dfpl.select(pl.col(col)).rows()))
+    return df
 
 def add_scanno(df, unique=True):
     """add *scan_no* based on 2017 scan_id e.g. No0012 -> 12, or a unique number in increasing order"""
