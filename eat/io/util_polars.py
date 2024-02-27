@@ -35,7 +35,7 @@ def unwrap_mbd(df, mbd_ambiguity=None):
     Parameters
     ----------
     df : Polars.DataFrame 
-        Input dataframe containing requested columns.
+        Input dataframe containing columns ambiguity, sbdelay, mbdelay.
     mbd_ambiguity : float
         Ambiguity in mbd in units of us. If None, it is calculated from the dataframe.
 
@@ -55,10 +55,29 @@ def unwrap_mbd(df, mbd_ambiguity=None):
     return df
 
 def rewrap_mbd(df, mbd_ambiguity=None):
-    """Rewrap in place the MBD based on the ambiguity [us], choose value within +/-ambiguity window"""
+    """
+    Rewrap in place the MBD based on the ambiguity [us], choose value within +/-ambiguity window.
+
+    Parameters
+    ----------
+    df : Polars.DataFrame 
+        Input dataframe containing columns unwrapped mbdelay (mbd_unwrap) and ambiguity.
+    mbd_ambiguity : float
+        Ambiguity in mbd in units of us. If None, it is calculated from the dataframe.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with rewrapped mbdelay replacing input mbdelay column.
+    """
+
     if mbd_ambiguity is None:
-        mbd_ambiguity = df.ambiguity
-    df['mbdelay'] = np.remainder(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
+        mbd_ambiguity = df["ambiguity"]
+
+    df = df.with_columns((np.remainder(df["mbd_unwrap"] + 0.5*mbd_ambiguity, mbd_ambiguity) - \
+                          0.5*mbd_ambiguity).alias("mbdelay"))
+    
+    return df
 
 def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_systematic=0.000002,
                  rate_systematic=0.001, crosspol_systematic=0.000020):
