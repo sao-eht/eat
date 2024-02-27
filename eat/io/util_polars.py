@@ -81,37 +81,55 @@ def rewrap_mbd(df, mbd_ambiguity=None):
 
 def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_systematic=0.000002,
                  rate_systematic=0.001, crosspol_systematic=0.000020):
-    """Add in place error to delay and rate fit from fourfit.
-
-    This is re-derived and close in spirit to the code in fourfit/fill_208.c
-    but there are small different factors, not sure what is origin of the fourfit eqns
-    add some sytematic errors in quadrature.. (alist precision, linear approx systematics..)
-
-    Args:
-        bw: bw spread in MHz (not in alist..) [default guess based on ambiguity and freq code]
-        bw_factor: use bw*bw_factor "effective bandwidth" to calculate statistical error on estimate
-                   compensates for non-white data
-        mbd_systematic, rate_systematic: added in quadrature to statistical error (us, ps/s)
-        crosspol_systematic: added in quadrature to delay error for cross polarization products
-
-    Returns:
-        additional columns *mbd_err* and *rate_err* added directly to original DataFrame
     """
-    nchan = pd.to_numeric(df.freq_code.str[1:])
-    sbw   = 1./pd.to_numeric(df.ambiguity) # bw of single channel
-    if df.version.iloc[0] < 6:
-        sbw = np.round(sbw) # account for lack of precision in alist v5 (round to MHz)
+    Add error columns for delay and rate fit from fourfit to the input dataframe.
+
+    Parameters
+    ----------
+    bw : float
+        bw spread in MHz (not in alist..) [default guess based on ambiguity and freq code].
+    bw_factor : float
+        use bw*bw_factor ("effective bandwidth") to calculate statistical error on estimate; 
+        compensates for non-white data.
+    mbd_systematic : float
+        added in quadrature to statistical error (us).
+    rate_systematic : float
+        added in quadrature to statistical error (ps/s).
+    crosspol_systematic : float
+        added in quadrature to delay error for cross polarization products.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with additional columns "mbd_err" and "rate_err" added to the input dataframe.
+
+    Notes
+    -----
+        This is re-derived and close in spirit to the code in fourfit/fill_208.c
+        but there are small different factors, not sure what is origin of the fourfit eqns
+        add some sytematic errors in quadrature.. (alist precision, linear approx systematics..).
+    """
+    nchan = df["freq_code"].map_elements(lambda x: int(x[1:]))
+    sbw   = 1./df["ambiguity"] # bw of single channel
+
+    if df["version"][0] < 6:
+        sbw = sbw.map_elements(round) # account for lack of precision in alist v5 (round to MHz)
+
     if bw is None:
         bw = nchan * sbw # assume contiguous channels, not always correct
-    df['mbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * bw * bw_factor) # us
-    df['sbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * sbw * bw_factor) # us, for nchan measurements
-    df['rate_err'] = 1e6 * np.sqrt(12) / (2*np.pi * df.ref_freq * df.snr * df.duration) # us/s -> ps/s
-    df['mbd_err'] = np.sqrt(df['mbd_err']**2 + mbd_systematic**2 +
-                            crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
-    df['sbd_err'] = np.sqrt(df['sbd_err']**2 + sbd_systematic**2 +
-                            crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
-    df['rate_err'] = np.sqrt(df['rate_err']**2 + rate_systematic**2)
 
+    df = df.with_columns((np.sqrt(12) / (2*np.pi * df["snr"] * bw * bw_factor)).alias("mbd_err")) # us
+    df = df.with_columns(np.sqrt(12) / (2*np.pi * df["snr"] * sbw * bw_factor).alias("sbd_err")) # us, for nchan measurements
+    df = df.with_columns((1e6 * np.sqrt(12) / (2*np.pi * df["ref_freq"] * df["snr"] * df["duration"])).alias("rate_err")) # us/s -> ps/s
+
+    df = df.with_columns((np.sqrt(df["mbd_err"]**2 + mbd_systematic**2 + crosspol_systematic**2 * \
+                                    df["polarization"].map_elements(lambda p: p[0] != p[1]))).alias("mbd_err"))
+    df = df.with_columns((np.sqrt(df["sbd_err"]**2 + sbd_systematic**2 + crosspol_systematic**2 * \
+                                    df["polarization"].map_elements(lambda p: p[0] != p[1]))).alias("sbd_err"))
+    df = df.with_columns((np.sqrt(df["rate_err"]**2 + rate_systematic**2)).alias("rate_err"))
+
+    return df
+    
 def tt2dt(timetag, year=2018):
     """convert HOPS timetag to pandas Timestamp (np.datetime64)"""
     return pd.to_datetime(str(year) + timetag, format="%Y%j-%H%M%S")
