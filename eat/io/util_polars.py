@@ -180,7 +180,7 @@ def dt2tt(dt):
     """
     return dt.strftime("%j-%H%M%S")
 
-def add_id(df, col=['timetag', 'baseline', 'polarization']):
+def add_id(df, cols=['timetag', 'baseline', 'polarization']):
     """
     Add unique *id* described by a string generated from input columns.
 
@@ -231,9 +231,25 @@ def add_scanno(df, unique=True):
     return df
 
 def add_path(df, datadir=''):
-    """add a *path* to each alist line for easier file access, with optional root datadir"""
-    df['path'] = [os.path.join(datadir, '%s/%s/%s.%.1s.%s.%s' % par)
-        for par in zip(df.expt_no, df.scan_id, df.baseline, df.freq_code, df.extent_no, df.root_id)]
+    """
+    Add a *path* to each alist line for easier file access, with optional root datadir
+
+    Parameters
+    ----------
+    df : Polars.DataFrame
+        Input dataframe.
+    datadir : str
+        Root directory to be added to the path.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with additional column *path* added to the input dataframe.
+    """
+    df = df.with_columns(path = pl.Series([os.path.join(datadir, f'{l[0]}/{l[1]}/{l[2]}.{l[3]:.1s}.{l[4]}.{l[5]}') \
+                                           for l in dfpl.select(pl.col(cols)).rows()]))
+
+    return df
 
 def add_utime(df):
     """add UNIX time *utime*"""
