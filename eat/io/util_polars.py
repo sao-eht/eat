@@ -3,7 +3,6 @@
 # 2024-02-26 Updated to use Polars by Iniyan Natarajan
 
 import polars as pl
-import polars.functions as pf
 import datetime
 import numpy as np
 import os
@@ -24,7 +23,7 @@ def isunique(df, cols=['timetag', 'baseline', 'polarization']):
     Returns
     -------
     bool
-        True if all values in the column "len" are unique, False otherwise.
+        True if all values in the column *len* are unique, False otherwise.
     """
     return df.group_by(cols).len().select(pl.col("len")).n_unique() == 1
 
@@ -36,7 +35,7 @@ def unwrap_mbd(df, mbd_ambiguity=None):
     Parameters
     ----------
     df : Polars.DataFrame 
-        Input dataframe containing columns ambiguity, sbdelay, mbdelay.
+        Input dataframe containing columns *ambiguity*, *sbdelay*, *mbdelay*.
     mbd_ambiguity : float
         Ambiguity in mbd in units of us. If None, it is calculated from the dataframe.
 
@@ -69,7 +68,7 @@ def rewrap_mbd(df, mbd_ambiguity=None):
     Returns
     -------
     Polars.DataFrame
-        DataFrame with rewrapped mbdelay replacing input mbdelay column.
+        DataFrame with rewrapped mbdelay replacing input *mbdelay* column.
     """
 
     if mbd_ambiguity is None:
@@ -102,7 +101,7 @@ def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_system
     Returns
     -------
     Polars.DataFrame
-        DataFrame with additional columns "mbd_err" and "rate_err" added to the input dataframe.
+        DataFrame with additional columns *mbd_err* and *rate_err* added to the input dataframe.
 
     Notes
     -----
@@ -183,7 +182,7 @@ def dt2tt(dt):
 
 def add_id(df, col=['timetag', 'baseline', 'polarization']):
     """
-    Add unique *id* described by a tuple of values generated from input columns.
+    Add unique *id* described by a string generated from input columns.
 
     Parameters
     ----------
@@ -195,23 +194,41 @@ def add_id(df, col=['timetag', 'baseline', 'polarization']):
     Returns
     -------
     Polars.DataFrame
-        DataFrame with additional column "id" added to the input dataframe.
+        DataFrame with additional column *id* added to the input dataframe.
 
     Notes
     -----
-        The 'tuple' is stored as a list since Polars does not support tuples.
+        In the Pandas version of this function, the id is stored as a tuple of he values of the input columns.
+        Since Polars does not support tuples natively and lists cannot be stored as csv, the id is stored as a
+        string consisting of the values of the input column list *col* separated by ':'.
     """
-    df = df.with_columns(id=pl.Series(dfpl.select(pl.col(col)).rows()))
+    df = df.with_columns(id = pl.Series([f'{l[0]}:{l[1]}:{l[2]}' for l in df.select(pl.col(cols)).rows()]))
     return df
 
 def add_scanno(df, unique=True):
-    """add *scan_no* based on 2017 scan_id e.g. No0012 -> 12, or a unique number in increasing order"""
+    """
+    Add *scan_no* based on 2017 scan_id. E.g. No0012 -> 12, or a unique number in increasing order.
+
+    Parameters
+    ----------
+    df : Polars.DataFrame
+        Input dataframe.
+    unique : bool
+        If True, add a unique number in increasing order as scan_no. If False, add *scan_no* based on existing *scan_id*.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with additional column *scan_no* added to the input dataframe.
+    """
     if unique:
-        tts = sorted(sorted(set(zip(df.expt_no, df.scan_id))))
+        tts = sorted(sorted(set(zip(df["expt_no"], df["scan_id"]))))
         tt2i = dict(zip(tts, range(len(tts))))
-        df['scan_no'] = [tt2i[s] for s in zip(df.expt_no, df.scan_id)]
+        df = df.with_columns(scan_no = pl.Series([tt2i[s] for s in zip(df["expt_no"], df["scan_id"])]))
     else:
-        df['scan_no'] = df.scan_id.str[2:].astype(int)
+        df = df.with_columns(pl.col("scan_id").map_elements(lambda x: int(x.replace("-",""))).alias("scan_no"))
+
+    return df
 
 def add_path(df, datadir=''):
     """add a *path* to each alist line for easier file access, with optional root datadir"""
