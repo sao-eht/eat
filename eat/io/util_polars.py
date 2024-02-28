@@ -3,7 +3,6 @@
 # 2024-02-26 Updated to use Polars by Iniyan Natarajan
 
 import polars as pl
-import datetime
 import numpy as np
 import os
 
@@ -101,7 +100,7 @@ def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_system
     Returns
     -------
     Polars.DataFrame
-        DataFrame with additional columns *mbd_err* and *rate_err* added to the input dataframe.
+        DataFrame with new columns *mbd_err* and *rate_err* added to the input dataframe.
 
     Notes
     -----
@@ -194,7 +193,7 @@ def add_id(df, cols=['timetag', 'baseline', 'polarization']):
     Returns
     -------
     Polars.DataFrame
-        DataFrame with additional column *id* added to the input dataframe.
+        DataFrame with new column *id* added to the input dataframe.
 
     Notes
     -----
@@ -219,7 +218,7 @@ def add_scanno(df, unique=True):
     Returns
     -------
     Polars.DataFrame
-        DataFrame with additional column *scan_no* added to the input dataframe.
+        DataFrame with new column *scan_no* added to the input dataframe.
     """
     if unique:
         tts = sorted(sorted(set(zip(df["expt_no"], df["scan_id"]))))
@@ -244,35 +243,78 @@ def add_path(df, datadir=''):
     Returns
     -------
     Polars.DataFrame
-        DataFrame with additional column *path* added to the input dataframe.
+        DataFrame with new column *path* added to the input dataframe.
     """
     df = df.with_columns(path = pl.Series([os.path.join(datadir, f'{l[0]}/{l[1]}/{l[2]}.{l[3]:.1s}.{l[4]}.{l[5]}') \
                                            for l in dfpl.select(pl.col(cols)).rows()]))
 
     return df
 
-def add_utime(df):
-    """add UNIX time *utime*"""
-    df['utime'] = 1e-9*np.array(df.datetime).astype('float')
+# TODO add_utime here
 
 # add a UT hour between [t0, t0+24h]
 def add_hour(df, t0=-6):
-    """add *hour* if HOPS timetag available"""
+    """
+    Add *hour* if HOPS timetag available. If not, add *hour* based on *hhmm*.
+
+    Parameters
+    ----------
+    df : Polars.DataFrame
+        Input dataframe.
+    t0 : float
+        Reference hour for the day, defaults to -6.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with new column *hour* added to the input dataframe.
+    """
     if 'timetag' in df:
-        df['hour'] = df.timetag.apply(lambda x: float(x[4:6]) + float(x[6:8])/60. + float(x[8:10])/3600.)
+        df = df.with_columns(pl.col('timetag').map_elements(lambda x: float(x[4:6]) + float(x[6:8])/60. + float(x[8:10])/3600.).alias('hour'))
     elif 'hhmm' in df:
-        df['hour'] = df.hhmm.apply(lambda x: float(x[0:2]) + float(x[2:4])/60.)
+        df = df.with_columns(pl.col('timetag').map_elements(lambda x: float(x[0:2]) + float(x[2:4])/60.).alias('hour'))
     if t0 < 0:
         t0 = np.fmod(t0+24, 24) - 24
-    df.hour = np.fmod(df.hour - t0, 24) + t0
+    df = df.with_columns(hour=np.fmod(pl.col('hour') - t0, 24) + t0)
+
+    return df
 
 def add_doy(df):
-    """add day-of-year *doy* extracted from time-tag"""
-    df['doy'] = df.timetag.str[:3].astype(int)
+    """
+    Add day-of-year *doy* extracted from time-tag.
+
+    Parameters
+    ----------
+    df : Polars.DataFrame
+        Input dataframe.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with new column *doy* added to the input dataframe.
+    """
+    df = df.with_columns(pl.col('timetag').map_elements(lambda x: int(x[:3])).alias('doy'))
+    return df
 
 def add_days(df):
-    """decimal *days* since beginning of year = (DOY - 1) + hour/24."""
+    """
+    Decimal *days* since beginning of year = (DOY - 1) + hour/24.
+
+    Parameters
+    ----------
+    df : Polars.DataFrame
+        Input dataframe.
+    
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with new column *days* added to the input dataframe.
+    """
     df['days'] = df.timetag.apply(lambda x: float(x[0:3])-1. + float(x[4:6])/24. + float(x[6:8])/1440. + float(x[8:10])/86400.)
+    df = df.with_columns(pl.col('timetag').map_elements(lambda x: float(x[0:3])-1. + float(x[4:6])/24. + float(x[6:8])/1440. + \
+            float(x[8:10])/86400.).alias('days'))
+    
+    return df
 
 def add_gmst(df):
     """add *gmst* column to data frame with *datetime* field using astropy for conversion"""
@@ -292,97 +334,3 @@ def add_gmst(df):
     df['gmst'] = 0. # initialize new column
     for (gmst, idx) in zip(times_gmst, indices):
         df.loc[idx, 'gmst'] = gmst
-
-def add_mjd(df):
-    """add *gmst* column to data frame with *datetime* field using astropy for conversion"""
-    from astropy import time
-    g = df.groupby('datetime')
-    (timestamps, indices) = list(zip(*iter(g.groups.items())))
-    # this broke in pandas 0.9 with API changes
-    if type(timestamps[0]) is np.datetime64: # pandas < 0.9
-        times_unix = 1e-9*np.array(
-            timestamps).astype('float') # note one float64 is not [ns] precision
-    elif type(timestamps[0]) is pd.Timestamp:
-        times_unix = np.array([1e-9 * t.value for t in timestamps]) # will be int64's
-    else:
-        raise Exception("do not know how to convert timestamp of type " + repr(type(timestamps[0])))
-    times_mjd = time.Time(
-        times_unix, format='unix').mjd # vectorized
-    df['mjd'] = 0. # initialize new column
-    for (mjd, idx) in zip(times_mjd, indices):
-        df.loc[idx, 'mjd'] = mjd
-
-def noauto(df):
-    """returns new data frame with autocorrelations removed regardless of polarziation"""
-    auto = df.baseline.str[0] == df.baseline.str[1]
-    return df[~auto].copy()
-
-def debias(df):
-    """amplitude debias by subtracting noise expectation from squared amplitude from df.amp, do not run twice!"""
-    snr_deb = np.sqrt(np.maximum(0.0, df.snr**2 - 1.0))
-    df['amp'] = df['amp'] * snr_deb / df.snr
-
-# a number of polconvert fixes based on rootcode (correlation proc time)
-# optionally undo fix
-def fix(df):
-    # merge source with two different names
-    idx = (df.source == '1921-293')
-    df.loc[idx,'source'] = 'J1924-2914'
-    if 'baseline' not in df.columns:
-        return
-    # sqrt2 fix er2lo:('zplptp', 'zrmvon') er2hi:('zplscn', 'zrmvoi')
-    idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zrzzzz')
-    df.loc[idx,'snr'] /= np.sqrt(2.0)
-    df.loc[idx,'amp'] /= np.sqrt(2.0)
-    # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd') er3hiv2:('0036EJ', '00GYUV', 'zzsivx', 'zzzznu')
-    idx1 = df.baseline.str.contains('A') & (df.polarization == 'LR') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
-    idx2 = df.baseline.str.contains('A') & (df.polarization == 'RL') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
-    df.loc[idx1,'polarization'] = 'RL'
-    df.loc[idx2,'polarization'] = 'LR'
-    # SMA polarization swap EHT high band D05
-    idx1 = (df.baseline.str[0] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
-    idx2 = (df.baseline.str[1] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
-    df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'RL', 'LR':'RR', 'RL':'LL', 'RR':'LR'})
-    df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LR', 'LR':'LL', 'RL':'RR', 'RR':'RL'})
-    # SPT polarization swap EHT high band D05 for Rev3
-    idx1 = (df.baseline.str[0] == 'Y') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
-    idx2 = (df.baseline.str[1] == 'Y') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
-    df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'RL', 'LR':'RR', 'RL':'LL', 'RR':'LR'})
-    df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LR', 'LR':'LL', 'RL':'RR', 'RR':'RL'})
-    # SPT polarization swap EHT high band D05 for Rev5 (and earlier new root code)
-    idx1 = (df.baseline.str[0] == 'Y') & (df.root_id > '000000') & (df.root_id < '09FRZZ') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
-    idx2 = (df.baseline.str[1] == 'Y') & (df.root_id > '000000') & (df.root_id < '09FRZZ') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
-    df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'RL', 'LR':'RR', 'RL':'LL', 'RR':'LR'})
-    df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LR', 'LR':'LL', 'RL':'RR', 'RR':'RL'})
-    
-def undofix(df):        
-# a number of polconvert fixes based on rootcode (correlation proc time)
-    # sqrt2 fix er2lo:('zplptp', 'zrmvon') er2hi:('zplscn', 'zrmvoi')
-    idx = (df.baseline.str.count('A') == 1) & (df.root_id > 'zpaaaa') & (df.root_id < 'zrzzzz')
-    df.loc[idx,'snr'] *= np.sqrt(2.0)
-    df.loc[idx,'amp'] *= np.sqrt(2.0)
-    # SMA polarization swap EHT high band D05
-    idx1 = (df.baseline.str[0] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
-    idx2 = (df.baseline.str[1] == 'S') & (df.root_id > 'zxaaaa') & (df.root_id < 'zztzzz') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
-    df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'RL', 'LR':'RR', 'RL':'LL', 'RR':'LR'})
-    df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LR', 'LR':'LL', 'RL':'RR', 'RR':'RL'})
-    # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd')
-    idx1 = df.baseline.str.contains('A') & (df.polarization == 'LR') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
-    idx2 = df.baseline.str.contains('A') & (df.polarization == 'RL') & (df.root_id > 'zxaaaa') & (df.root_id < 'zzzzzz')
-    df.loc[idx1,'polarization'] = 'RL'
-    df.loc[idx2,'polarization'] = 'LR'
-
-def uvdict(filename):
-    """take calibration output data frame, and make UV dictionary lookup table"""
-    from . import hops
-    df = hops.read_caltable(filename, sort=False)
-    uvdict = {}
-    for (day, hhmm, baseline, u, v) in zip(df.day, df.hhmm, df.baseline, df.u, df.v):
-        if sort:
-            bl = ''.join(sorted(baseline))
-        else:
-            bl = baseline
-        if sf != baseline:
-            (u, v) = (-u, -v)
-        uvdict[(day, hhmm, bl)] = (u, v)
-    return uvdict
