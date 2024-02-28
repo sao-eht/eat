@@ -315,22 +315,3 @@ def add_days(df):
             float(x[8:10])/86400.).alias('days'))
     
     return df
-
-def add_gmst(df):
-    """add *gmst* column to data frame with *datetime* field using astropy for conversion"""
-    from astropy import time
-    g = df.groupby('datetime')
-    (timestamps, indices) = list(zip(*iter(g.groups.items())))
-    # this broke in pandas 0.9 with API changes
-    if type(timestamps[0]) is np.datetime64: # pandas < 0.9
-        times_unix = 1e-9*np.array(
-            timestamps).astype('float') # note one float64 is not [ns] precision
-    elif type(timestamps[0]) is pd.Timestamp:
-        times_unix = np.array([1e-9 * t.value for t in timestamps]) # will be int64's
-    else:
-        raise Exception("do not know how to convert timestamp of type " + repr(type(timestamps[0])))
-    times_gmst = time.Time(
-        times_unix, format='unix').sidereal_time('mean', 'greenwich').hour # vectorized
-    df['gmst'] = 0. # initialize new column
-    for (gmst, idx) in zip(times_gmst, indices):
-        df.loc[idx, 'gmst'] = gmst
