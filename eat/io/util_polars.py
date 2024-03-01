@@ -436,3 +436,70 @@ def fix(df):
                         else 'RR' if x == 'RL' else 'RL' if x == 'RR')).otherwise(pl.col('polarization')))
 
     return df
+
+def undofix(df):
+    """
+    Undo a number of polconvert fixes based on rootcode (correlation proc time).
+
+    Parameters
+    ----------
+    df : Polars.DataFrame
+        Input dataframe.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with fixes undone.
+    """
+    # sqrt2 fix er2lo:('zplptp', 'zrmvon') er2hi:('zplscn', 'zrmvoi')
+    mask = (df['baseline'].str.count_matches(r"A")==1) & (df['root_id']>'zpaaaa') & (df['root_id']<'zrzzzz')
+    df = df.with_columns(pl.when(mask).then(pl.col('snr') * np.sqrt(2.0)).otherwise(pl.col('snr')))
+    df = df.with_columns(pl.when(mask).then(pl.col('amp') * np.sqrt(2.0)).otherwise(pl.col('amp')))
+
+    # SMA polarization swap EHT high band D05
+    mask = (df['baseline'].str.starts_with('S')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
+            (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL' if x == 'LL' else 'RR' if x == 'LR' \
+                        else 'LL' if x == 'RL' else 'LR' if x == 'RR')).otherwise(pl.col('polarization')))
+
+    mask = (df['baseline'].str.ends_with('S')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
+            (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR' if x == 'LL' else 'LL' if x == 'LR' \
+                        else 'RR' if x == 'RL' else 'RL' if x == 'RR')).otherwise(pl.col('polarization')))
+
+    # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd')
+    mask = (df['baseline'].str.count_matches(r"A")==1) & (df['polarization'] == 'LR') & (df['root_id']>'zxaaaa') & (df['root_id']<'zzzzzz')
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL')).otherwise(pl.col('polarization')))
+
+    mask = (df['baseline'].str.count_matches(r"A")==1) & (df['polarization'] == 'RL') & (df['root_id']>'zxaaaa') & (df['root_id']<'zzzzzz')
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR')).otherwise(pl.col('polarization')))
+
+    return df
+
+def uvdict(filename):
+    """
+    Take calibration output data frame, and make UV dictionary lookup table.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the calibration output file.
+
+    Returns
+    -------
+    dict
+        Dictionary with keys (day, hhmm, baseline) and values (u, v).
+    """
+    from . import hops_polars
+    df = hops_polars.read_caltable(filename, sort=False)
+    uvdict = {}
+    for (day, hhmm, baseline, u, v) in zip(df["day"], df["hhmm"], df["baseline"], df["u"], df["v"]):
+        if sort:
+            bl = ''.join(sorted(baseline))
+        else:
+            bl = baseline
+        if sf != baseline:
+            (u, v) = (-u, -v)
+        uvdict[(day, hhmm, bl)] = (u, v)
+
+    return uvdict
