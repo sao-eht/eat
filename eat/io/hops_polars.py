@@ -1,23 +1,16 @@
 # I/O routines for HOPS ASCII tables
 # 2016-10-11 Lindy Blackburn
-# 2024-02-26 Updated with Polars by Iniyan Natarajan
+# 2024-02-26 Updated to use Polars by Iniyan Natarajan
 
-# import builtins
-# if 'zip' in dir(builtins):
-#     zip = builtins.zip
-#     range = builtins.range
 import polars as pl
-import pandas as pd
 import datetime
-import numpy as np
-import os
 import sys
 
 def condense_formats(fmtlist):
     return map(lambda fmt: fmt if fmt.count('%') <= 1 else "%s", fmtlist)
 
 # from write_fsumm.c
-
+# format of each field in alist/tlist files
 fformat_v5 = condense_formats("%1d %s 2 %2d %3d %3d %3d %4d %s %02d%03d-%02d%02d%02d %4d\
  %03d-%02d%02d%02d %3d %-8s %s %c%c %c%02d %2s %4d %6.2f %#5.4g %5.1f %#5.4g %2s %6.3f %8.5f\
  %6.4f %8.3f %4.1f %4.1f %5.1f %5.1f %7.4g %7.4g %06d %02d%02d %8.2f %5.1f %11.8f\
@@ -39,6 +32,7 @@ tformat_v6 = condense_formats("%1d %4d 3 %8s %4d %03d-%02d%02d%02d %3d %32s\
  %8.5f %6.4f %9.5f %14s %11s\
   %02d%02d %10.3f %7d\n".replace(' 3 ', ' %d ').strip().split())
 
+# fields for each version of input alist/tlist files
 ffields_v5 = [a.strip() for a in """
 version,
 root_id,
@@ -176,24 +170,98 @@ fsumm_v6_polarsargs = dict(columns=ffields_v6,)
 tsumm_polarsargs = dict(columns=tfields_v6,)
 
 # read alist/tlist files using polars
-def read_alist_polars(filename, columns):
+def read_alist_v5(filename):
+    """
+    Read alist v5 file into polars dataframe.
+
+    Parameters
+    ----------
+    filename : str
+        alist filename.
+
+    Returns
+    -------
+    polars.DataFrame
+        DataFrame with alist contents.
+    """
     with open(filename, 'r') as f:
         lines = f.readlines()
 
     # skip comment lines and strip whitespaces-- comments start with *
     data = [[val.strip() for val in line.split() if val] for line in lines if line[0] != '*']
     df = pl.DataFrame(data).transpose()
-    df.columns = columns
+    df.columns = ffields_v5
+
+    return df
+
+def read_alist_v6(filename):
+    """
+    Read alist v6 file into polars dataframe.
+
+    Parameters
+    ----------
+    filename : str
+        alist filename.
+
+    Returns
+    -------
+    polars.DataFrame
+        DataFrame with alist contents.
+    """
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    # skip comment lines and strip whitespaces-- comments start with *
+    data = [[val.strip() for val in line.split() if val] for line in lines if line[0] != '*']
+    df = pl.DataFrame(data).transpose()
+    df.columns = ffields_v6
+
+    return df
+
+def read_tlist_v6(filename):
+    """
+    Read tlist v6 file into polars dataframe.
+
+    Parameters
+    ----------
+    filename : str
+        tlist filename.
+
+    Returns
+    -------
+    polars.DataFrame
+        DataFrame with tlist contents.
+    """
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    # skip comment lines and strip whitespaces-- comments start with *
+    data = [[val.strip() for val in line.split() if val] for line in lines if line[0] != '*']
+    df = pl.DataFrame(data).transpose()
+    df.columns = tfields_v6
 
     return df
 
 # write output dataframe containing alist/tlist to stdout or CSV file
-def write_alist_polars(df, out=sys.stdout):
+def write_alist(df, out=sys.stdout):
+    """
+    Write alist dataframe to stdout or CSV file.
+
+    Parameters
+    ----------
+    df : polars.DataFrame
+        DataFrame with alist contents.
+    out : str or file object, optional
+        Output file. The default is sys.stdout.
+    """
     if type(out) is str:
-        df.write_csv(out, separator=' ', include_header=False)
+        df.write_csv(out, separator=',', include_header=True)
     else:
         with pl.Config(tbl_rows=df.shape[0], tbl_cols=df.shape[1]):
-            print(df)
+            print(str(df))
+
+# define aliases for the write functions for compatibility with existing code
+write_alist_v5 = write_alist_v6 = write_tlist_v6 = write_alist
 
 def get_alist_version(filename):
     code = (a[0] for a in open(filename) if a[0].isdigit())
@@ -204,23 +272,28 @@ def get_alist_version(filename):
 # mk4 correlated data will have az,el = 0
 # difx correlated data will have az,el != 0, but may still have u,v = 0
 def read_alist(filename):
-    """Read alist file into polars dataframe, automatically deteremine version (v5 or v6)
+    """
+    Read alist file into polars dataframe, automatically determining version (v5 or v6).
 
-    Args:
-        filename (str): alist filename
+    Parameters
+    ----------
+    filename : str
+        alist filename.
 
-    Returns:
-        polars.DataFrame with alist contents
+    Returns
+    -------
+    polars.DataFrame
+        DataFrame with alist contents.
     """
     ver = get_alist_version(filename)
     if ver == 5:
-        table = read_alist_polars(filename, ffields_v5)
+        df = read_alist_v5(filename)
     elif ver == 6:
-        table = read_alist_polars(filename, ffields_v6)
+        df = read_alist_v6(filename)
     else:
         import sys
         sys.exit('alist is not version 5 or 6')
-    return table
+    return df
 
 # master calibration file from vincent
 MASTERCAL_FIELDS = (
@@ -260,18 +333,29 @@ MASTERCAL_FIELDS = (
     ('jcmt_gap', float),
 )
 
-mastercalfields = [a[0] for a in MASTERCAL_FIELDS]
+mastercal_polarsargs = dict(columns = [a[0] for a in MASTERCAL_FIELDS])
 
-mastercal_polarsargs = dict()
+def read_mastercal(filename):
+    """
+    Read mastercal file into polars dataframe.
 
-def read_mastercal_polars(filename, columns):
+    Parameters
+    ----------
+    filename : str
+        mastercal filename.
+
+    Returns
+    -------
+    polars.DataFrame
+        DataFrame with mastercal contents.
+    """
     with open(filename, 'r') as f:
         lines = f.readlines()
 
     # skip comment lines and strip whitespaces -- comments start with #
     data = [[val.strip() for val in line.split() if val] for line in lines if line[0] != '#']
     df = pl.DataFrame(data).transpose()
-    df.columns = columns
+    df.columns = mastercal_polarsargs['columns']
 
     return df
 
@@ -295,19 +379,32 @@ CALTABLE_FIELDS = (
     ('band', int),
 )
 
-caltablefields = [a[0] for a in CALTABLE_FIELDS]
+caltablefields = 
 
-caltable_polarsargs = dict()
+caltable_polarsargs = dict(columns = [a[0] for a in CALTABLE_FIELDS])
 
 # calibrated data will have uv filled in
-def read_caltable_polars(filename, columns):
+def read_caltable(filename):
+    """
+    Read caltable file into polars dataframe.
+
+    Parameters
+    ----------
+    filename : str
+        caltable filename.
+
+    Returns
+    -------
+    polars.DataFrame
+        DataFrame with caltable contents.
+    """
     with open(filename, 'r') as f:
         lines = f.readlines()
 
     # skip comment lines and strip whitespaces -- comments start with #
     data = [[val.strip() for val in line.split() if val] for line in lines if line[0] != '#']
     df = pl.DataFrame(data).transpose()
-    df.columns = columns
+    df.columns = caltable_polarsargs['columns']
     # keep missing data (u,v coords still good)
     # df.dropna(how="any", inplace=True)
 
@@ -362,27 +459,34 @@ NETWORKSOL_FIELDS = (
 #    ('syserr_fraction', float),
 )
 
-networksolfields = [a[0] for a in NETWORKSOL_FIELDS]
+networksol_polarsargs = dict(columns = [a[0] for a in NETWORKSOL_FIELDS])
 
-networksol_polarsargs = dict()
+def read_networksol(filename):
+    """
+    Read networksol file into polars dataframe.
 
-def read_networksol_polars(filename, columns):
+    Parameters
+    ----------
+    filename : str
+        networksol filename.
+
+    Returns
+    -------
+    polars.DataFrame
+        DataFrame with networksol contents.
+    """
     with open(filename, 'r') as f:
         lines = f.readlines()
 
     # skip comment lines and strip whitespaces -- comments start with #
     data = [[val.strip() for val in line.split() if val] for line in lines if line[0] != '#']
     df = pl.DataFrame(data).transpose()
-    df.columns = columns
+    df.columns = networksol_polarsargs['columns']
     # keep missing data (u,v coords still good)
     # df.dropna(how="any", inplace=True)
+    df = df.drop_nulls()
 
     return df
-
-def read_networksol(filename):
-    table = pd.read_csv(filename, **networksol_pandasargs)
-    table.dropna(how="any", inplace=True)
-    return table
 
 # modified networksol by Michael with model visibs and flag
 NETWORKSOL2_FIELDS = (
@@ -413,28 +517,34 @@ NETWORKSOL2_FIELDS = (
 #    ('syserr_fraction', float),
 )
 
-networksol2fields = [a[0] for a in NETWORKSOL2_FIELDS]
-
-networksol2_polarsargs = dict()
+networksol2_polarsargs = dict(columns = [a[0] for a in NETWORKSOL2_FIELDS])
 
 def read_networksol2_polars(filename, columns):
+    """
+    Read networksol2 file into polars dataframe.
+
+    Parameters
+    ----------
+    filename : str
+        networksol2 filename.
+
+    Returns
+    -------
+    polars.DataFrame
+        DataFrame with networksol2 contents.
+    """
     with open(filename, 'r') as f:
         lines = f.readlines()
 
     # skip comment lines and strip whitespaces -- comments start with #
     data = [[val.strip() for val in line.split() if val] for line in lines if line[0] != '#']
     df = pl.DataFrame(data).transpose()
-    df.columns = columns
+    df.columns = networksol2_polarsargs['columns']
     # keep missing data (u,v coords still good)
     # df.dropna(how="any", inplace=True)
+    df = df.drop_nulls()
 
     return df
-
-def read_networksol2(filename):
-    table = pd.read_csv(filename, **networksol2_pandasargs)
-    table.dropna(how="any", inplace=True)
-    return table
-
 
 # aedit output produced by Vincent with channel-specific amplitudes
 # 30 channel mode
@@ -452,27 +562,34 @@ BANDPASS_FIELDS = [
     ('snr', float),
 ]
 
-bandpassfields = [a[0] for a in BANDPASS_FIELDS]
+bandpass_polarsargs = dict([a[0] for a in BANDPASS_FIELDS])
 
-bandpass_polarsargs = dict()
+def read_bandpass(filename):
+    """
+    Read bandpass file into polars dataframe.
 
-# TODO: update this function to replicate read_bandpass()'s functionality
-def read_bandpass_polars(filename, columns):
+    Parameters
+    ----------
+    filename : str
+        bandpass filename.
+
+    Returns
+    -------
+    polars.DataFrame
+        DataFrame with bandpass contents.
+    """
     with open(filename, 'r') as f:
         lines = f.readlines()
 
     # skip comment lines and strip whitespaces -- comments start with #
     data = [[val.strip() for val in line.split() if val] for line in lines if line[0] != '#']
     df = pl.DataFrame(data).transpose()
-    df.columns = columns
+    df.columns = bandpass_polarsargs['columns'] + ['amp_%d' % (i+1) for i in range(len(df.columns) - 5)]
+
+    df.with_columns(pl.col('path').map_elements(lambda x: x.split('/')[0]).alias('experiment'), \
+                    pl.col('path').map_elements(lambda x: x.split('/')[1]).alias('scan'), \
+                    pl.col('path').map_elements(lambda x: x.split('/')[2]).alias('filename'))
+
+    df = df.with_columns(pl.col('filename').map_elements(lambda x: x[:2]).alias('baseline'))
 
     return df
-
-def read_bandpass(filename):
-    table = pd.read_csv(filename, **bandpass_pandasargs)
-    table.columns = [a[0] for a in BANDPASS_FIELDS] + \
-        ['amp_%d' % (i+1) for i in range(len(table.columns) - 5)]
-    table['experiment'], table['scan'], table['filename'] = \
-        list(zip(*table['path'].apply(lambda x: x.split('/'))))
-    table['baseline'] = table['filename'].apply(lambda x: x[:2])
-    return table
