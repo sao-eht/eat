@@ -397,43 +397,37 @@ def fix(df):
 
     # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd') er3hiv2:('0036EJ', '00GYUV', 'zzsivx', 'zzzznu')
     mask = (df['baseline'].str.count_matches(r"A")==1) & (df['polarization'] == 'LR') & (df['root_id']>'zxaaaa') & (df['root_id']<'zzzzzz')
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: 'RL')).otherwise(pl.col('polarization')))
 
     mask = (df['baseline'].str.count_matches(r"A")==1) & (df['polarization'] == 'RL') & (df['root_id']>'zxaaaa') & (df['root_id']<'zzzzzz')
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: 'LR')).otherwise(pl.col('polarization')))
 
     # SMA polarization swap EHT high band D05
     mask = (df['baseline'].str.starts_with('S')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
             (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL' if x == 'LL' else 'RR' if x == 'LR' \
-                        else 'LL' if x == 'RL' else 'LR' if x == 'RR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: {'LL': 'RL', 'LR': 'RR', 'RL': 'LL', 'RR': 'LR'}.get(x, x))))
 
     mask = (df['baseline'].str.ends_with('S')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
             (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR' if x == 'LL' else 'LL' if x == 'LR' \
-                        else 'RR' if x == 'RL' else 'RL' if x == 'RR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: {'LL': 'LR', 'LR': 'LL', 'RL': 'RR', 'RR': 'RL'}.get(x, x))))
 
     # SPT polarization swap EHT high band D05 for Rev3
     mask = (df['baseline'].str.starts_with('Y')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
             (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL' if x == 'LL' else 'RR' if x == 'LR' \
-                        else 'LL' if x == 'RL' else 'LR' if x == 'RR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: {'LL': 'RL', 'LR': 'RR', 'RL': 'LL', 'RR': 'LR'}.get(x, x))))
 
     mask = (df['baseline'].str.ends_with('Y')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
             (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR' if x == 'LL' else 'LL' if x == 'LR' \
-                        else 'RR' if x == 'RL' else 'RL' if x == 'RR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: {'LL': 'LR', 'LR': 'LL', 'RL': 'RR', 'RR': 'RL'}.get(x, x))))
 
     # SPT polarization swap EHT high band D05 for Rev5 (and earlier new root code)
     mask = (df['baseline'].str.starts_with('Y')) & (df['root_id']>'000000') & (df['root_id']<'09FRZZ') & \
             (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL' if x == 'LL' else 'RR' if x == 'LR' \
-                        else 'LL' if x == 'RL' else 'LR' if x == 'RR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: {'LL': 'RL', 'LR': 'RR', 'RL': 'LL', 'RR': 'LR'}.get(x, x))))
 
     mask = (df['baseline'].str.ends_with('Y')) & (df['root_id']>'000000') & (df['root_id']<'09FRZZ') & \
             (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR' if x == 'LL' else 'LL' if x == 'LR' \
-                        else 'RR' if x == 'RL' else 'RL' if x == 'RR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: {'LL': 'LR', 'LR': 'LL', 'RL': 'RR', 'RR': 'RL'}.get(x, x))))
 
     return df
 
@@ -459,20 +453,18 @@ def undofix(df):
     # SMA polarization swap EHT high band D05
     mask = (df['baseline'].str.starts_with('S')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
             (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL' if x == 'LL' else 'RR' if x == 'LR' \
-                        else 'LL' if x == 'RL' else 'LR' if x == 'RR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: {'LL': 'RL', 'LR': 'RR', 'RL': 'LL', 'RR': 'LR'}.get(x, x))))
 
     mask = (df['baseline'].str.ends_with('S')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
             (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR' if x == 'LL' else 'LL' if x == 'LR' \
-                        else 'RR' if x == 'RL' else 'RL' if x == 'RR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: {'LL': 'LR', 'LR': 'LL', 'RL': 'RR', 'RR': 'RL'}.get(x, x))))
 
     # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd')
     mask = (df['baseline'].str.count_matches(r"A")==1) & (df['polarization'] == 'LR') & (df['root_id']>'zxaaaa') & (df['root_id']<'zzzzzz')
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: 'RL')).otherwise(pl.col('polarization')))
 
     mask = (df['baseline'].str.count_matches(r"A")==1) & (df['polarization'] == 'RL') & (df['root_id']>'zxaaaa') & (df['root_id']<'zzzzzz')
-    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR')).otherwise(pl.col('polarization')))
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').map_elements(lambda x: 'LR')).otherwise(pl.col('polarization')))
 
     return df
 
