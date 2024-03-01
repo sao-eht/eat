@@ -483,7 +483,7 @@ def uvdict(filename):
         Dictionary with keys (day, hhmm, baseline) and values (u, v).
     """
     from . import hops_polars
-    df = hops_polars.read_caltable(filename, sort=False)
+    df = hops_polars.read_caltable(filename)
     uvdict = {}
     for (day, hhmm, baseline, u, v) in zip(df["day"], df["hhmm"], df["baseline"], df["u"], df["v"]):
         if sort:
