@@ -179,7 +179,7 @@ def dt2tt(dt):
     """
     return dt.strftime("%j-%H%M%S")
 
-def add_id(df, cols=['timetag', 'baseline', 'polarization']):
+def add_id(df, col=['timetag', 'baseline', 'polarization']):
     """
     Add unique *id* described by a string generated from input columns.
 
@@ -201,7 +201,7 @@ def add_id(df, cols=['timetag', 'baseline', 'polarization']):
         Since Polars does not support tuples natively and lists cannot be stored as csv, the id is stored as a
         string consisting of the values of the input column list *col* separated by ':'.
     """
-    df = df.with_columns(id = pl.Series([f'{l[0]}:{l[1]}:{l[2]}' for l in df.select(pl.col(cols)).rows()]))
+    df = df.with_columns(id = pl.Series([f'{l[0]}:{l[1]}:{l[2]}' for l in df.select(pl.col(col)).rows()]))
     return df
 
 def add_scanno(df, unique=True):
@@ -250,7 +250,13 @@ def add_path(df, datadir=''):
 
     return df
 
-# TODO add_utime here
+def add_utime(df):
+    """add UNIX time *utime*"""
+    #df['utime'] = 1e-9*np.array(df.datetime).astype('float')
+
+    # TODO: Implement this function
+
+    return df
 
 # add a UT hour between [t0, t0+24h]
 def add_hour(df, t0=-6):
@@ -310,8 +316,123 @@ def add_days(df):
     Polars.DataFrame
         DataFrame with new column *days* added to the input dataframe.
     """
-    df['days'] = df.timetag.apply(lambda x: float(x[0:3])-1. + float(x[4:6])/24. + float(x[6:8])/1440. + float(x[8:10])/86400.)
     df = df.with_columns(pl.col('timetag').map_elements(lambda x: float(x[0:3])-1. + float(x[4:6])/24. + float(x[6:8])/1440. + \
             float(x[8:10])/86400.).alias('days'))
     
+    return df
+
+def add_gmst(df):
+    """
+    Add *gmst* column to dataframe using *datetime* column using astropy for conversion.
+    """
+    # TODO: Implement this function
+
+    return df
+
+def add_mjd(df):
+    """add *gmst* column to data frame with *datetime* field using astropy for conversion"""
+
+    # TODO: Implement this function
+
+    return df
+
+def noauto(df):
+    """
+    Remove autocorrelations regardless of polarization.
+
+    Parameters
+    ----------
+    df : Polars.DataFrame
+        Input dataframe.
+
+    Returns
+    -------
+    Polars.DataFrame
+        New DataFrame with autocorrelations removed.
+    """
+
+    return df.filter(pl.col('baseline').map_elements(lambda x: x[0] != x[1]))
+
+def debias(df):
+    """
+    Debias amplitude by subtracting noise expectation from squared amplitude from df.amp. DO NOT run twice!!!
+
+    Parameters
+    ----------
+    df : Polars.DataFrame
+        Input dataframe.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with debiased amplitude.
+    """
+    df = df.with_columns((pl.col('amp')*np.sqrt(np.maximum(0.0, pl.col('snr')**2 - 1.0))/pl.col('snr')).alias('amp'))
+    return df
+
+def fix(df):
+    """
+    A number of polconvert fixes based on rootcode (correlation proc time).
+
+    Parameters
+    ----------
+    df : Polars.DataFrame
+        Input dataframe.
+
+    Returns
+    -------
+    Polars.DataFrame
+        DataFrame with fixes applied.
+    """
+    # merge source with two different names
+    df.with_columns(pl.col('source').str.replace('1921-293','J1924-2914')) # inplace operation; no need to assign to df
+
+    if 'baseline' not in df.columns:
+        return df
+
+    # sqrt2 fix er2lo:('zplptp', 'zrmvon') er2hi:('zplscn', 'zrmvoi')
+    mask = (df['baseline'].str.count_matches(r"A")==1) & (df['root_id']>'zpaaaa') & (df['root_id']<'zrzzzz')
+    df = df.with_columns(pl.when(mask).then(pl.col('snr') / np.sqrt(2.0)).otherwise(pl.col('snr')))
+    df = df.with_columns(pl.when(mask).then(pl.col('amp') / np.sqrt(2.0)).otherwise(pl.col('amp')))
+
+    # swap polarization fix er3lo:('zxuerf', 'zyjmiy') er3hi:('zymrse', 'zztobd') er3hiv2:('0036EJ', '00GYUV', 'zzsivx', 'zzzznu')
+    mask = (df['baseline'].str.count_matches(r"A")==1) & (df['polarization'] == 'LR') & (df['root_id']>'zxaaaa') & (df['root_id']<'zzzzzz')
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL')).otherwise(pl.col('polarization')))
+
+    mask = (df['baseline'].str.count_matches(r"A")==1) & (df['polarization'] == 'RL') & (df['root_id']>'zxaaaa') & (df['root_id']<'zzzzzz')
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR')).otherwise(pl.col('polarization')))
+
+    # SMA polarization swap EHT high band D05
+    mask = (df['baseline'].str.starts_with('S')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
+            (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL' if x == 'LL' else 'RR' if x == 'LR' \
+                        else 'LL' if x == 'RL' else 'LR' if x == 'RR')).otherwise(pl.col('polarization')))
+
+    mask = (df['baseline'].str.ends_with('S')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
+            (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR' if x == 'LL' else 'LL' if x == 'LR' \
+                        else 'RR' if x == 'RL' else 'RL' if x == 'RR')).otherwise(pl.col('polarization')))
+
+    # SPT polarization swap EHT high band D05 for Rev3
+    mask = (df['baseline'].str.starts_with('Y')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
+            (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL' if x == 'LL' else 'RR' if x == 'LR' \
+                        else 'LL' if x == 'RL' else 'LR' if x == 'RR')).otherwise(pl.col('polarization')))
+
+    mask = (df['baseline'].str.ends_with('Y')) & (df['root_id']>'zxaaaa') & (df['root_id']<'zztzzz') & \
+            (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR' if x == 'LL' else 'LL' if x == 'LR' \
+                        else 'RR' if x == 'RL' else 'RL' if x == 'RR')).otherwise(pl.col('polarization')))
+
+    # SPT polarization swap EHT high band D05 for Rev5 (and earlier new root code)
+    mask = (df['baseline'].str.starts_with('Y')) & (df['root_id']>'000000') & (df['root_id']<'09FRZZ') & \
+            (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'RL' if x == 'LL' else 'RR' if x == 'LR' \
+                        else 'LL' if x == 'RL' else 'LR' if x == 'RR')).otherwise(pl.col('polarization')))
+
+    mask = (df['baseline'].str.ends_with('Y')) & (df['root_id']>'000000') & (df['root_id']<'09FRZZ') & \
+            (df['expt_no'] == 3597) & (df['ref_freq'] > 228100.)
+    df = df.with_columns(pl.when(mask).then(pl.col('polarization').apply(lambda x: 'LR' if x == 'LL' else 'LL' if x == 'LR' \
+                        else 'RR' if x == 'RL' else 'RL' if x == 'RR')).otherwise(pl.col('polarization')))
+
     return df
