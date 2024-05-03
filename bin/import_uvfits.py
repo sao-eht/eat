@@ -10,7 +10,6 @@ from eat.inspect import utils as ut
 from eat.inspect import closures as cl
 import os
 import sys
-import importlib
 import glob
 import argparse
 
@@ -33,8 +32,8 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
 
     # extract and store visibilities
     for filen in path0:
-        print(f'Processing {filen}')
-        #try: #INI
+      print(f'Processing {filen}')
+      try:
         df_foo = uvfits.get_df_from_uvfit(filen, observation=observation, path_vex=vexdir, force_singlepol='no', band=band, round_s=0.1,
                                           only_parallel=only_parallel, rescale_noise=rescale_noise, polrep=polrep, path_ehtim=ehtimpath,
                                           fix_sigma=sigma, scale_sigma=sigmascalefactor)
@@ -67,7 +66,7 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
                 print('Averaging incoherently for ', str(tavg))
                 df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
         df = pd.concat([df,df_scan.copy()],ignore_index=True)
-        #except: print('Nothing from this file...') #INI
+      except: print('Nothing from this file...')
 
     try:
         df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
@@ -158,7 +157,7 @@ def create_parser():
 
 def main(args):
     print('Converting UVFITS files into a single HDF5/pickle file for easy import and inspection in python...')
-    print(f'Arguments passed to import_uvfits.py: {args}')
+    print(f'Arguments passed: {args}')
 
     # convert tavg to values expected by functions downstream
     if args.tavg == -1.:
