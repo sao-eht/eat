@@ -263,8 +263,8 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
         #    continue
 
         # remove auto correlations # INI: comment the following to include autocorrs
-        #if baselineName[0] == baselineName[1]:
-        #    continue
+        if baselineName[0] == baselineName[1]:
+            continue
 
         # INI: pick only some baselines for testing
         #if baselineName not in ['NN', 'AA', 'AN']:
