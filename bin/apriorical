@@ -28,7 +28,7 @@ def create_parser():
     return p
 
 def main(args):
-    print('**************** Post-processing HOPS results ****************')
+    print('**************** A priori amplitude calibration and field angle rotation correction ****************')
     print(f"Applying calibration tables from {args.caldir}\nto uvfits files in {args.datadir}\nand writing results to {args.outdir}")
 
     if args.skipfluxcal: print('WARNING:: Will skip a priori flux calibration')
