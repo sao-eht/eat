@@ -50,7 +50,7 @@ setup(
              "bin/mksnr",
              "bin/noauto",
              "bin/ovex2codes",
-             "bin/postproc",
+             "bin/apriorical",
              "bin/printalist",
              "bin/runall.py",
              "bin/uv_comb.py"]
