@@ -3,6 +3,7 @@
 # use ALMA to reference adhoc phases to other sites
 # 2017-09-15 Lindy Blackburn
 # 2017-12-20 LLB allow multiple pol stacking, non-ALMA reference
+# 2024-05-29 LLB handle case where polprod have different lengths (use max)
 
 from eat.io import hops, util
 from eat.hops import util as hu
@@ -74,18 +75,20 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
         ttref = ref or hu.pickref(ttrows) # reference station for this scan
         if ttref is None: # unable to find reference station, do not adhoc phase this scan
             continue
-        wref = ttrows[(ttrows.baseline.str.contains(ttref)) & (ttrows.snr > args.threshold)]
-        noref = ttrows[~ttrows.baseline.str.contains(ttref)]
+        # we are sorting by baseline, length here in order to filter by maximum length later on in the script
+        wref = ttrows[(ttrows.baseline.str.contains(ttref)) & (ttrows.snr > args.threshold)].sort_values(['baseline', 'length'])
+        noref = ttrows[~ttrows.baseline.str.contains(ttref)].sort_values(['baseline', 'length'])
         segment = dict()
         # generate adhoc phases which are connected to ref station
         for (bl, rows) in wref.groupby('baseline'):
             # print(rows["timetag baseline polarization snr".split()])
-            p = hu.params(rows.iloc[0].path, quiet=True) # representative params
+            p = hu.params(rows.iloc[-1].path, quiet=True) # representative params using maximum length row
             ttrem = p.baseline.replace(ttref, "")
             segment[ttrem] = [p.start, p.stop] # ad-hoc phased times for REM station
             print(p.timetag + ' ' + p.baseline)
-            v = hu.align(rows.path, snrs=rows.snr) # stack data from detected fringes on baseline
-            ah = hu.adhoc(v, ref=ttref, snr=np.sqrt((rows.snr**2).sum()), timeoffset=timeoffset, p=p, tcoh=tcoh,
+            userows = rows[rows.length == rows.iloc[-1].length]
+            v = hu.align(userows.path, snrs=userows.snr) # stack data from detected fringes
+            ah = hu.adhoc(v, ref=ttref, snr=np.sqrt((userows.snr**2).sum()), timeoffset=timeoffset, p=p, tcoh=tcoh,
                           prefix='' if outdir == '.' else outdir + '/')
             out = open(ah.filename, 'w')
             out.write(ah.string)
@@ -94,7 +97,7 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
             cfcodes.append(ah.cfcode.strip())
         # trim other baselines to cover ad-hoc time
         for (bl, rows) in noref.groupby('baseline'):
-            p = hu.params(rows.iloc[0].path, quiet=True) # params for first
+            p = hu.params(rows.iloc[-1].path, quiet=True) # params for last (maximum length row)
             if bl[0] in segment and bl[1] in segment: # trim if both sites were ad-hoc phased
                 start = max(segment[bl[0]][0], segment[bl[1]][0])
                 stop  = min(segment[bl[0]][1], segment[bl[1]][1])
