@@ -1427,6 +1427,13 @@ def rl_segmented(a, site, restarts={}, boundary=19,
     import pandas as pd
     # calibration R-L delay difference at [rem] site using other sites as REF
     b = a[a.baseline.str.contains(site)].copy() # make a new copy with just baselines to/from site
+    try:
+        if b.empty:
+            raise ValueError("no data for site %s" % site)
+    except ValueError as e:
+        print(e)
+        return
+    
     b['site'] = site
     flip(b, b.baseline.str[0] == site)
     if 'mbd_unwrap' not in b.columns:
@@ -1578,6 +1585,13 @@ def rrll_segmented(a, restarts={}, boundary=19,
     """
     import pandas as pd
     b = a[a.polarization.isin({'RR', 'LL'})].copy()
+    try:
+        if b.empty:
+            raise ValueError("The selected dataframe does not contain RR or LL polarizations!")
+    except ValueError as e:
+        print(e)
+        return
+    
     if 'mbd_unwrap' not in b.columns:
         util.unwrap_mbd(b)
     if 'mbd_err' not in b.columns:
@@ -2065,17 +2079,39 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
         plt.scatter(np.array((rows.u, -rows.u)).T.ravel()/1e3, np.array((rows.v, -rows.v)).T.ravel()/1e3,
             marker='o', edgecolors='none', c=np.array((rows[col], rows[col])).T.ravel(), cmap=cmap,
             norm=colors.LogNorm(vmin=vmin, vmax=vmax) if log else None)
+    # draw circles
     ax = plt.gca()
+
+    # circle for 50 uas
     r = 1 / ((2*np.pi/360) * 50e-6 / 3600) / 1e9
     cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
     plt.text(0+.3, r+0.25, '(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
     plt.gca().add_artist(cir)
+
+    # circle for 20 uas
+    if 330e3 < df.ref_freq.iloc[0] < 360e3:
+        r = 1 / ((2*np.pi/360) * 20e-6 / 3600) / 1e9
+        cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
+        plt.text(0+.3, r+0.25, '(20 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
+        plt.gca().add_artist(cir)
+
     plt.gca().set_aspect(1.0)
-    plt.xlim(-10, 10)
+
+    if 330e3 < df.ref_freq.iloc[0] < 360e3:
+        plt.xlim(-15, 15)
+    elif 210e3 < df.ref_freq.iloc[0] < 240e3:
+        plt.xlim(-10, 10)
+
     if flip:
         plt.xlim(plt.xlim()[::-1])
-    plt.ylim(-9, 9)
-    plt.xticks([-8, -6, -4, -2, 0, 2, 4, 6, 8])
+
+    if 330e3 < df.ref_freq.iloc[0] < 360e3:
+        plt.ylim(-15, 15)
+        plt.xticks(list(range(-15, 16, 3)))
+    elif 210e3 < df.ref_freq.iloc[0] < 240e3:
+        plt.ylim(-9, 9)
+        plt.xticks(list(range(-8, 9, 2)))
+
     plt.plot(0, 0, 'k.')
     plt.title('EHT %s %s coverage' % (year, source))
     plt.xlabel('u [G$\lambda$]')
