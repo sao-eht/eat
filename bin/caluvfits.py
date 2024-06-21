@@ -356,7 +356,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
         print
         print "A priori calibrating: ", uvfitsfile
 
-        datastruct_ehtim = load_and_convert_hops_uvfits(uvfitsfile)
+        datastruct_ehtim = convert_uvfits_to_datastruct(uvfitsfile)
         source = datastruct_ehtim.obs_info.src
         tarr = datastruct_ehtim.antenna_info
         caltable = load_caltable_ds(datastruct_ehtim, caldir,sqrt_gains=sqrt_gains)

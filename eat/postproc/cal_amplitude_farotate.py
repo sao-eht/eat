@@ -483,6 +483,7 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
     """Load apriori cal tables
     """
 
+    # load metadata from the UVFITS file pre-converted to EHTIM-type datastruct
     if datastruct.dtype != "EHTIM":
         raise Exception("datastruct must be in EHTIM format in load_caltable!")
     tarr = datastruct.antenna_info
@@ -676,7 +677,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             else:
                 elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
 
-            # INI: extrapolate elevation to values outside the range
+            # INI: extrapolate elevation to values outside the range; NOT IN OLDER VERSIONS OF AMPLITUDE CALIBRATION SCRIPT
             if extrapolate:
                 elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo, kind=elev_interp_kind, fill_value='extrapolate')
             else:

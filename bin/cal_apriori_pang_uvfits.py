@@ -624,7 +624,7 @@ def main(datadir=DATADIR_DEFAULT, caldir=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT,
         print("expr no:  "+tok[1])
         print("source:   "+tok[2])
 
-        datastruct_ehtim = load_and_convert_hops_uvfits(uvfitsfile)
+        datastruct_ehtim = convert_uvfits_to_datastruct(uvfitsfile)
 
         source = datastruct_ehtim.obs_info.src
         if len(source) <= 8 and source != tok[2]:

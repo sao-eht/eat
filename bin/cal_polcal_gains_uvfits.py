@@ -343,7 +343,7 @@ def main(datadir=DATADIR_DEFAULT, calfile=CALDIR_DEFAULT, outdir=DATADIR_DEFAULT
         print(' ')
         print("Polcal gains calibrating: ", uvfitsfile)
 
-        datastruct_ehtim = load_and_convert_hops_uvfits(uvfitsfile)
+        datastruct_ehtim = convert_uvfits_to_datastruct(uvfitsfile)
         source = datastruct_ehtim.obs_info.src
         tarr = datastruct_ehtim.antenna_info
 

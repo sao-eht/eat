@@ -672,7 +672,7 @@ def load_hops_uvfits(filename):
 
     return Datastruct(obsinfo, antennainfo, alldata)
 
-def load_and_convert_hops_uvfits(filename):
+def convert_uvfits_to_datastruct(filename):
     """read a uvfits file and convert data table to an ehtim-type format
 
        Args:
@@ -843,7 +843,7 @@ def merge_hops_uvfits(fitsFiles):
         fname=  fitsFile
 
         #print "read baseline uvfits file: ", fname
-        out = load_and_convert_hops_uvfits(fname)
+        out = convert_uvfits_to_datastruct(fname)
         if out.dtype != "EHTIM":
             raise Exception("datastruct must be in EHTIM format in merge_hops_uvfits!")
 
