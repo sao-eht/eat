@@ -10,4 +10,4 @@ filename = sys.argv[1]
 
 pat = 'def .+?site_name = (\w+);.+?site_ID = (\w+);.+?mk4_site_ID = (\w);.+?enddef;'
 a = re.findall(pat, open(filename).read(), flags=re.DOTALL)
-print "\n".join(sorted(" ".join(b[::-1]) for b in a))
+print("\n".join(sorted(" ".join(b[::-1]) for b in a)))
