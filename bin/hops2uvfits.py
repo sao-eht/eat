@@ -49,6 +49,10 @@ MHZ2HZ = 1e6
 MJD_0 = 2400000.5
 RADPERARCSEC = (np.pi / 180.) / 3600.
 
+# INI: source names to be fixed while converting to uvfits
+srcnamedict = {}
+srcnamedict['1921-293'] = 'J1924-2914'
+
 #######################################################################
 ##########################  Recompute uv points #######################
 #######################################################################
@@ -220,18 +224,26 @@ class Datastruct(object):
 #######################################################################
 def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_uv=False,
                            sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False, fix_src_name=False):
-    """read all fringe files in a directory and produce single baseline uvfits files
+    """
+    read all fringe files in a directory and produce single baseline uvfits files
 
-       Args:
+    Args:
         datadir (str) :  directory with fringe files
-        rot_rate (bool) : True to apply fringe rate correction to get total phase
-        rot_delay (bool) : True to apply fringe delay rate correction to get total phase
-        recompute_uv (bool): True to recompute uv points over the track
+        rot_rate (bool) : if True, apply fringe rate correction to get total phase
+        rot_delay (bool) : if True, apply fringe delay rate correction to get total phase
+        recompute_uv (bool): if True, recompute uv points over the track
+        sqrt2corr (bool): if True, apply sqrt(2) scaling to AA-ALMA baselines
+        flip_ALMA_pol (bool): if True, flip the polarization of ALMA antennas
+        flip_SPT_pol (bool): if True, flip the polarization of SPT antennas
+        fix_src_name (bool): if True, fix the source name to J1924-2914
 
+    Returns:
+        int : 0 if successful
     """
 
     baselineNames = []
-    for filename in glob.glob(datadir + '*'):
+    # INI: get list of unique baselines from all fringe files in datadir
+    for filename in glob.glob(datadir + '/*'):
         # remove type 1 and 3 files
         #if ".." not in filename:
         if os.path.basename(filename).count('.')==3:
@@ -249,9 +261,8 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
 
         #TODO will currently create an empty uvfits file for every non hops file not caught here
         #TODO make eat throw errors if its reading something that's not a fringe file
-        if baselineName.split("_")[-1] == "baseline":
-            continue
-        if baselineName.split("_")[-1] == "merged":
+        # skip pre-existing uvfits files in datadir based on their naming scheme
+        if baselineName.split("_")[-1] in ["baseline", "merged"]:
             continue
         try:
             if baselineName.split("_")[-2] == "hops":
@@ -262,16 +273,12 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
         #if len(baselineName)==1:
         #    continue
 
-        # remove auto correlations # INI: comment the following to include autocorrs
+        # remove auto correlations
         if baselineName[0] == baselineName[1]:
             continue
 
-        # INI: pick only some baselines for testing
-        #if baselineName not in ['NN', 'AA', 'AN']:
-        #    continue
-
         print("Making uvfits for baseline: ", baselineName)
-        for filename in glob.glob(datadir + baselineName + '*'):
+        for filename in glob.glob(os.path.join(datadir, baselineName) + '/*'):
 
             # remove type 1 and 2 files and uvfits files with the same basename
             if filename.split(os.extsep)[-1] == "uvfits" or os.path.basename(filename).count('.')!=3:
@@ -290,8 +297,10 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
                 # name of the source
                 srcname = fixstr(b.t201[0].source)
                 if fix_src_name:
-                    if srcname == '1921-293':
-                        srcname = 'J1924-2914'
+                    for key in srcnamedict.keys():
+                        if key == srcname:
+                            srcname = srcnamedict[key]
+                            continue
 
                 # get the ra
                 ra_hrs = b.t201[0].coord.ra_hrs
@@ -304,10 +313,19 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
                 dec_secs = b.t201[0].coord.dec_secs
 
                 ra =  ra_hrs+ra_min/60.+ra_sec/3600.
-                dec = np.sign(dec_degs)*(np.abs(dec_degs)+(dec_mins/60.+dec_secs/3600.))
+                #dec = np.sign(dec_degs)*(np.abs(dec_degs)+(dec_mins/60.+dec_secs/3600.)) # INI: This won't work for -1.0 < dec < 0.0
+                # INI: account for -1.0 deg < dec < 0.0 deg
+                if dec_degs==0.:
+                    if dec_mins<0. or dec_secs<0.:
+                        decsign = -1
+                    else:
+                        decsign = 1
+                else:
+                    decsign = np.sign(dec_degs)
+                dec = decsign*(np.abs(dec_degs)+dec_mins/60.+dec_secs/3600.)
 
                 ################################### OBSERVATION INFO ###################################
-                ref_freq_hops = b.t205.contents.ref_freq * MHZ2HZ # refrence frequency for all channels
+                ref_freq_hops = b.t205.contents.ref_freq * MHZ2HZ # reference frequency for all channels
                 nchan = b.n212 # number of channels
                 nap = b.t212[0].contents.nap # number of data points
 
@@ -321,11 +339,8 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
                 ant2 = fixstr(b.t202.contents.rem_intl_id).upper()
 
                 scalingFac = 1.0
-                if sqrt2corr:
-                    if ant1 == 'AA' and ant2 == 'AA':
-                        scalingFac = 1.0
-                    elif ant1== 'AA' or ant2 == 'AA':
-                        scalingFac = 1.0 / np.sqrt(2)
+                if sqrt2corr and ant1 != ant2 and (ant1 == 'AA' or ant2 == 'AA'):
+                    scalingFac /= np.sqrt(2)
 
                 baselineName = fixstr(b.t202.contents.baseline) # first one is ref antenna second one is rem
 
