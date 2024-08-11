@@ -430,7 +430,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
                 channel_bw_ant1[count] = 0.5*eat.hops.util.short2int(ch.sample_rate)
                 channel_bw_ant2[count] = 0.5*eat.hops.util.short2int(ch.sample_rate)
 
-                # the polarization 'L' or 'R'
+                # relabel 'XY' to 'LR' to conform to uvfits standard which does not have the facility to track polarization basis
                 channel_pol_ant1.append(fixstr(ch.refpol).translate(dict(zip('XY', 'LR'))))
                 channel_pol_ant2.append(fixstr(ch.rempol).translate(dict(zip('XY', 'LR'))))
 
@@ -467,7 +467,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
 
             # the integration time for each measurement
             inttime = inttime_fixed*weights
-            tints = np.mean(inttime,axis=0)
+            tints = np.mean(inttime, axis=0)
             mjd_start = Time(eat.hops.util.mk4time(b.t205.contents.start)).mjd
             mjd_stop = Time(eat.hops.util.mk4time(b.t205.contents.stop)).mjd
             jd_start = MJD_0 + mjd_start
@@ -479,7 +479,8 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
             jds = jds + fractimes
             jds = jds + ( (0.5 * inttime_fixed) / 86400. )
 
-            visibilities = visibilities*weights.T # INI: scale vis. amp. by scaling factor TODO renormalize weights and apply
+            # INI: apply weights to visibilities. TODO the "weights" are a weird scaling factor as of now; renormalize them appropriately
+            visibilities = visibilities*weights.T
             if antennas[ant2] < antennas[ant1]:
                 visibilities =  visibilities.conj() #TODO ???? Is this right ???
 
@@ -530,13 +531,12 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
                 visweight = visweight * (CORRCOEFF**2)
                 #visweight = inttime[i,:] * channel_bw_ant1[i] #TODO: WHAT WERE WE DOING?
 
-                if flip_ALMA_pol and (ant1== 'AA' or ant2 == 'AA'):
-                    if channel_pol_ant1[i]=='R' and channel_pol_ant2[i]=='L':
-                        channel_pol_ant1[i] = 'L'
-                        channel_pol_ant2[i] = 'R'
-                    elif channel_pol_ant1[i]=='L' and channel_pol_ant2[i]=='R':
-                        channel_pol_ant1[i] = 'R'
-                        channel_pol_ant2[i] = 'L'
+                if flip_ALMA_pol:
+                    swap = {'R': 'L', 'L': 'R'}
+                    if ant1 == 'AA':
+                        channel_pol_ant1[i] = swap[channel_pol_ant1[i]]
+                    if ant2 == 'AA':
+                        channel_pol_ant2[i] = swap[channel_pol_ant2[i]]
 
                 if flip_SPT_pol:
                     swap = {'R': 'L', 'L': 'R'}
@@ -592,7 +592,6 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
         #print "Saving baseline uvfits file: ", fname
         fname= datadir + baselineName + '_hops_baseline.uvfits'
         save_uvfits(outstruct, fname)
-
 
     return 0
 
@@ -1329,14 +1328,14 @@ def create_parser():
 
     p.add_argument("datadir", help="Directory containing input fringe files organised by epoch and scan")
     p.add_argument("outdir", help="Directory to which UVFITS files must be written")
-    p.add_argument('--recomputeblfits', action='store_true', help='Recompute baseline fits (?!)')
+    p.add_argument('--recomputeblfits', action='store_true', help='(Re)generate baseline-specific uvfits files')
     p.add_argument('--clean', action='store_true', help='Remove individual baseline files after merging')
     p.add_argument('--recomputeuv', action='store_true', help='Recompute uv-coordinates')
     p.add_argument('--rotrate', action='store_true', help='Remove rate solution in fringe files')
     p.add_argument('--rotdelay', action='store_true', help='Remove delay solution in fringe files')
     p.add_argument('--sqrt2corr', action='store_true', help='Perform sqrt(2) correction to ALMA baselines')
-    p.add_argument('--flipALMApol', action='store_true', help='Flip LR and RL in ALMA')
-    p.add_argument('--flipSPTpol', action='store_true', help='Flip LR and RL in SPT')
+    p.add_argument('--flipALMApol', action='store_true', help='Flip LR and RL in ALMA (for 2017)')
+    p.add_argument('--flipSPTpol', action='store_true', help='Flip LR and RL in SPT (for 2017)')
     p.add_argument('--fixsrcname', action='store_true', help='Fix source name')
     p.add_argument('--idtag', type=str, default='', help="Custom identifier tag for UVFITS files")
 
@@ -1350,37 +1349,28 @@ def main(args):
     print("Creating merged single-source uvfits files from hops fringe files...")
     print("Data directory: ", args.datadir)
 
+    # INI: get list of all subdirectories under args.datadir
     scandirs = [os.path.join(args.datadir,o) for o in os.listdir(args.datadir) if os.path.isdir(os.path.join(args.datadir,o))]
 
     scan_fitsFiles = []
     scan_sources = []
 
-    i = 1
-    N = len(scandirs)
+    idx = 1
+    ndirs = len(scandirs)
     for scandir in sorted(scandirs):
-
-        # make sure a type 2 file exists in the current directory
-        fileflag = 1
-        for filename in glob.glob(scandir + '/*'):
-            if os.path.basename(filename).count('.')==3:
-                fileflag = 0
-                break
-        if fileflag:
+        # process scandir only if at least one type 2 file (i.e. fringe file) with 3 dots in the filename exists
+        if not glob.glob(scandir+"/*.*.*.*"):
             continue
 
-
-        scandir = scandir + '/'
-
         if args.recomputeblfits:
-            # convert the finge files to baseline uv files
+            # convert the finge files to baseline uvfits files
             print("---------------------------------------------------------")
             print("---------------------------------------------------------")
-            print("scan directory %i/%i: %s" % (i,N, scandir))
-            # clean up the files in case there were extra ones already there that we no longer want
-            if args.clean:
-                print('    REMOVING old uvfits baseline files due to --clean flag')
-                for filename in glob.glob(scandir + '*_hops_baseline.uvfits'):
-                    os.remove(filename)
+            print("scan directory %i/%i: %s" % (idx,ndirs, scandir))
+            # remove existing baseline-specific uvfits files since we are generating them anew
+            print('    REMOVING old uvfits baseline files due to --recomputeblfits flag')
+            for filename in glob.glob(scandir + '/*_hops_baseline.uvfits'):
+                os.remove(filename)
             if not args.recomputeuv: # INI: this was recompute_bl_fits! Should've been recompute_uv
                 print('    WARNING - not recomputing U,V coordinates!')
             print("---------------------------------------------------------")
@@ -1392,17 +1382,17 @@ def main(args):
         print("Merging baseline uvfits files in directory: ", scandir)
 
         bl_fitsFiles = []
-        for filename in glob.glob(scandir + '*_hops_baseline.uvfits'):
+        for filename in glob.glob(scandir + '/*_hops_baseline.uvfits'):
             bl_fitsFiles.append(filename)
 
-        i += 1
+        idx += 1
         if not len(bl_fitsFiles):
             #raise Exception("cannot find any fits files with extension _hops_baseline.uvfits in %s" % scandir)
             print("cannot find any fits files with extension _hops_baseline.uvfits in %s" % scandir)
             continue
 
         datastruct = merge_hops_uvfits(bl_fitsFiles)
-        outname = scandir + "scan_hops_merged.uvfits"
+        outname = os.path.join(scandir, "scan_hops_merged.uvfits")
         save_uvfits(datastruct, outname)
 
         scan_fitsFiles.append(outname)
@@ -1410,6 +1400,12 @@ def main(args):
 
         print("Saved scan merged data to ", outname)
         print(' ')
+
+        # if --clean flag is set, remove baseline-specific uvfits files
+        if args.clean:
+            print('    REMOVING baseline-specific uvfits files due to --clean flag')
+            for filename in glob.glob(scandir + '/*_hops_baseline.uvfits'):
+                os.remove(filename)
 
     print(' ')
     print("---------------------------------------------------------")
