@@ -278,7 +278,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
             continue
 
         print("Making uvfits for baseline: ", baselineName)
-        for filename in glob.glob(os.path.join(datadir, baselineName) + '/*'):
+        for filename in glob.glob(os.path.join(datadir, f'{baselineName}*')):
 
             # remove type 1 and 2 files and uvfits files with the same basename
             if filename.split(os.extsep)[-1] == "uvfits" or os.path.basename(filename).count('.')!=3:
