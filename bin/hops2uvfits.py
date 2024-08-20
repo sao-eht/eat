@@ -300,7 +300,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
                     for key in srcnamedict.keys():
                         if key == srcname:
                             srcname = srcnamedict[key]
-                            continue
+                            break
 
                 # get the ra
                 ra_hrs = b.t201[0].coord.ra_hrs
@@ -590,7 +590,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
         outstruct = Datastruct(obsinfo,  antennainfo, alldata)
 
         #print "Saving baseline uvfits file: ", fname
-        fname= datadir + baselineName + '_hops_baseline.uvfits'
+        fname = os.path.join(datadir, f'{baselineName}_hops_baseline.uvfits')
         save_uvfits(outstruct, fname)
 
     return 0
