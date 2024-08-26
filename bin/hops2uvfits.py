@@ -932,7 +932,7 @@ def merge_hops_uvfits(fitsFiles):
     # Merge scans
     scan_list = [obsinfo.scans for obsinfo in obsinfo_list]
     scan_arr = np.vstack(scan_list)
-    scan_arr = np.vstack({tuple(row) for row in scan_arr})
+    scan_arr = np.vstack(list({tuple(row) for row in scan_arr}))
     scan_arr = np.sort(scan_arr, axis=0)
 
     start_time_last = 0.
