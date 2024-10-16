@@ -1,33 +1,30 @@
 #!/usr/bin/env python
 
-#hops2uvfits.py
-#take data from all fringe files in a directory and put them in a uvfits file
+# convert hops fringe files to uvfits (Aug 2024)
 
+import argparse
+import glob
+import os
+import sys
+import tqdm
+import logging
 
-import numpy as np
-import mk4 # part of recent HOPS install, need HOPS ENV variables
-import datetime
-import ctypes
+import eat.hops.util
+from eat.hops.util import fixstr
 import astropy.io.fits as fits
 import astropy.time as at
 from astropy.time import Time
-import glob
-import os, sys
-import eat.hops.util
-from eat.hops.util import fixstr
-from eat.io import util
-#from eat.plots import util as putil
-#from argparse import Namespace
-import argparse
+import numpy as np
+import mk4
 
 #reference date
 RDATE = '2017-04-04'
 rdate_tt = Time(RDATE, format='isot', scale='utc')
-RDATE_JD = rdate_tt.jd
-RDATE_GSTIA0 = rdate_tt.sidereal_time('apparent','greenwich').degree
+#RDATE_JD = rdate_tt.jd
+#RDATE_GSTIA0 = rdate_tt.sidereal_time('apparent','greenwich').degree
 RDATE_DEGPERDY = 360.98564497330 # TODO from AIPS, get the actual value?
-RDATE_OFFSET = rdate_tt.ut1.datetime.second - rdate_tt.utc.datetime.second
-RDATE_OFFSET += 1.e-6*(rdate_tt.ut1.datetime.microsecond - rdate_tt.utc.datetime.microsecond)
+#RDATE_OFFSET = rdate_tt.ut1.datetime.second - rdate_tt.utc.datetime.second
+#RDATE_OFFSET += 1.e-6*(rdate_tt.ut1.datetime.microsecond - rdate_tt.utc.datetime.microsecond)
 
 # decimal precision for the scan start & stop times (fractional day)
 ROUND_SCAN_INT = 20
@@ -49,9 +46,12 @@ MHZ2HZ = 1e6
 MJD_0 = 2400000.5
 RADPERARCSEC = (np.pi / 180.) / 3600.
 
-# INI: source names to be fixed while converting to uvfits
+# source names to be fixed while converting to uvfits when fixsrc is True
 srcnamedict = {}
 srcnamedict['1921-293'] = 'J1924-2914'
+
+bluvfits_pattern = '_baseline.uvfits' # per-baseline uvfits filename pattern
+scanuvfits_pattern = 'merged_all_baselines.uvfits' # scan uvfits filename pattern
 
 #######################################################################
 ##########################  Recompute uv points #######################
@@ -205,7 +205,6 @@ class Antenna_info(object):
         self.antnums = antnums
         self.xyz = xyz
 
-
 class Datastruct(object):
     """Data and metadata to save to uvfits, in uvfits format
        dtype tells you if the data table is in uvfits or ehtim format
@@ -222,13 +221,13 @@ class Datastruct(object):
 #######################################################################
 ##########################  Load/Save FUNCTIONS #######################
 #######################################################################
-def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_uv=False,
+def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, recompute_uv=False,
                            sqrt2corr=False, flip_ALMA_pol=False, flip_SPT_pol=False, fix_src_name=False):
     """
     read all fringe files in a directory and produce single baseline uvfits files
 
     Args:
-        datadir (str) :  directory with fringe files
+        scandir (str) :  directory containing fringe files belonging to a single scan
         rot_rate (bool) : if True, apply fringe rate correction to get total phase
         rot_delay (bool) : if True, apply fringe delay rate correction to get total phase
         recompute_uv (bool): if True, recompute uv points over the track
@@ -241,57 +240,48 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
         int : 0 if successful
     """
 
+    ### get list of unique baselines from all fringe files (type 2) in scandir
     baselineNames = []
-    # INI: get list of unique baselines from all fringe files in datadir
-    for filename in glob.glob(datadir + '/*'):
-        # remove type 1 and 3 files
-        #if ".." not in filename:
-        if os.path.basename(filename).count('.')==3:
-            baselineNames.append(os.path.basename(filename).split(os.extsep)[0])
-
-    baselineNames = set(baselineNames)
-
-    ###################################  LOAD DATA ###################################
+    for filename in glob.glob(scandir + '/*'):
+        # skip type 1, type 3, and uvfits files while collecting baseline names
+        fn = os.path.basename(filename)
+        if os.path.splitext(fn)[-1] != ".uvfits" and fn.count('.')==3:
+            baselineNames.append(fn.split(os.extsep)[0])
+    baselineNames = list(set(baselineNames))
+    baselineNames.sort()
+    
+    ########### loop through baselines and create per-baseline uvfits files ###########
     for baselineName in baselineNames:
         nap = 0
         nchan = 0
         nsubchan = 1
         nstokes= 4
-        first_pass_flag = True
 
-        #TODO will currently create an empty uvfits file for every non hops file not caught here
-        #TODO make eat throw errors if its reading something that's not a fringe file
-        # skip pre-existing uvfits files in datadir based on their naming scheme
-        if baselineName.split("_")[-1] in ["baseline", "merged"]:
-            continue
-        try:
-            if baselineName.split("_")[-2] == "hops":
-                continue
-        except IndexError: pass
-
-        # remove type 3 files containing model spline coefficients, phasecal data, state count information, and tape error statistics
-        #if len(baselineName)==1:
-        #    continue
-
-        # remove auto correlations
+        # skip auto correlations
         if baselineName[0] == baselineName[1]:
             continue
 
-        print("Making uvfits for baseline: ", baselineName)
-        for filename in glob.glob(os.path.join(datadir, f'{baselineName}*')):
-
-            # remove type 1 and 2 files and uvfits files with the same basename
-            if filename.split(os.extsep)[-1] == "uvfits" or os.path.basename(filename).count('.')!=3:
-                continue
-
-            #print "reading hops fringe file: ", filename
+        # remove type 1 and 2 files and uvfits files with the same basename
+        bl_flist = [f for f in glob.glob(os.path.join(scandir, f'{baselineName}*')) if f.split(os.extsep)[-1] != "uvfits" and os.path.basename(f).count('.')==3]
+        logging.info(f"Converting {len(bl_flist)} fringefiles in scan {os.path.basename(scandir)} to uvfits for baseline {baselineName}")
+        for index, filename in enumerate(bl_flist):
+            logging.info(f"Reading fringe file {index}: {filename}")
             try:
                 a = mk4.mk4fringe(filename) # do not encode; done within hops
             except:
-                a = mk4.mk4fringe(filename.encode()) # encode() for python3/ctypes compatibility
-            b = eat.hops.util.getfringefile(a)
+                try:
+                    a = mk4.mk4fringe(filename.encode()) # encode() for python3/ctypes compatibility
+                except Exception as e:
+                    logging.warning(f"Error reading fringe file {filename}: {e}")
+                    continue
 
-            if first_pass_flag: #some info we get only once per baseline
+            try:
+                b = eat.hops.util.getfringefile(a)
+            except Exception as e:
+                logging.warning(f"Error reading fringe file {filename}: {e}")
+                continue
+
+            if index == 0: #some info we get only once per baseline
 
                 ###################################  SOURCE INFO ###################################
                 # name of the source
@@ -314,7 +304,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
 
                 ra =  ra_hrs+ra_min/60.+ra_sec/3600.
                 #dec = np.sign(dec_degs)*(np.abs(dec_degs)+(dec_mins/60.+dec_secs/3600.)) # INI: This won't work for -1.0 < dec < 0.0
-                # INI: account for -1.0 deg < dec < 0.0 deg
+                # IN: account for -1.0 deg < dec < 0.0 deg
                 if dec_degs==0.:
                     if dec_mins<0. or dec_secs<0.:
                         decsign = -1
@@ -345,18 +335,20 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
                 baselineName = fixstr(b.t202.contents.baseline) # first one is ref antenna second one is rem
 
                 # x, y, z coordinate of antenna 1
-                ant1_x = b.t202.contents.ref_xpos # meters
-                ant1_y = b.t202.contents.ref_ypos # meters
-                ant1_z = b.t202.contents.ref_zpos # meters
+                ant1_pos = {}
+                ant1_pos['x'] = b.t202.contents.ref_xpos # metres
+                ant1_pos['y'] = b.t202.contents.ref_ypos
+                ant1_pos['z'] = b.t202.contents.ref_zpos
 
                 # x, y, z coordinate of antenna 2
-                ant2_x = b.t202.contents.rem_xpos # meters
-                ant2_y = b.t202.contents.rem_ypos # meters
-                ant2_z = b.t202.contents.rem_zpos # meters
+                ant2_pos = {}
+                ant2_pos['x'] = b.t202.contents.rem_xpos # metres
+                ant2_pos['y'] = b.t202.contents.rem_ypos
+                ant2_pos['z'] = b.t202.contents.rem_zpos
 
                 # get the elevation for opacity estimate
-                ant1_elevation = b.t202.contents.ref_elev # degrees
-                ant2_elevation = b.t202.contents.rem_elev # degrees
+                #ant1_elevation = b.t202.contents.ref_elev # degrees # IN: unused
+                #ant2_elevation = b.t202.contents.rem_elev # degrees # IN: unused
 
                 antennas = {} # WARNING: DO NOT REINITLIIZE THIS IF WE LOOP OVER FILES
                 xyz = []
@@ -365,13 +357,13 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
 
                 if ant1 not in antennas.keys():
                     antennas[ant1] = len(antennas.keys()) + 1
-                    xyz.append([ant1_x, ant1_y, ant1_z]) #warning: do not take this out of the if statement with setting the key of the dictionary
+                    xyz.append([ant1_pos['x'], ant1_pos['y'], ant1_pos['z']]) #warning: do not take this out of the if statement with setting the key of the dictionary
                     antnames.append(ant1)
                     antnums.append(antennas[ant1])
 
                 if ant2 not in antennas.keys():
                     antennas[ant2] = len(antennas.keys()) + 1
-                    xyz.append([ant2_x, ant2_y, ant2_z]) #warning: do not take this out of the if statement with setting the key of the dictionary
+                    xyz.append([ant2_pos['x'], ant2_pos['y'], ant2_pos['z']]) #warning: do not take this out of the if statement with setting the key of the dictionary
                     antnames.append(ant2)
                     antnums.append(antennas[ant2])
 
@@ -390,19 +382,19 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
                 # this is a static u/v. we will want to change it with the real time later
                 u = u_static * np.ones(outdat.shape[0])
                 v = v_static * np.ones(outdat.shape[0])
-                w = np.zeros(outdat.shape[0])
+                #w = np.zeros(outdat.shape[0]) # IN: unused
 
-                ndat = outdat.shape[0]
+                #ndat = outdat.shape[0] # IN: unused
                 numberofchannels = outdat.shape[4]
 
                 # we believe that this ordeirng of bl has to be the same as the ordering/conjugation in the data
+                # IN: the following is done to create a unique identifier for the baseline
                 if antennas[ant1] < antennas[ant2]:
                     bls = (256*antennas[ant1] + antennas[ant2]) * np.ones(outdat.shape[0])
                 else:
                     bls = (256*antennas[ant2] + antennas[ant1]) * np.ones(outdat.shape[0])
 
                 ################################### ONLY LOAD ONCE ###################################
-                first_pass_flag = False
 
             # loop through channels and get the frequency, polarization, id, and bandwidth
             # clabel = [q.ffit_chan_id for q in b.t205.contents.ffit_chan[:nchan]] # not used
@@ -445,25 +437,33 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
             # channel_id_ant2= np.array(channel_id_ant2)
 
             if len(set(channel_bw_ant1)) != 1:
-                print(channel_bw_ant1)
-                raise Exception('the channels on this baseline have different bandwidths')
+                try:
+                    raise Exception(channel_bw_ant1)
+                except Exception as e:
+                    logging.warning(f"Skipping {filename}. Channel bandwidths are not the same for all channels: {e}")
+                    continue
 
             if len(set(np.diff(channel_freq_ant1))) > 1:
-                raise Exception('the spacing between the channels is different')
+                try:
+                    raise Exception(channel_freq_ant1)
+                except Exception as e:
+                    logging.warning(f"Skipping {filename}. Channel frequencies are not equally spaced: {e}")
+                    continue
             else:
                 channel_spacing = channel_freq_ant1[1] - channel_freq_ant1[0]
 
             channel_bw = channel_bw_ant1[0]
             channel1_freq = channel_freq_ant1[0]
-            nsta = len(antennas)
-            bw = channel_bw*numberofchannels
+            #nsta = len(antennas) # IN: unused
+            #bw = channel_bw*numberofchannels # IN:unused
 
             #print 'ERROR: REMOVE THIS!'
             #channel_bw = channel_spacing
 
             # INI: get visibilities and weights from 212 record
             (visibilities, weights) = eat.hops.util.pop212(a, weights=True)
-            weights = weights.T # INI: transpose to match pre-existing code
+            logging.debug(f"{baselineName} visibilities shape: {visibilities.shape}, weights shape: {weights.shape}")
+            weights = weights.T # INI: transpose to match existing code
 
             # the integration time for each measurement
             inttime = inttime_fixed*weights
@@ -503,6 +503,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
             centertime = (eat.hops.util.mk4time(b.t205[0].utc_central) - eat.hops.util.mk4time(b.t205.contents.start)).total_seconds()
 
             shift = np.zeros((nchan, nap))
+            logging.debug(f"shift shape: {shift.shape}")
 
             if rot_rate:
                 rate_mtx = ref_freq_hops*(np.matlib.repmat( ( inttime_fixed * np.arange(nap) ).reshape(1,nap), nchan, 1 ) - centertime)
@@ -574,7 +575,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
 
         # recompute uv points if necessary
         if recompute_uv:
-            print("    recomputing uv points!")
+            logging.info("Recomputing uv points...")
             if baselineName[0] == baselineName[1]:
                 site1vec = xyz[0]
                 site2vec = xyz[0]
@@ -589,8 +590,7 @@ def convert_bl_fringefiles(datadir, rot_rate=False, rot_delay=False, recompute_u
         alldata = Uvfits_data(u,v,bls,jds, tints, outdat)
         outstruct = Datastruct(obsinfo,  antennainfo, alldata)
 
-        #print "Saving baseline uvfits file: ", fname
-        fname = os.path.join(datadir, f'{baselineName}_hops_baseline.uvfits')
+        fname = os.path.join(scandir, baselineName+bluvfits_pattern)
         save_uvfits(outstruct, fname)
 
     return 0
@@ -605,6 +605,7 @@ def load_hops_uvfits(filename):
     """
 
     # Read the uvfits file
+    logging.debug(f"Reading uvfits file: {filename}")
     hdulist = fits.open(filename)
     header = hdulist[0].header
     data = hdulist[0].data
@@ -644,7 +645,7 @@ def load_hops_uvfits(filename):
         refdate_str = hdulist['AIPS AN'].header['RDATE'] # in iso
         refdate = Time(refdate_str, format='isot', scale='utc').jd
     except ValueError: 
-        print('ValueError in reading AIPS AN RDATE! Using PRIMARY DATE-OBS value')
+        logging.warning('ValueError in reading AIPS AN RDATE! Using PRIMARY DATE-OBS value')
         refdate_str = hdulist['PRIMARY'].header['DATE-OBS'] # in iso
         refdate = Time(refdate_str, format='isot', scale='utc').jd
 
@@ -762,7 +763,6 @@ def convert_uvfits_to_datastruct(filename):
     #TODO get flags from uvfits?
     return datastruct_out
 
-
 def construct_bl_list(datatable_merge, tkeys):
     """
        Args:
@@ -832,7 +832,6 @@ def construct_bl_list(datatable_merge, tkeys):
         inverse_indexes.append( bl_dict_table2[tmp_entry] )
 
     return unique_entries_sorted, unique_entry_indexes, inverse_indexes
-
 
 def merge_hops_uvfits(fitsFiles):
     """load and merge all uvfits files in a data directory
@@ -919,15 +918,13 @@ def merge_hops_uvfits(fitsFiles):
     if not (ch1_freq in [obsinfo.ch_1 for obsinfo in obsinfo_list]):
         raise Exception('ch1_freq determined from merging ehtim style datatable not in any read uvfits header!')
 
-    print("baseline files: ", len(fitsFiles))
-    print("source: ", src)
-    print("ra: ", ra)
-    print("dec: ", dec)
-    print("ch1 freq: ", ch1_freq/1.e9, "GHz")
-    print("ref freq: ", ref_freq/1.e9, "GHz")
-    print("channels: ", nchan)
-
-    #print "Merging data ... "
+    logging.info(f"Number of baseline files: {len(fitsFiles)}")
+    logging.info(f"Source: {src}")
+    logging.info(f"RA: {ra}")
+    logging.info(f"Dec: {dec}")
+    logging.info(f"Channel 1 frequency: {ch1_freq/1.e9} GHz")
+    logging.info(f"Reference frequency: {ref_freq/1.e9} GHz")
+    logging.info(f"Number of channels: {nchan}")
 
     # Merge scans
     scan_list = [obsinfo.scans for obsinfo in obsinfo_list]
@@ -1328,8 +1325,8 @@ def create_parser():
 
     p.add_argument("datadir", help="Directory containing input fringe files organised by epoch and scan")
     p.add_argument("outdir", help="Directory to which UVFITS files must be written")
-    p.add_argument('--recomputeblfits', action='store_true', help='(Re)generate baseline-specific uvfits files')
-    p.add_argument('--clean', action='store_true', help='Remove individual baseline files after merging')
+    p.add_argument('--computebluvfits', action='store_true', help='Generate per-baseline uvfits files')
+    p.add_argument('--discardbluvfits', action='store_true', help='Remove individual baseline files after merging')
     p.add_argument('--recomputeuv', action='store_true', help='Recompute uv-coordinates')
     p.add_argument('--rotrate', action='store_true', help='Remove rate solution in fringe files')
     p.add_argument('--rotdelay', action='store_true', help='Remove delay solution in fringe files')
@@ -1338,96 +1335,99 @@ def create_parser():
     p.add_argument('--flipSPTpol', action='store_true', help='Flip LR and RL in SPT (for 2017)')
     p.add_argument('--fixsrcname', action='store_true', help='Fix source name')
     p.add_argument('--idtag', type=str, default='', help="Custom identifier tag for UVFITS files")
+    p.add_argument('--loglevel', type=str, default='INFO', help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
 
     return p
 
 def main(args):
-    print('Converting fringe files to UVFITS files...')
-    print(f'Arguments passed: {args}')
+    # Configure logging
+    loglevel = getattr(logging, args.loglevel.upper(), None)
+    if not isinstance(loglevel, int):
+        raise ValueError(f'Invalid log level: {args.loglevel}')
+    logging.basicConfig(level=loglevel,
+                        format='%(asctime)s %(levelname)s:: %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
 
-    print("*********************HOPS2UVFITS************************")
-    print("Creating merged single-source uvfits files from hops fringe files...")
-    print("Data directory: ", args.datadir)
+    logging.info('Converting HOPS fringe files to UVFITS files...')
+    logging.debug(f'Arguments passed: {args}')
 
-    # INI: get list of all subdirectories under args.datadir
-    scandirs = [os.path.join(args.datadir,o) for o in os.listdir(args.datadir) if os.path.isdir(os.path.join(args.datadir,o))]
+    # format datadir properly
+    datadir = os.path.normpath(args.datadir)
 
-    scan_fitsFiles = []
-    scan_sources = []
-
-    idx = 1
+    # get list of only the subdirectories under datadir and sort them; these are the individual scan directories for a given epoch
+    scandirs = sorted([os.path.join(datadir, d) for d in os.listdir(datadir) if os.path.isdir(os.path.join(datadir, d))])
     ndirs = len(scandirs)
-    for scandir in sorted(scandirs):
+
+    allscans_uvfits = np.empty(ndirs, dtype=object)
+    allscans_sources = np.empty(ndirs, dtype=object)
+
+    ################### loop over all scan directories and create per-scan uvfits files (two-step process creates per-baseline uvfits first) ###################
+    for idx, scandir in enumerate(tqdm.tqdm(scandirs, desc='Processing scan directories')):
         # process scandir only if at least one type 2 file (i.e. fringe file) with 3 dots in the filename exists
-        if not glob.glob(scandir+"/*.*.*.*"):
+        contains_fringefiles = False
+        with os.scandir(scandir) as entries:
+            for entry in entries:
+                if entry.is_file() and entry.name.count('.') == 3:
+                    contains_fringefiles = True
+                    break
+        if not contains_fringefiles:
             continue
 
-        if args.recomputeblfits:
-            # convert the finge files to baseline uvfits files
-            print("---------------------------------------------------------")
-            print("---------------------------------------------------------")
-            print("scan directory %i/%i: %s" % (idx,ndirs, scandir))
-            # remove existing baseline-specific uvfits files since we are generating them anew
-            print('    REMOVING old uvfits baseline files due to --recomputeblfits flag')
-            for filename in glob.glob(scandir + '/*_hops_baseline.uvfits'):
-                os.remove(filename)
-            if not args.recomputeuv: # INI: this was recompute_bl_fits! Should've been recompute_uv
-                print('    WARNING - not recomputing U,V coordinates!')
-            print("---------------------------------------------------------")
-            print("---------------------------------------------------------")
-            convert_bl_fringefiles(datadir=scandir, rot_rate=args.rotrate, rot_delay=args.rotdelay, recompute_uv=args.recomputeuv,
+        if args.computebluvfits:
+            # generate per-baseline uvfits files
+            logging.info(f"Processing scan {scandir}")
+
+            # remove existing per-baseline uvfits files since we are generating them anew
+            logging.info('Deleting existing per-baseline uvfits files...')
+            with os.scandir(scandir) as entries:
+                for entry in entries:
+                    if entry.is_file() and entry.name.endswith(bluvfits_pattern):
+                        os.remove(entry.path)
+
+            if not args.recomputeuv:
+                logging.warning('Not recomputing uv coordinates.')
+
+            convert_fringefiles_to_bluvfits(scandir=scandir, rot_rate=args.rotrate, rot_delay=args.rotdelay, recompute_uv=args.recomputeuv,
                                    sqrt2corr=args.sqrt2corr, flip_ALMA_pol=args.flipALMApol, flip_SPT_pol=args.flipSPTpol, fix_src_name=args.fixsrcname)
 
-        print(' ')
-        print("Merging baseline uvfits files in directory: ", scandir)
-
-        bl_fitsFiles = []
-        for filename in glob.glob(scandir + '/*_hops_baseline.uvfits'):
-            bl_fitsFiles.append(filename)
-
-        idx += 1
-        if not len(bl_fitsFiles):
-            #raise Exception("cannot find any fits files with extension _hops_baseline.uvfits in %s" % scandir)
-            print("cannot find any fits files with extension _hops_baseline.uvfits in %s" % scandir)
+        # merge per-baseline uvfits files for each scan
+        logging.info(f'Merging per-baseline uvfits files in {scandir}')
+        bl_uvfits = glob.glob(scandir + f'/*{bluvfits_pattern}')
+        logging.debug(f'Found {len(bl_uvfits)} per-baseline uvfits files in {scandir}.')
+        if not len(bl_uvfits):
+            logging.warning(f"No per-baseline uvfits files found! Skipping scan {scandir}.")
             continue
-
-        datastruct = merge_hops_uvfits(bl_fitsFiles)
-        outname = os.path.join(scandir, "scan_hops_merged.uvfits")
+        datastruct = merge_hops_uvfits(bl_uvfits)
+        outname = os.path.join(scandir, scanuvfits_pattern)
         save_uvfits(datastruct, outname)
 
-        scan_fitsFiles.append(outname)
-        scan_sources.append(datastruct.obs_info.src)
+        allscans_uvfits[idx] = outname
+        allscans_sources[idx] = datastruct.obs_info.src
 
-        print("Saved scan merged data to ", outname)
-        print(' ')
+        # if requested, remove baseline-specific uvfits files
+        if args.discardbluvfits:
+            logging.info(f"'discardbluvfits' flag is set to {args.discardbluvfits}. Deleting per-baseline uvfits files...")
+            with os.scandir(scandir) as entries:
+                for entry in entries:
+                    if entry.is_file() and entry.name.endswith(bluvfits_pattern):
+                        os.remove(entry.path)
 
-        # if --clean flag is set, remove baseline-specific uvfits files
-        if args.clean:
-            print('    REMOVING baseline-specific uvfits files due to --clean flag')
-            for filename in glob.glob(scandir + '/*_hops_baseline.uvfits'):
-                os.remove(filename)
-
-    print(' ')
-    print("---------------------------------------------------------")
-    print("---------------------------------------------------------")
-    print("---------------------------------------------------------")
-    #print scan_sources
-    unique_sources = set(scan_sources)
-    scan_fitsFiles = np.array(scan_fitsFiles)
-    scan_sources = np.array(scan_sources)
+    ################### merge all per-scan uvfits files for each source ###################
+    # remove unassigned values, if any (happens when there are no valid cross-correlation fringe files in a given scandir and autocorrelations are not requested)
+    allscans_uvfits = allscans_uvfits[allscans_uvfits != None]
+    allscans_sources = allscans_sources[allscans_sources != None]
+    unique_sources = set(allscans_sources)
     for source in unique_sources:
-        print(' ')
-        print("Merging all scan uvfits files in directory: ", args.datadir, "for source: ", source)
-        #print 'WARNING - U,V coordinate units unknown!'
-        source_scan_fitsFiles = scan_fitsFiles[scan_sources==source]
-        datastruct = merge_hops_uvfits(source_scan_fitsFiles)
-        outname = args.outdir + '/hops_' + os.path.basename(os.path.normpath(args.datadir)) + '_' + source + args.idtag + '.uvfits'
+        logging.info(f"Merging all per-scan uvfits files in {datadir} corresponding to source {source}...")
+        source_uvfits = allscans_uvfits[allscans_sources==source]
+        logging.debug(f"source_uvfits: {source_uvfits}")
+        datastruct = merge_hops_uvfits(source_uvfits)
+        
+        outname = f"{args.outdir}/hops_{os.path.basename(datadir)}_{source}{args.idtag}.uvfits"
         save_uvfits(datastruct, outname)
-        print("Saved full merged data to ", outname)
-    print("---------------------------------------------------------")
-    print("---------------------------------------------------------")
-    print("---------------------------------------------------------")
-    print(' ')
+
+    logging.info("UVFITS generation complete.")
+        
     return 0
 
 if __name__=='__main__':
