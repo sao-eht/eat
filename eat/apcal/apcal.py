@@ -33,7 +33,7 @@ from astropy import units as u
 from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
 from astropy.time import Time, TimeDelta
 #import vex as vex
-from eat.apcal import vex
+from eat.io import vex
 #from eat.aips import vex
 import scipy.interpolate as si
 
