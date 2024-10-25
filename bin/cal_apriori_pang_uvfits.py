@@ -3,7 +3,7 @@
 #hops2uvfits.py
 #take data from all fringe files in a directory and put them in a uvfits file
 import numpy as np
-import mk4 # part of recent HOPS install, need HOPS ENV variables
+from eat.io import mk4 # part of recent HOPS install, need HOPS ENV variables
 import datetime
 import ctypes
 import astropy.io.fits as fits

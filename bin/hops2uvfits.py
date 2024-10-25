@@ -15,7 +15,7 @@ import astropy.io.fits as fits
 import astropy.time as at
 from astropy.time import Time
 import numpy as np
-import mk4
+from eat.io import mk4
 
 #reference date
 RDATE = '2017-04-04'

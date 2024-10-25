@@ -59,7 +59,7 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
         **kwargs: extra conditional (e.g. scan_id) filter to apply on df
     """
     import datetime
-    import mk4
+    from eat.io import mk4
     import itertools
     cfcodes = []
     # apply any filters given in kwargs

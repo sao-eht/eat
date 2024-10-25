@@ -18,7 +18,7 @@ from ..io import util
 import numpy as np
 from numpy.fft import fft2, fftfreq, fftshift # for fringe fitting
 try:
-    import mk4 # part of recent HOPS install, need HOPS ENV variables
+    from eat.io import mk4 # part of recent HOPS install, need HOPS ENV variables
     dfio = mk4.mk4io_load()
 except:
     import warnings
