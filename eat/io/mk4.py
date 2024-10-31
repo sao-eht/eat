@@ -937,31 +937,42 @@ class mk4_sdata(Mk4StructureBase):
 ################################################################################
 
 def mk4io_load():
+    """locate and load the mk4 c-library"""
+    #first try to find the library using LD_LIBRARY_PATH
+    ld_lib_path = os.getenv('LD_LIBRARY_PATH')
+    possible_path_list = ld_lib_path.split(':')
+    for a_path in possible_path_list:
+        libpath = os.path.join(a_path, 'hops', 'libmk4iob.so')
+        altlibpath = os.path.join(a_path, 'libmk4iob.so')
+        if os.path.isfile(libpath):
+            #found the library, go ahead and load it up
+            dfio = ctypes.cdll.LoadLibrary(libpath)
+            return dfio
+        elif os.path.isfile(altlibpath):
+            #found the library, go ahead and load it up
+            dfio = ctypes.cdll.LoadLibrary(altlibpath)
+            return dfio
+
+
+    #next try to find the library using the environmental variable HOPS_PREFIX
     prefix = os.getenv('HOPS_PREFIX')
+    if prefix != None:
+        path = os.path.join(prefix, 'lib','hops', 'libmk4iob.so')
+        if os.path.isfile(path):
+            dfio = ctypes.cdll.LoadLibrary(path)
+            return dfio
+
+    #failing that, try to find it using the HOPS_ROOT and HOPS_ARCH env's
     root = os.getenv('HOPS_ROOT')
     arch = os.getenv('HOPS_ARCH')
-    if prefix != None:
-        path = '/'.join([prefix,'lib','hops','libmk4io.so'])
-        dfio = ctypes.cdll.LoadLibrary(path)
-        return dfio
-    elif (root is None) or (arch is None):
-        #hops env not set up yet, need to find the library using LD_LIBRARY_PATH
-        ld_lib_path = os.getenv('LD_LIBRARY_PATH')
-        if ld_lib_path is None:
-            return None #we failed
-        possible_path_list = ld_lib_path.split(':')
-        for a_path in possible_path_list:
-            libpath = '/'.join([a_path,'libmk4io.so'])
-            if os.path.isfile(libpath):
-                #found the library, go ahead and load it up
-                dfio = ctypes.cdll.LoadLibrary(libpath)
-                return dfio
-        #otherwise we didn't find the library
-        return None
-    else:
-        path = '/'.join([root,arch,'lib','hops','libmk4io.so'])
-        dfio = ctypes.cdll.LoadLibrary(path)
-        return dfio
+    if root != None and arch != None:
+        path = os.path.join(root, arch,'lib','hops', 'libmk4iob.so')
+        if os.path.isfile(path):
+            dfio = ctypes.cdll.LoadLibrary(path)
+            return dfio
+
+    #failed to find the library
+    return None
 
 def mk4corel(filename):
     """read and return mk4corel file object"""
@@ -988,5 +999,7 @@ def mk4sdata(filename):
     dfio = mk4io_load()
     dfio.read_mk4sdata(ctypes.c_char_p(filename.encode()), ctypes.byref(mk4p))
     return mk4p
+
+
 
 # eof
