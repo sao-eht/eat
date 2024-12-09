@@ -56,7 +56,7 @@ def load(file):
 
     # Apply row filtering
     a = a[a.snr > 50]
-    a = a[a.baseline.str.contains("A")] # must contain ALMA
+    a = a[a.baseline.str.contains(args.reference)] # must contain ALMA (or ref station)
     a = a[(a.polarization == 'LL')|
           (a.polarization == 'RR')|
           (a.polarization == 'XR')|
@@ -66,31 +66,37 @@ def load(file):
     a = a.reset_index(drop=True)
     util.add_path(a)
 
+    # grab channel separation, needed since alist amb is insufficient precision
+    par = hu.params(a.iloc[0].path)
+    d_nu = 1e6 * np.diff(np.sort(par.fedge))[0] # par.fedge in MHz
+    a['d_nu'] = d_nu
+
     # TODO: obtain chan_ids from the control files / fringe files / user
     # Access corel (per-channel) visibility
     dflist = []
     for i, f in a.path.items():
-       ff_df = hu.params(f)
+        par = hu.params(f)
 
-       # perform quick adhoc phase correction and obtain a single averaged value
-       v = hu.adhoc(f, roundrobin=False).vcorr.mean(axis=0)
-       p = np.angle(np.mean(v))
+        # perform quick adhoc phase correction and obtain a single averaged value
+        v = hu.adhoc(f, roundrobin=False).vcorr.mean(axis=0)
+        p = np.angle(np.mean(v))
 
-       # compute vis
-       vis = v * np.exp(-1j * p)
+        # compute vis
+        vis = v * np.exp(-1j * p)
 
-       # if ALMA is not the reference, reverse baseline label and negate vis
-       b = a.baseline[i]
-       if b[1] == "A":
-           a.loc[i, 'baseline'] = b[::-1]
-           vis = np.conj(vis)
-           print("WARNING: ALMA is not the reference", file=sys.stderr)
+        # if ALMA (or ref) is not the reference, reverse baseline label and negate vis
+        b = a.baseline[i]
+        if b[1] == args.reference:
+            a.loc[i, 'baseline'] = b[::-1]
+            vis = np.conj(vis)
+            print("WARNING: ALMA (or args.reference) is not the reference", file=sys.stderr)
 
-       # construct temp dataframe
-       # TODO: add metadata from a to tempdf here and avoid concatenating at the very end
-       tempdf = pd.DataFrame(vis[np.newaxis,:], columns=ff_df.fedge)
-       #tempdf = pd.concat((a[a['path']==f][extractcols], tempdf), axis=1) # add metadata from DataFrame a
-       dflist.append(tempdf)
+        # construct temp dataframe
+        # TODO: add metadata from a to tempdf here and avoid concatenating at the very end
+        tempdf = pd.DataFrame(vis[np.newaxis,:], columns=par.fedge)
+       
+        #tempdf = pd.concat((a[a['path']==f][extractcols], tempdf), axis=1) # add metadata from DataFrame a
+        dflist.append(tempdf)
 
     df = pd.concat(dflist)
     df = df.reset_index(drop=True)
@@ -98,7 +104,7 @@ def load(file):
     df.columns = list(string.ascii_letters[:df.columns.shape[0]]) # assign ASCII channel codes to frequencies
 
     # add metadata from a to df
-    extractcols  = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas'] # metadata cols to extract from DataFrame a
+    extractcols  = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas', 'd_nu'] # metadata cols to extract from DataFrame a
     return pd.concat([a[extractcols], df], axis=1)
 
 
@@ -207,6 +213,8 @@ parser.add_argument("-c", "--controlcodes", default=False, action="store_true",
                     help="construct control codes rather than csv table")
 parser.add_argument("-g", "--graph",        default=False, action="store_true",
                     help="graphic output")
+parser.add_argument("-r", "--reference", default='A',
+                    help="use a different reference antenna from ALMA")
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
@@ -246,7 +254,8 @@ pcr[:] = fix_nan_v2(pcr.apply(unwrap, axis=1).apply(offset, axis=1).values)
 pcl[:] = fix_nan_v2(pcl.apply(unwrap, axis=1).apply(offset, axis=1).values)
 
 slopes = derivative(pcf.values)
-d_nu   = 58.59375e6 # hard wire separation between channels
+# d_nu   = 58.59375e6 # hard wire separation between channels
+d_nu   = df['d_nu'][0] # grab the first saved d_nu
 delays = 1e9 * (slopes / 360.0) / d_nu # in nanosecond
 
 #------------------------------------------------------------------------------
