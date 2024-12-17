@@ -169,7 +169,7 @@ cotime
 """.split(',')]
 
 fsumm_v5_pandasargs = dict(
-    delim_whitespace=True,
+    sep='\s+',
     comment='*',
     header=None,
     # fringe quality code
@@ -183,7 +183,7 @@ fsumm_v5_pandasargs = dict(
 )
 
 fsumm_v6_pandasargs = dict(
-    delim_whitespace=True,
+    sep='\s+',
     comment='*',
     header=None,
     dtype={15:str},
@@ -196,7 +196,7 @@ fsumm_v6_pandasargs = dict(
 )
 
 tsumm_pandasargs = dict(
-    delim_whitespace=True,
+    sep='\s+',
     comment='*',
     header=None,
     dtype={16:str, 17:str},
@@ -310,7 +310,7 @@ MASTERCAL_FIELDS = (
 )
 
 mastercal_pandasargs = dict(
-    delim_whitespace=True,
+    sep='\s+',
     comment='#',
     header=None,
     parse_dates={'datetime':[0]},
@@ -345,7 +345,7 @@ CALTABLE_FIELDS = (
 )
 
 caltable_pandasargs = dict(
-    delim_whitespace=True,
+    sep='\s+',
     comment='#',
     header=None,
     parse_dates={'datetime':[0,1]},
@@ -413,7 +413,7 @@ NETWORKSOL_FIELDS = (
 )
 
 networksol_pandasargs = dict(
-    delim_whitespace=True,
+    sep='\s+',
     comment='#',
     header=None,
     parse_dates={'datetime':[0,1]},
@@ -461,7 +461,7 @@ NETWORKSOL2_FIELDS = (
 )
 
 networksol2_pandasargs = dict(
-    delim_whitespace=True,
+    sep='\s+',
     comment='#',
     header=None,
     parse_dates={'datetime':[0,1]},
@@ -495,7 +495,7 @@ BANDPASS_FIELDS = [
 ]
 
 bandpass_pandasargs = dict(
-    delim_whitespace=True,
+    sep='\s+',
     comment='*',
     header=None,
 )
