@@ -8,6 +8,8 @@ import os
 import sys
 import tqdm
 import logging
+import re
+import ast
 
 import eat.hops.util
 from eat.hops.util import fixstr
@@ -52,6 +54,11 @@ srcnamedict['1921-293'] = 'J1924-2914'
 
 bluvfits_pattern = '_baseline.uvfits' # per-baseline uvfits filename pattern
 scanuvfits_pattern = 'merged_all_baselines.uvfits' # scan uvfits filename pattern
+
+# metadata files to be created from ovex files
+az2z_file = 'cf7_az2z.txt'
+smt2z_file = 'cf7_smt2z.txt'
+track2expt_file = 'cf7_track2expt.txt'
 
 #######################################################################
 ##########################  Recompute uv points #######################
@@ -1320,6 +1327,21 @@ def save_uvfits(datastruct, fname):
 
     return 0
 
+def read_dict_from_file(fpath):
+    if os.path.exists(fpath):
+        with open(fpath, 'r') as f:
+            contents = f.read()
+            if contents:
+                return ast.literal_eval(contents)
+            
+    return {}
+
+def write_dict_to_file(fpath, dictionary):
+    with open(fpath, 'w') as f:
+        f.write(str(dictionary))
+
+    return
+
 def create_parser():
     p = argparse.ArgumentParser()
 
@@ -1361,8 +1383,40 @@ def main(args):
     allscans_uvfits = np.empty(ndirs, dtype=object)
     allscans_sources = np.empty(ndirs, dtype=object)
 
+    # declare dictionaries for extracting metadata from ovex files
+    az2z = {}
+    smt2z = {}
+    track2expt = {}
+
     ################### loop over all scan directories and create per-scan uvfits files (two-step process creates per-baseline uvfits first) ###################
     for idx, scandir in enumerate(tqdm.tqdm(scandirs, desc='Processing scan directories')):
+
+        # process scandir to get station codes and expt numbers
+        pattern = r'^[^.]+\.[A-Z0-9]{6}$'
+        ovexname = next((entry.name for entry in os.scandir(scandir) if entry.is_file() and re.match(pattern, entry.name)), None)
+        if ovexname is None:
+            logging.warning(f"No valid ovex file found in scan directory {scandir}. Skipping scan...")
+            continue
+        else:
+            with open(os.path.join(scandir, ovexname)) as f:
+                logging.info(f"Processing ovex file {ovexname}")
+                contents = f.read()                
+                # extract experiment name and number from ovex file
+                pattern = r'def (\w+);.*?exper_num = (\d+);.*?exper_name = \1;'
+                match = re.search(pattern, contents, re.DOTALL)
+                if match and match.group(1) not in track2expt.keys():
+                    track2expt[match.group(1)] = match.group(2)
+
+                # extract station codes from ovex file
+                pattern = r'def (\w+);.*?site_name = \1;.*?site_ID = (\w+);.*?mk4_site_ID = (\w+);'
+                matches = re.findall(pattern, contents, re.DOTALL)               
+                if matches:
+                    for m in matches:
+                        if m[0] not in smt2z.keys():
+                            smt2z[m[0]] = m[2]
+                        if m[1] not in az2z.keys():
+                            az2z[m[1]] = m[2]
+
         # process scandir only if at least one type 2 file (i.e. fringe file) with 3 dots in the filename exists
         contains_fringefiles = False
         with os.scandir(scandir) as entries:
@@ -1371,6 +1425,7 @@ def main(args):
                     contains_fringefiles = True
                     break
         if not contains_fringefiles:
+            logging.warning(f"No valid fringe files found in scan directory {scandir}. Skipping scan...")
             continue
 
         if args.computebluvfits:
@@ -1411,6 +1466,18 @@ def main(args):
                 for entry in entries:
                     if entry.is_file() and entry.name.endswith(bluvfits_pattern):
                         os.remove(entry.path)
+
+    # create text files for tracking station metadata information; if they
+    # exist, merge contents while preserving pre-existing key-value pairs.
+    if os.path.exists(az2z_file):
+        az2z = {**az2z, **read_dict_from_file(az2z_file)}
+    write_dict_to_file(az2z_file, az2z)
+    if os.path.exists(smt2z_file):
+        smt2z = {**smt2z, **read_dict_from_file(smt2z_file)}
+    write_dict_to_file(smt2z_file, smt2z)
+    if os.path.exists(track2expt_file):
+        track2expt = {**track2expt, **read_dict_from_file(track2expt_file)}
+    write_dict_to_file(track2expt_file, track2expt)
 
     ################### merge all per-scan uvfits files for each source ###################
     # remove unassigned values, if any (happens when there are no valid cross-correlation fringe files in a given scandir and autocorrelations are not requested)
