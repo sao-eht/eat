@@ -56,8 +56,8 @@ bluvfits_pattern = '_baseline.uvfits' # per-baseline uvfits filename pattern
 scanuvfits_pattern = 'merged_all_baselines.uvfits' # scan uvfits filename pattern
 
 # metadata files to be created from ovex files
-az2z_file = 'cf7_az2z.txt'
-smt2z_file = 'cf7_smt2z.txt'
+az2z_file = 'cf7_AZ2Z.txt'
+smt2z_file = 'cf7_SMT2Z.txt'
 track2expt_file = 'cf7_track2expt.txt'
 
 #######################################################################
