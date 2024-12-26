@@ -1471,9 +1471,11 @@ def main(args):
     # exist, merge contents while preserving pre-existing key-value pairs.
     if os.path.exists(az2z_file):
         az2z = {**az2z, **read_dict_from_file(az2z_file)}
+    az2z = {k.upper(): v.upper() for k, v in az2z.items()}
     write_dict_to_file(az2z_file, az2z)
     if os.path.exists(smt2z_file):
         smt2z = {**smt2z, **read_dict_from_file(smt2z_file)}
+    smt2z = {k.upper(): v.upper() for k, v in smt2z.items()}
     write_dict_to_file(smt2z_file, smt2z)
     if os.path.exists(track2expt_file):
         track2expt = {**track2expt, **read_dict_from_file(track2expt_file)}
