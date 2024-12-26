@@ -37,6 +37,7 @@ setup(
              "bin/alma_fixsqrt2",
              "bin/alma_pcal",
              "bin/alma_sbdmbd",
+             "bin/antab2sefd",
              "bin/cal_apriori_pang_uvfits.py",
              "bin/cal_polcal_gains_uvfits.py",
              "bin/caluvfits.py",

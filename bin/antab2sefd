@@ -1,0 +1,115 @@
+#!/usr/bin/env python
+
+import os
+import re
+import sys
+import ast
+import glob
+import argparse
+from eat.postproc import apcal
+
+# metadata files generated in stage 6 -- the naming convention follows the one used by L1 team
+az2z_file = 'cf7_AZ2Z.txt'
+smt2z_file = 'cf7_SMT2Z.txt'
+track2expt_file = 'cf7_track2expt.txt'
+
+def create_parser():
+    p = argparse.ArgumentParser()
+
+    p.add_argument("srcdir", help="Directory containing UVFITS files organized by epoch (i.e. stage 6 directory)")
+    p.add_argument("metadir", help="Directory containing calibration metadata (VEX files, ANTAB files)")
+    p.add_argument("wrkdir", help="Directory to which SEFD files must be written")
+
+    return p
+
+def read_coordinates(fname):
+    coordinates_dict = {}
+
+    with open(fname, 'r') as f:
+        next(f)  # Skip the header line
+        for line in f:
+            parts = line.split()
+            if len(parts) >= 4:
+                name = parts[0]
+                x = float(parts[1])
+                y = float(parts[2])
+                z = float(parts[3])
+                coordinates_dict[name] = [x, y, z]
+    return coordinates_dict
+
+def main(args):
+    print('**************** Computing SEFDs from metadata ****************')
+
+    # check if metadata files exist
+    if not all(os.path.exists(os.path.join(args.wrkdir, file)) for file in [az2z_file, smt2z_file, track2expt_file]):
+        print("One or more metadata files do not exist in {args.wrkdir}. Exiting without generating SEFDs!")
+        return
+
+    # get list of sources from metadata
+    source_names = set()
+    subdirs = [d for d in os.listdir(args.srcdir) if os.path.isdir(os.path.join(args.srcdir, d)) and re.match(r'\d{4}', d)]
+    for subdir in subdirs:
+        uvfits_files = glob.glob(os.path.join(args.srcdir, subdir, '*.uvfits'))
+        uvfits_files = [uvf for uvf in uvfits_files if '+avg.uvfits' not in uvf]
+        for uvf in uvfits_files:
+            match = re.search(r'hops_' + re.escape(subdir) + r'_(.*?)\.uvfits', os.path.basename(uvf))
+            if match:
+                source_name = match.group(1)
+                source_names.add(source_name)
+
+    sourL = list(sorted(source_names))
+    print(f'List of sources: {sourL}')
+
+    # get list of stations from metadata
+    with open(os.path.join(args.wrkdir, az2z_file), 'r') as f:
+        az2z = ast.literal_eval(f.read())
+    # extract only the single letter station codes
+    antL = list(sorted(az2z.values()))
+    print(f'Dict of station codes: {az2z}')
+    print(f'List of stations: {antL}')
+
+    # get list of HOPS expt numbers (denoting epochs) from metadata
+    with open(os.path.join(args.wrkdir, track2expt_file), 'r') as f:
+        track2expt = ast.literal_eval(f.read())
+    # extract only the expt numbers
+    exptL = list(sorted(track2expt.values()))
+    print(f'Dict of expt numbers: {track2expt}')
+    print(f'List of epochs: {exptL}')
+
+    # get list of bands -- this will be just the current band for now
+    # Use regular expression to extract 'b1' from 'hops-b1'
+    match = re.search(r'hops-(\w+)/', args.wrkdir)
+    if match:
+        bandL = [match.group(1)]
+    else:
+        print('Band not found. Exiting without generating SEFDs!')
+    print(f'List of bands: {bandL}')
+
+    # read antenna locations from ehtim format arrays.txt file from args.metadir
+    text_files = glob.glob(os.path.join(args.metadir, '*.txt'))
+    # Check if there is exactly one text file
+    if len(text_files) != 1:
+        raise ValueError(f"Expected exactly one text file in the directory, but found {len(text_files)}")
+    ant_locat = read_coordinates(text_files[0])
+
+    # necessary paths to VEX and ANTAB files and output directories
+    antabpath = os.path.join(args.metadir, 'ANTAB')
+    vexpath = os.path.join(args.metadir, 'VEX')
+    sefdpath = os.path.join(args.wrkdir, 'SEFD') # create SEFD dir under args.wrkdir
+
+    # compute SEFDs for this band and epoch for all stations except ALMA
+    antL_noALMA = [station for station in antL if station != 'A']
+    version = '2021'
+    apcal.get_sefds_new(antab_path=antabpath, vex_path=vexpath, version=version, sourL=sourL, antL=antL_noALMA, AZ2Z=az2z, track2expt=track2expt, ant_locat=ant_locat, exptL=exptL, bandL=bandL, pathSave=sefdpath)
+
+    # compute SEFDs for ALMA
+    antL_only_ALMA = ['A']
+    version = 'ER6'
+    apcal.get_sefds_ALMA(antab_path=antabpath, vex_path=vexpath, sourL=sourL, exptL=exptL, antL=antL_only_ALMA, bandL=bandL, pathSave=sefdpath, version=version, only_ALMA=True, avg_Tsys=True)
+    
+    return 0
+
+if __name__=='__main__':
+    args = create_parser().parse_args()
+    ret = main(args)
+    sys.exit(ret)
