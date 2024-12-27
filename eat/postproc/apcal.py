@@ -24,7 +24,7 @@ exptL = [3597,3598,3599,3600,3601]
 ap.get_sefds(antab_path,vex_path,sourL,antL,exptL)
 
 '''
-
+import re
 import pandas as pd
 import numpy as np
 import os, datetime
@@ -292,6 +292,7 @@ def dict_DPFU_GFIT_2018(filepath, AZ2Z):
     '''
     version for ANTAB formats from 2018 onwards
     '''
+
     #loading DPFU and GFIT in for from a single file (one track, many antenas)
     myfile = open(filepath, 'r')
     cou=0
@@ -345,23 +346,85 @@ def dict_DPFU_GFIT_2018(filepath, AZ2Z):
     return dict_dpfu, dict_gfit
 
 
+def extract_dpfu_gfit_from_antab(filename, az2z):
+    """
+    Parses a file to extract DPFU and GFIT values for antennas from ANTAB files for a single band and returns them as dictionaries.
+
+    Parameters
+    ----------
+    filename : str
+        The ANTAB filename with full path.
+    az2z : dict
+        A dictionary mapping 2-letter station codes to their respective 1-letter codes.
+
+    Returns
+    -------
+    tuple
+        A tuple containing two dictionaries:
+        - dpfudict (dict): A dictionary with tuples of (antenna, track, band, polarization) as keys and DPFU values as values.
+        - gfitdict (dict): A dictionary with tuples of (antenna, track, band, polarization) as keys and GFIT coefficients as values.
+
+    Notes
+    -----
+    The ANTAB file is expected to contain DPFU and POLY (gain coefficients) for multiple antennas and polarizations.
+    The values for each station are contained in lines starting with 'GAIN' followed by the strings 'DPFU' and 'POLY' with corresponding values.
+    The function reads the file line by line, processes the data, and converts it into the required format.
+    """
+    track, band = os.path.basename(filename).split('_')[:2]
+    pol = ['R', 'L']    # Polarizations
+
+    # Regular expressions to match DPFU and POLY values
+    dpfu_pattern = re.compile(r'DPFU\s*=\s*([\d\.\-eE]+(?:,\s*[\d\.\-eE]+)*)')
+    poly_pattern = re.compile(r'POLY\s*=\s*([\d\.\-eE]+(?:,\s*[\d\.\-eE]+)*)')
+
+    dict_dpfu = {}
+    dict_gfit = {}
+
+    # Open the file and process only those lines that start with "GAIN"
+    with open(filename, 'r') as f:
+        for line in f:
+            if line.startswith("GAIN"):
+                ant = az2z[line.split(' ')[1]]
+                dpfu_match = dpfu_pattern.search(line)
+                poly_match = poly_pattern.search(line)
+                if dpfu_match and poly_match:
+                    dpfu = [float(value.strip()) for value in dpfu_match.group(1).split(',')]
+                    poly = [float(value.strip()) for value in poly_match.group(1).split(',')]
+
+                    # Add the extracted values to the dictionary
+                    dict_dpfu[(ant, track, band, pol[0])] = dpfu[0]
+                    dict_dpfu[(ant, track, band, pol[1])] = dpfu[-1]
+                    dict_gfit[(ant, track, band, pol[0])] = poly
+                    dict_gfit[(ant, track, band, pol[1])] = poly
+            else:
+                break
+
+    return dict_dpfu, dict_gfit
+
 def merge_dicts(x, y):
     z = x.copy()
     z.update(y)
     return z
 
 def prepare_dicts(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
+    """
+    Reads ANTAB format files in a specified folder and returns dictionaries containing DPFU and GFIT (gain coefficient) values.
+
+    Parameters:
+    folder_path (str): The path to the folder containing ANTAB format files.
+    AZ2Z (dict): A dictionary mapping 2-letter station codes to 1-letter station codes.
+    bandL (list): A list of bands for which to generate the outputs.
+
+    Returns:
+    dict: A dictionary containing DPFU values.
+    dict: A dictionary containing GFIT values.
+    """
     dict_dpfu = {}; dict_gfit = {}
-    #list_files = os.listdir(folder_path)
-    #list_files = [f for f in list_files if f[0] =='e']
     list_files = [f for f in os.listdir(folder_path) if f[0] == 'e' and any(f'_{band}_' in f for band in bandL)]
-    #cols = ['datetime','Tsys_st_R_lo','Tsys_st_L_lo','Tsys_st_R_hi','Tsys_st_L_hi']
-    #antena='NoAntena'
-    #FooDF = pd.DataFrame(columns=cols)
 
     for f in list_files:
         fpath = os.path.join(folder_path, f)
-        dict_dpfu_loc, dict_gfit_loc = dict_DPFU_GFIT_2018(fpath, AZ2Z)
+        dict_dpfu_loc, dict_gfit_loc = extract_dpfu_gfit_from_antab(fpath, AZ2Z)
         dict_dpfu = merge_dicts(dict_dpfu,dict_dpfu_loc)
         dict_gfit = merge_dicts(dict_gfit,dict_gfit_loc)
     
