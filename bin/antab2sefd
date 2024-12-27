@@ -19,6 +19,8 @@ def create_parser():
     p.add_argument("srcdir", help="Directory containing UVFITS files organized by epoch (i.e. stage 6 directory)")
     p.add_argument("metadir", help="Directory containing calibration metadata (VEX files, ANTAB files)")
     p.add_argument("wrkdir", help="Directory to which SEFD files must be written")
+    p.add_argument("-v", "--version", help="Version of the calibration metadata", default='2021')
+    p.add_argument("-av", "--almaversion", help="Version of the ALMA calibration metadata", default='ER6')
 
     return p
 
@@ -99,13 +101,11 @@ def main(args):
 
     # compute SEFDs for this band and epoch for all stations except ALMA
     antL_noALMA = [station for station in antL if station != 'A']
-    version = '2021'
-    apcal.get_sefds_new(antab_path=antabpath, vex_path=vexpath, version=version, sourL=sourL, antL=antL_noALMA, AZ2Z=az2z, track2expt=track2expt, ant_locat=ant_locat, exptL=exptL, bandL=bandL, pathSave=sefdpath)
+    apcal.get_sefds_new(antab_path=antabpath, vex_path=vexpath, version=args.version, sourL=sourL, antL=antL_noALMA, AZ2Z=az2z, track2expt=track2expt, ant_locat=ant_locat, exptL=exptL, bandL=bandL, pathSave=sefdpath)
 
     # compute SEFDs for ALMA
     antL_only_ALMA = ['A']
-    version = 'ER6'
-    apcal.get_sefds_ALMA(antab_path=antabpath, vex_path=vexpath, sourL=sourL, exptL=exptL, antL=antL_only_ALMA, bandL=bandL, pathSave=sefdpath, version=version, only_ALMA=True, avg_Tsys=True)
+    apcal.get_sefds_ALMA(antab_path=antabpath, vex_path=vexpath, sourL=sourL, exptL=exptL, antL=antL_only_ALMA, bandL=bandL, pathSave=sefdpath, version=args.almaversion, only_ALMA=True, avg_Tsys=True)
     
     return 0
 
