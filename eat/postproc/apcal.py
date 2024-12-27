@@ -292,7 +292,6 @@ def dict_DPFU_GFIT_2018(filepath, AZ2Z):
     '''
     version for ANTAB formats from 2018 onwards
     '''
-
     #loading DPFU and GFIT in for from a single file (one track, many antenas)
     myfile = open(filepath, 'r')
     cou=0
@@ -396,8 +395,6 @@ def extract_dpfu_gfit_from_antab(filename, az2z):
                     dict_dpfu[(ant, track, band, pol[1])] = dpfu[-1]
                     dict_gfit[(ant, track, band, pol[0])] = poly
                     dict_gfit[(ant, track, band, pol[1])] = poly
-            else:
-                break
 
     return dict_dpfu, dict_gfit
 
@@ -406,7 +403,7 @@ def merge_dicts(x, y):
     z.update(y)
     return z
 
-def prepare_dicts(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
+def extract_dpfu_gfit_from_all_antab(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
     """
     Reads ANTAB format files in a specified folder and returns dictionaries containing DPFU and GFIT (gain coefficient) values.
 
@@ -425,8 +422,8 @@ def prepare_dicts(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
     for f in list_files:
         fpath = os.path.join(folder_path, f)
         dict_dpfu_loc, dict_gfit_loc = extract_dpfu_gfit_from_antab(fpath, AZ2Z)
-        dict_dpfu = merge_dicts(dict_dpfu,dict_dpfu_loc)
-        dict_gfit = merge_dicts(dict_gfit,dict_gfit_loc)
+        dict_dpfu = {**dict_dpfu, **dict_dpfu_loc}
+        dict_gfit = {**dict_gfit, **dict_gfit_loc}
     
     return dict_dpfu, dict_gfit
 
@@ -1542,7 +1539,7 @@ def get_sefds_new(antab_path ='ANTABS/', vex_path = 'VexFiles/', version = '2021
     '''
     print('Getting the calibration data...')
     #TABLE of CALIBRATION DATA from ANTAB files
-    dp, gf = prepare_dicts(antab_path, AZ2Z, bandL)
+    dp, gf = extract_dpfu_gfit_from_all_antab(antab_path, AZ2Z, bandL)
     Ts = prepare_Tsys_data(antab_path, AZ2Z, track2expt, bandL)
 
     print('Getting the scans data...')
@@ -1565,9 +1562,9 @@ def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None,
     #TABLE of CALIBRATION DATA from ANTAB files
 
     if dpfu_path:
-        dp, gf = prepare_dicts(dpfu_path)
+        dp, gf = extract_dpfu_gfit_from_all_antab(dpfu_path)
     else:
-        dp, gf = prepare_dicts(antab_path)
+        dp, gf = extract_dpfu_gfit_from_all_antab(antab_path)
 
     if version=='ER6':
         TsA = prepare_Tsys_data_ALMA_ER6(antab_path,only_ALMA=only_ALMA,avg_Tsys=avg_Tsys)
