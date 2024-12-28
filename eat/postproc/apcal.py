@@ -407,14 +407,21 @@ def extract_dpfu_gfit_from_all_antab(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
     """
     Reads ANTAB format files in a specified folder and returns dictionaries containing DPFU and GFIT (gain coefficient) values.
 
-    Parameters:
-    folder_path (str): The path to the folder containing ANTAB format files.
-    AZ2Z (dict): A dictionary mapping 2-letter station codes to 1-letter station codes.
-    bandL (list): A list of bands for which to generate the outputs.
+    Parameters
+    ----------
+    folder_path : str
+        The path to the folder containing ANTAB format files.
+    AZ2Z : dict
+        A dictionary mapping 2-letter station codes to 1-letter station codes.
+    bandL : list
+        A list of bands for which to generate the outputs.
 
-    Returns:
-    dict: A dictionary containing DPFU values.
-    dict: A dictionary containing GFIT values.
+    Returns
+    -------
+    dict
+        A dictionary containing DPFU values from all ANTAB files.
+    dict
+        A dictionary containing GFIT values from all ANTAB files.
     """
     dict_dpfu = {}; dict_gfit = {}
     list_files = [f for f in os.listdir(folder_path) if f[0] == 'e' and any(f'_{band}_' in f for band in bandL)]
@@ -935,12 +942,34 @@ def time2datetime1(day,hour):
     datet = (datetime.datetime(2017, 1,1,h,m,s) + datetime.timedelta(days=day-1))    
     return datet
 
-def time2datetimeyear(year,day,hour):
-    #calculateslist of datetime stamps
-    foo = hour.split(':')
+def time2datetimeyear(year, day, hour):
+    """
+    Convert strings representing year, day, and hour to a datetime object.
+
+    Parameters
+    ----------
+    year : str
+        The year as a string.
+    day : str
+        The day of the year as a string.
+    hour : str
+        The time in 'HH:MM:SS' format as a string.
+
+    Returns
+    -------
+    datetime.datetime
+        A datetime object representing the specified date and time.
+    """
+    
     day = int(day)
-    h = int(foo[0])%24; m = int(foo[1]); s = int(foo[2])
-    datet = (datetime.datetime(int(year), 1,1,h,m,s) + datetime.timedelta(days=day-1))    
+
+    hms = hour.split(':')
+    h = int(hms[0])%24
+    m = int(hms[1])
+    s = int(hms[2])
+    
+    datet = (datetime.datetime(int(year), 1, 1, h, m, s) + datetime.timedelta(days=day-1))    
+    
     return datet
 
 def make_single_Tsys_table(Tsys, track2expt=track2expt):
@@ -967,6 +996,164 @@ def ALMAtime2STANDARDtime(atime):
     us = int((sec_with_frac - s)*1e6)
     dt = datetime.timedelta(hours = h, minutes=m,seconds = s, microseconds=us)
     return dt
+
+def group_tsys_blocks(filename):
+    """
+    Groups lines from a file into blocks based on 'TSYS' headers and '/' delimiters.
+
+    Parameters
+    ----------
+    filename : str
+        The file to be read with full path.
+
+    Returns
+    -------
+    blocks : list of list of str
+        A list where each element is a block of lines (as a list of strings) 
+        starting with 'TSYS' and ending with the second occurrence of '/'.
+    """
+    
+    with open(filename, 'r') as file:
+        lines = file.readlines()
+
+    blocks = []
+    current_block = []
+    in_block = False
+    first_slash_found = False
+
+    for line in lines:
+        if line.startswith('TSYS'):
+            if in_block:
+                blocks.append(current_block)
+            current_block = [line.strip()]
+            in_block = True
+            first_slash_found = False
+        elif in_block:
+            current_block.append(line.strip())
+            if '/' in line:
+                if first_slash_found:
+                    blocks.append(current_block)
+                    current_block = []
+                    in_block = False
+                else:
+                    first_slash_found = True
+
+    if in_block and current_block:
+        blocks.append(current_block)
+
+    return blocks
+
+def extract_Tsys_from_antab(antabpath, AZ2Z=az2z, track2expt=track2expt, bandL=bandL0, avg_channels=True):
+    """
+    Extracts Tsys values from ANTAB files and returns them as a DataFrame.
+    Parameters
+    ----------
+    antabpath : str
+        Path to the directory containing ANTAB files.
+    AZ2Z : dict, optional
+        Dictionary mapping station codes to their respective identifiers.
+    track2expt : dict, optional
+        Dictionary mapping track identifiers to experiment numbers.
+    bandL : list, optional
+        List of bands to filter the ANTAB files.
+    avg_channels : bool, optional
+        Whether to average Tsys values per channel.
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the extracted Tsys values with columns:
+        ['datetime', 'mjd', 'Tsys_star_pol1', 'Tsys_star_pol2', 'band', 'station', 'track', 'expt_no'].
+    Notes
+    -----
+    - The function assumes that the ANTAB files are named in a specific format and contain Tsys blocks.
+    - The function handles different formats of Tsys values, including averaging per channel values if necessary.
+    """
+
+    list_files = [f for f in os.listdir(antabpath) if f[0] == 'e' and any(f'_{band}_' in f for band in bandL)]
+
+    cols = ['datetime', 'mjd', 'Tsys_star_pol1','Tsys_star_pol2','band', 'station', 'track', 'expt_no']
+    Tsys = pd.DataFrame(columns=cols)
+
+    for f in list_files:
+        fname = os.path.join(antabpath, f)
+        track, band = os.path.basename(fname).split('_')[:2] # get track and band from the filename
+        expt_no = track2expt[track] # get expt number from track2expt dict
+        year = f"20{track[1:3]}"
+
+        # get Tsys blocks from the file
+        blocks = group_tsys_blocks(fname)
+
+        for block in blocks:
+            rowdict = {}
+            rowdict['track'] = track
+            rowdict['band'] = band
+            rowdict['expt_no'] = expt_no
+
+            first_slash_encountered = False
+            for line in block:
+                if line.startswith('TSYS'):
+                    parts = line.split()
+                    rowdict['station'] = AZ2Z[parts[1]] # get station code
+                    print(rowdict['station'])
+
+                    match = re.search(r'timeoff=\s*([\d.]+)', line)
+                    if match:
+                        timeoff = float(match.group(1))
+                    else:
+                        timeoff = 0.0
+                    timeoff = datetime.timedelta(seconds = timeoff) # a datetime duration
+
+                    # check if the first slash is at the end of the TSYS line
+                    if line.endswith('/'):
+                        print("here")
+                        first_slash_encountered = True
+
+                # move on to the next block if the line starts with '/'
+                if line.startswith('/'):
+                    if first_slash_encountered:
+                        break
+                    else:
+                        first_slash_encountered = True                    
+
+                if isfloat(line.split()[0]):
+                    parts = line.split()
+                    print(f"parts before: {parts}")
+                    parts = [x for x in parts if len(x) > 0]
+                    print(f"parts after: {parts}")
+
+                    # get datetime_loc
+                    if rowdict['station'] == 'A':
+                        datetime_loc = time2datetimeyear(year, parts[0], '00:00:00')
+                        datetime_loc = datetime_loc + ALMAtime2STANDARDtime(parts[1]) + timeoff
+                    else:
+                        datetime_loc = time2datetimeyear(year, parts[0], parts[1]) + timeoff
+
+                    rowdict['datetime'] = datetime_loc
+                    rowdict['mjd'] = Time(datetime_loc).mjd # get mjd
+
+                    # get Tsys values
+                    if len(parts) == 3:
+                        Tsys_star_pol1 = Tsys_star_pol2 = float(parts[2])
+                    elif len(parts) == 4:
+                        Tsys_star_pol1 = float(parts[2])
+                        Tsys_star_pol2 = float(parts[3])
+                    else:
+                        # this station has Tsys values per channel; average them
+                        print(f"Station {rowdict['station']} has Tsys values per channel (but not per pol). Averaging them...")
+                        Tsysarr = np.asarray(list(map(float,parts[2:])))
+                        Tsysarr = Tsysarr[(Tsysarr != 0) & ~np.isnan(Tsysarr)]
+                        if Tsysarr.size > 0:
+                            Tsys_star_pol1 = Tsys_star_pol2 = (1./np.mean(1./np.sqrt(Tsysarr)))**2
+                        else:
+                            Tsys_star_pol1 = Tsys_star_pol2 = np.nan
+
+                    rowdict['Tsys_star_pol1'] = Tsys_star_pol1
+                    rowdict['Tsys_star_pol2'] = Tsys_star_pol2
+
+                    rowdf = pd.DataFrame([rowdict], columns=cols)
+                    Tsys = pd.concat([Tsys, rowdf], ignore_index=True)
+
+    return Tsys
 
 def prepare_data_for_sefd(alist, path_antab ='ANTABS/'):
 
@@ -1540,7 +1727,7 @@ def get_sefds_new(antab_path ='ANTABS/', vex_path = 'VexFiles/', version = '2021
     print('Getting the calibration data...')
     #TABLE of CALIBRATION DATA from ANTAB files
     dp, gf = extract_dpfu_gfit_from_all_antab(antab_path, AZ2Z, bandL)
-    Ts = prepare_Tsys_data(antab_path, AZ2Z, track2expt, bandL)
+    Ts = extract_Tsys_from_antab(antab_path, AZ2Z, track2expt, bandL)
 
     print('Getting the scans data...')
     #TABLE of SCANS from VEX files, using elevation gain info
