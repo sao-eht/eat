@@ -1043,7 +1043,7 @@ def group_tsys_blocks(filename):
 
     return blocks
 
-def extract_Tsys_from_antab(antabpath, AZ2Z=az2z, track2expt=track2expt, bandL=bandL0, avg_channels=True):
+def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=bandL0, avg_channels=True):
     """
     Extracts Tsys values from ANTAB files and returns them as a DataFrame.
     Parameters
