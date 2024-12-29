@@ -84,6 +84,7 @@ antL0 = ['S','J','P','Z','X','L','R','A','Y','G','N','K']
 exptL0 = [3597,3598,3599,3600,3601]'''
 
 AZ2Z = {}
+SMT2Z = {}
 track2expt = {}
 ant_locat = {}
 sourL = []
@@ -1720,7 +1721,7 @@ def get_sefds(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,antL=an
     #produce a priori calibration data
     generate_and_save_sefd_data(Tsys_match, dict_dpfu, dict_gfit, sourL, antL, exptL)
 
-def get_sefds_new(antab_path ='ANTABS/', vex_path = 'VexFiles/', version = '2021', sourL=sourL, antL=antL0, AZ2Z=AZ2Z, track2expt=track2expt, ant_locat=ant_locat, exptL = exptL0, bandL=bandL0, pathSave = 'SEFDs'):
+def get_sefds_new(antab_path ='ANTABS/', vex_path = 'VexFiles/', version = '2021', sourL=sourL, antL=antL0, AZ2Z=AZ2Z, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, exptL = exptL0, bandL=bandL0, pathSave = 'SEFDs'):
     '''
     new version for when files are separate for bands
     '''

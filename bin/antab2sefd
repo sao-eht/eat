@@ -67,8 +67,13 @@ def main(args):
         az2z = ast.literal_eval(f.read())
     # extract only the single letter station codes
     antL = list(sorted(az2z.values()))
-    print(f'Dict of station codes: {az2z}')
-    print(f'List of stations: {antL}')
+    print(f'Dict of 2-letter station codes: {az2z}')
+    print(f'List of mk4 station codes: {antL}')
+
+    # get list of stations from metadata
+    with open(os.path.join(args.wrkdir, smt2z_file), 'r') as f:
+        smt2z = ast.literal_eval(f.read())
+    print(f'Dict of station names: {smt2z}')
 
     # get list of HOPS expt numbers (denoting epochs) from metadata
     with open(os.path.join(args.wrkdir, track2expt_file), 'r') as f:
@@ -101,7 +106,7 @@ def main(args):
 
     # compute SEFDs for this band and epoch for all stations except ALMA
     antL_noALMA = [station for station in antL if station != 'A']
-    apcal.get_sefds_new(antab_path=antabpath, vex_path=vexpath, version=args.version, sourL=sourL, antL=antL_noALMA, AZ2Z=az2z, track2expt=track2expt, ant_locat=ant_locat, exptL=exptL, bandL=bandL, pathSave=sefdpath)
+    apcal.get_sefds_new(antab_path=antabpath, vex_path=vexpath, version=args.version, sourL=sourL, antL=antL_noALMA, AZ2Z=az2z, SMT2Z=smt2z, track2expt=track2expt, ant_locat=ant_locat, exptL=exptL, bandL=bandL, pathSave=sefdpath)
 
     # compute SEFDs for ALMA
     antL_only_ALMA = ['A']
