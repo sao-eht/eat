@@ -246,9 +246,9 @@ def pop120(b=None, pol=None, fill=0):
     if not os.path.isfile(corelfile):
         raise FileNotFoundError(f"Cannot find corel file: {corelfile}")
     try:
-        c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
+        c = mk4.mk4corel(corelfile) # corel file
     except:
-        c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]]).encode()) # HOPS <= 3.19
+        c = mk4.mk4corel(corelfile).encode()) # HOPS <= 3.19
     # use fringe file to get ap length, note that nap in fringe file is not necessarily same as corel
     ap = (mk4time(b.t205.contents.stop) - mk4time(b.t205.contents.start)).total_seconds() / b.t212[0].contents.nap
     T = (mk4time(c.t100.contents.stop) - mk4time(c.t100.contents.start)).total_seconds()
