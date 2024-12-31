@@ -242,6 +242,9 @@ def pop120(b=None, pol=None, fill=0):
         raise Exception("please pass a FRINGE file not a COREL file to this function, as the COREL file will be read automatically")
     b = getfringefile(b, pol=pol) # fringe file
     ctok = getfringefile.last[-1].split('.')
+    corelfile = '/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])
+    if not os.path.isfile(corelfile):
+        raise FileNotFoundError(f"Cannot find corel file: {corelfile}")
     try:
         c = mk4.mk4corel('/'.join(getfringefile.last[:-1] + [ctok[0] + '..' + ctok[-1]])) # corel file
     except:
