@@ -1570,6 +1570,196 @@ def add_SPT_total_scan(scans):
     scans=scans.sort_values('time_min').reset_index(drop=True)
     return scans
 
+# Function to extract degrees, minutes, and seconds from dec
+def extract_dms(dec):
+    """
+    Extracts degrees, minutes, and seconds from a declination string.
+    Parameters
+    ----------
+    dec : str
+        A string representing the declination in the format "±DdMmSs.s".
+    Returns
+    -------
+    tuple or None
+        A tuple containing degrees, minutes, and seconds as floats if the input matches the expected format.
+        Returns None if the input does not match the expected format.
+    Examples
+    --------
+    >>> extract_dms("+12d34'56.7\"")
+    (12.0, 34.0, 56.7)
+    >>> extract_dms("-12d34'56.7\"")
+    (-12.0, 34.0, 56.7)
+    >>> extract_dms("invalid")
+    None
+    """
+
+    match = re.match(r"([+-]?\d+)d(\d+)'(\d+\.\d+)\"", dec)
+    if match:
+        degrees = float(match.group(1))
+        minutes = float(match.group(2))
+        seconds = float(match.group(3))
+        return (degrees, minutes, seconds)
+    return None
+
+# Function to extract hours, minutes, and seconds from ra
+def extract_hms(ra):
+    """
+    Extract hours, minutes, and seconds from a right ascension string.
+    Parameters
+    ----------
+    ra : str
+        A string representing the right ascension in the format "XhYmZs",
+        where X, Y, and Z are numbers.
+    Returns
+    -------
+    tuple of float or None
+        A tuple containing hours, minutes, and seconds as floats if the input
+        string matches the expected format. Returns None if the input string
+        does not match the expected format.
+    Examples
+    --------
+    >>> extract_hms("12h34m56.78s")
+    (12.0, 34.0, 56.78)
+    >>> extract_hms("invalid_string")
+    None
+    """
+
+    match = re.match(r"(\d+)h(\d+)m(\d+\.\d+)s", ra)
+    if match:
+        hours = float(match.group(1))
+        minutes = float(match.group(2))
+        seconds = float(match.group(3))
+        return (hours, minutes, seconds)
+    return None
+
+def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, ant_locat=ant_locat, only_ALMA=False):
+    """
+    Generate a list of scans from all the VEX files in a given directory.
+
+    Parameters
+    ----------
+    fpath : str
+        Path to the directory containing VEX files.
+    dict_gfit : dict
+        Dictionary containing gain fit parameters.
+    version : str, optional
+        Version of the gain fit parameters to use ('2018', '2021', or other), by default '2021'.
+    ant_locat : dict
+        Dictionary containing antenna locations.
+    only_ALMA : bool, optional
+        If False, do some additional processing for other stations. Default is False.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing scan information including source, time, elevation, antennas, and gain.
+
+    Notes
+    -----
+    The function processes VEX files to extract scan information, computes elevation for specified antennas,
+    and applies gain corrections based on the provided version and gain fit parameters.
+    """
+
+    # get list of all VEX files in fpath
+    list_files = [os.path.join(fpath, fname) for fname in os.listdir(fpath)]
+
+    # initialize DataFrame to store scan information for all tracks
+    tracks = pd.DataFrame({'source' : []})
+
+    # extract only those sites that have polynomial coefficients for gains in the ANTAB files
+    # convert to set to avoid duplicate sites that show up for different polarizations
+    polygain_stations = list(set([key[0] for key, value in dict_gfit.items() if len(value) > 1]))
+    print(f"polygain_stations: {polygain_stations}")
+
+    # loop over all VEX files in fpath; one VEX file per observing track
+    for fi in list_files:
+        track_loc = os.path.splitext(os.path.basename(fi))[0] # get track name from vex file name
+
+        aa = vex.Vex(fi) # read VEX file
+
+        # Create dict_ra with 'source' as keys and the 3-tuple (hours, minutes, seconds) as values
+        dict_ra = {d['source']: extract_hms(d['ra']) for d in aa.source}
+
+        # Create dict_dec with 'source' as keys and the 3-tuple (degrees, minutes, seconds) as values
+        dict_dec = {d['source']: extract_dms(d['dec']) for d in aa.source}
+
+        # populate dataframe with scan information
+        tstart_hr = [aa.sched[x]['start_hr'] for x in range(len(aa.sched))]
+        source = [aa.sched[x]['source'] for x in range(len(aa.sched))]
+        datet = []
+        elev = []
+        stations = []
+        duration=[]
+
+        # loop over each item in aa.sched to extract scan information
+        for scanind in range(len(aa.sched)):
+            # extract MJD floor from VEX file and convert to ISO format
+            mjd_floor = Time(aa.sched[scanind]['mjd_floor'], format='mjd', scale='utc')
+            mjd_floor_iso = Time(mjd_floor, format='iso', scale='utc')
+            mjd_floor_iso = mjd_floor_iso + TimeDelta(tstart_hr[scanind]*3600., format='sec')
+            datet.append(mjd_floor_iso)
+
+            # Include only those stations in the elevation dict that have polynomial (degree > 1) coefficients for gains.
+            # Exclude stations that are absent in SMT2Z dict (derived from ovex files) which contains only those stations
+            # that actually observed. The info derived from VEX files may contain stations that were scheduled but ended up not observing.
+            stations_in_scan = [value['site'] for value in aa.sched[scanind]['scan'].values()]
+            stations_in_scan = [SMT2Z[station] for station in stations_in_scan if station in SMT2Z.keys()]
+
+            # compute elevation for each station in the scan and append to elevation list
+            elevloc = {}
+            for station in stations_in_scan:
+                if station in polygain_stations:
+                    elevloc[station] = compute_elev(dict_ra[source[scanind]], dict_dec[source[scanind]], ant_locat[station], datet[scanind] + TimeDelta(100., format='sec'))
+            elev.append(elevloc)
+
+            # append list of stations in the scan to stations list
+            if version == '2017' and 'S' in stations_in_scan:
+                stations_in_scan = stations_in_scan | {'R'}
+            stations.append(stations_in_scan)
+
+            # append scan durations to duration list
+            scan_sec = max([aa.sched[scanind]['scan'][y]['scan_sec'] for y in range(len(aa.sched[scanind]['scan']))])
+            duration.append(scan_sec)
+
+        time_min = [pd.Timestamp(datet[x].datetime) for x in range(len(datet))]
+        time_max = [time_min[x] + datetime.timedelta(seconds=duration[x]) for x in range(len(aa.sched))]
+
+        pervexdf = pd.DataFrame(aa.sched)
+        pervexdf = pervexdf[['source','mjd_floor','start_hr']]
+        pervexdf['time_min'] = time_min
+        pervexdf['time_max'] = time_max
+        pervexdf['elev'] = elev
+        pervexdf['scan_no'] = pervexdf.index
+        pervexdf['scan_no'] = list(map(int, pervexdf['scan_no']))
+        pervexdf['track'] = [track_loc]*pervexdf.shape[0]
+        pervexdf['expt'] = [int(track2expt[track_loc])]*pervexdf.shape[0]
+        pervexdf['stations'] = stations
+        pervexdf['duration'] = duration
+
+        # concatenate pervexdf to scans DataFrame
+        tracks = pd.concat([tracks, pervexdf], ignore_index=True)
+
+    tracks = tracks.reindex(['mjd_floor','expt','track','scan_no','source','time_min','time_max','duration','elev','stations'], axis=1)
+    tracks = tracks.sort_values('time_max')
+    tracks = tracks.reset_index(drop=True)
+    tracks['scan_no_tot'] = tracks.index
+
+    # Compute gain curves and add to dataframe
+    # Get the current band from dict_gfit and set pol to 'R' for accessing gfit coeffs.
+    # This works because all keys pertain to the same band and both polarizations.
+    gfitband = list(dict_gfit.keys())[0][2]
+    gfitpol = 'R'
+    for station in polygain_stations:
+        tracks[f'gain{station}'] = [1.]*tracks.shape[0]
+        for index, row in tracks.iterrows():
+            if station in row.stations:
+                #gainf = lambda x: dict_gfit[(station, 'e21e18', 'b3', 'R')][0] + dict_gfit[(station, 'e21e18', 'b3', 'R')][1]*x + dict_gfit[(station, 'e21e18', 'b3', 'R')][2]*x**2
+                coeffs = dict_gfit[(station, row.track, gfitband, gfitpol)]
+                gainf = Polynomial(coeffs)
+                foo = gainf(tracks.elev[index][station])
+                tracks[f'gain{station}'][index] = float(foo)
+
+    return tracks
 
 def match_scans_Tsys(scans,Tsys,only_ALMA=False):
     #negative labels for ANTAB data taken between scans
