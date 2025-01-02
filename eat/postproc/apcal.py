@@ -1669,7 +1669,6 @@ def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, an
     # extract only those sites that have polynomial coefficients for gains in the ANTAB files
     # convert to set to avoid duplicate sites that show up for different polarizations
     polygain_stations = list(set([key[0] for key, value in dict_gfit.items() if len(value) > 1]))
-    print(f"polygain_stations: {polygain_stations}")
 
     # loop over all VEX files in fpath; one VEX file per observing track
     for fi in list_files:
