@@ -1106,7 +1106,6 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
                     # check if the first slash is at the end of the TSYS line
                     if line.endswith('/'):
-                        print("here")
                         first_slash_encountered = True
 
                 # move on to the next block if the line starts with '/'
@@ -1118,9 +1117,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
                 if isfloat(line.split()[0]):
                     parts = line.split()
-                    print(f"parts before: {parts}")
                     parts = [x for x in parts if len(x) > 0]
-                    print(f"parts after: {parts}")
 
                     # get datetime_loc
                     if rowdict['station'] == 'A':
