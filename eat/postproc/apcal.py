@@ -1064,7 +1064,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
     -------
     pd.DataFrame
         DataFrame containing the extracted Tsys values with columns:
-        ['datetime', 'mjd', 'Tsys_star_pol1', 'Tsys_star_pol2', 'band', 'station', 'track', 'expt_no'].
+        ['datetime', 'mjd', 'Tsys_star_pol1', 'Tsys_star_pol2', 'band', 'station', 'track', 'expt'].
     Notes
     -----
     - The function assumes that the ANTAB files are named in a specific format and contain Tsys blocks.
@@ -1073,13 +1073,13 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
     list_files = [f for f in os.listdir(antabpath) if f[0] == 'e' and any(f'_{band}_' in f for band in bandL)]
 
-    cols = ['datetime', 'mjd', 'Tsys_star_pol1','Tsys_star_pol2','band', 'station', 'track', 'expt_no']
+    cols = ['datetime', 'mjd', 'Tsys_star_pol1','Tsys_star_pol2','band', 'station', 'track', 'expt']
     Tsys = pd.DataFrame(columns=cols)
 
     for f in list_files:
         fname = os.path.join(antabpath, f)
         track, band = os.path.basename(fname).split('_')[:2] # get track and band from the filename
-        expt_no = track2expt[track] # get expt number from track2expt dict
+        expt = track2expt[track] # get expt number from track2expt dict
         year = f"20{track[1:3]}"
 
         # get Tsys blocks from the file
@@ -1089,7 +1089,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
             rowdict = {}
             rowdict['track'] = track
             rowdict['band'] = band
-            rowdict['expt_no'] = expt_no
+            rowdict['expt'] = expt
 
             first_slash_encountered = False
             for line in block:
@@ -1151,6 +1151,8 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
                     rowdf = pd.DataFrame([rowdict], columns=cols)
                     Tsys = pd.concat([Tsys, rowdf], ignore_index=True)
+
+    Tsys.expt = Tsys.expt.astype(int) # convert expt to integer
 
     return Tsys
 
@@ -1787,16 +1789,16 @@ def match_scans_Tsys(scans, Tsys, only_ALMA=False):
     #print('bins ', np.shape(binsT))
     #add scan indexed label to Tsys 
     ordered_labels = pd.cut(Tsys.datetime, binsT,labels = bins_labels)
-    if list(Tsys.antena.unique())==['Y']:
+    if list(Tsys.station.unique())==['Y']:
         Tsys.loc[:,'scan_no_tot'] = np.abs(np.asarray(list(ordered_labels)))
     else:
         Tsys.loc[:,'scan_no_tot'] = list(ordered_labels)
     
     #if there is a column with SPT scans count, then treat SPT separately
-    #print( list(Tsys.antena.unique()) )
+    #print( list(Tsys.station.unique()) )
     '''
-    if list(Tsys.antena.unique())==['Y']:
-        scansY = scans[list(map(lambda x: 'Y' in x, scans.antenas))].sort_values('time_min').reset_index(drop=True)
+    if list(Tsys.station.unique())==['Y']:
+        scansY = scans[list(map(lambda x: 'Y' in x, scans.stations))].sort_values('time_min').reset_index(drop=True)
         bins_labels_Y = [None]*(2*scansY.shape[0]-1)
         bins_labels_Y[1::2] = list(map(lambda x: -x-1,list(scansY['scan_no_tot_Y'])[:-1]))
         bins_labels_Y[::2] = list(scansY['scan_no_tot_Y'])
@@ -1871,18 +1873,14 @@ def global_match_scans_Tsys(scans, Tsys_full, antL=antL0, only_ALMA=False):
     #print(Tsys_full.scan_no_tot)
     for ant in antL:
         #for expt in exptL0:
-        for expt in list(Tsys_full.expt_no.unique()):
-            #print(ant,expt)
-            
-            condA = (Tsys_full['station']==ant)
-            condE = (Tsys_full['expt_no']==expt)
-            Tsys_loc = Tsys_full.loc[condA&condE].sort_values('datetime').reset_index(drop=True)
-            scans_loc = scans[(scans.expt == expt)&list(map(lambda x: ant in x,scans.stations))].sort_values('time_min').reset_index(drop=True)
-            #print(np.shape(Tsys_loc),np.shape(scans_loc))
-            if(np.shape(Tsys_loc)[0]>0):
-                Tsys_foo = match_scans_Tsys(scans_loc,Tsys_loc,only_ALMA=only_ALMA)
-                Tsys_match = pd.concat([Tsys_match,Tsys_foo], ignore_index=True)
-            else: continue
+        for expt in list(Tsys_full.expt.unique()):            
+            Tsys_loc = Tsys_full.loc[(Tsys_full['station']==ant) & (Tsys_full['expt']==expt)].sort_values('datetime').reset_index(drop=True)
+            scans_loc = scans[(scans.expt == expt) & scans.stations.apply(lambda x: ant in x)].sort_values('time_min').reset_index(drop=True)
+            if(np.shape(Tsys_loc)[0]>0 and np.shape(scans_loc)[0]>0):
+                Tsys_foo = match_scans_Tsys(scans_loc, Tsys_loc, only_ALMA=only_ALMA)
+                Tsys_match = pd.concat([Tsys_match, Tsys_foo], ignore_index=True)
+            else:
+                continue
 
     Tsys_match = Tsys_match.sort_values('datetime').reset_index(drop=True)
 
