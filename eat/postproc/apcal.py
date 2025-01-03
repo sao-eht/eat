@@ -1632,7 +1632,7 @@ def extract_hms(ra):
         return (hours, minutes, seconds)
     return None
 
-def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, ant_locat=ant_locat, only_ALMA=False):
+def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, only_ALMA=False):
     """
     Generate a list of scans from all the VEX files in a given directory.
 
@@ -1866,7 +1866,7 @@ def global_match_scans_Tsys_both_bands(scans,Tsys_full,only_ALMA=False):
     Tsys_match = pd.concat([Tsys_match_lo,Tsys_match_hi],ignore_index=True)
     return Tsys_match
 
-def global_match_scans_Tsys(scans,Tsys_full,only_ALMA=False):
+def global_match_scans_Tsys(scans, Tsys_full, only_ALMA=False):
 
     Tsys_match = pd.DataFrame({'source' : []})
 
@@ -1921,11 +1921,11 @@ def get_sefds_new(antab_path ='ANTABS/', vex_path = 'VexFiles/', version = '2021
 
     print('Getting the scans data...')
     #TABLE of SCANS from VEX files, using elevation gain info
-    scans = make_scan_list(vex_path, gf, version=version, ant_locat=ant_locat)
+    scans = extract_scans_from_all_vex(vex_path, gf, version=version, track2expt=track2expt, ant_locat=ant_locat)
 
     print('Matching calibration to scans...')
     #MATCH CALIBRATION with SCANS to determine the source and 
-    Tsys_match = global_match_scans_Tsys(scans,Ts)
+    Tsys_match = global_match_scans_Tsys(scans, Ts)
 
     print('Saving sefd files...')
     #produce a priori calibration data

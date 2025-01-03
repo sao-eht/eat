@@ -104,11 +104,11 @@ def main(args):
     vexpath = os.path.join(args.metadir, 'VEX')
     sefdpath = os.path.join(args.wrkdir, 'SEFD') # create SEFD dir under args.wrkdir
 
-    # compute SEFDs for this band and epoch for all stations except ALMA
+    # compute SEFDs for this band and all epochs for all stations except ALMA
     antL_noALMA = [station for station in antL if station != 'A']
     apcal.get_sefds_new(antab_path=antabpath, vex_path=vexpath, version=args.version, sourL=sourL, antL=antL_noALMA, AZ2Z=az2z, SMT2Z=smt2z, track2expt=track2expt, ant_locat=ant_locat, exptL=exptL, bandL=bandL, pathSave=sefdpath)
 
-    # compute SEFDs for ALMA
+    # compute SEFDs for this band and all epochs for ALMA
     antL_only_ALMA = ['A']
     apcal.get_sefds_ALMA(antab_path=antabpath, vex_path=vexpath, sourL=sourL, exptL=exptL, antL=antL_only_ALMA, bandL=bandL, pathSave=sefdpath, version=args.almaversion, only_ALMA=True, avg_Tsys=True)
     
