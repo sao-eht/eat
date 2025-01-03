@@ -34,6 +34,7 @@ from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
 from astropy.time import Time, TimeDelta
 from eat.io import vex
 import scipy.interpolate as si
+from numpy.polynomial import Polynomial
 
 '''AZ2Zold = {'AZ': 'Z', 'PV': 'P', 'SM':'S', 'SR':'R','JC':'J', 'AA':'A','AP':'X', 'LM':'L','SP':'Y'}
 AZ2Z = {'MG': 'Z', 'PV': 'P', 'SW':'S','MM':'J', 'AA':'A','AX':'X', 'LM':'L','SZ':'Y','GL':'G','NN':'N','KT':'K'}
@@ -1136,8 +1137,8 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
                         Tsys_star_pol1 = float(parts[2])
                         Tsys_star_pol2 = float(parts[3])
                     else:
-                        # this station has Tsys values per channel; average them
-                        print(f"Station {rowdict['station']} has Tsys values per channel (but not per pol). Averaging them...")
+                        # this station has Tsys values per channel (but not per pol); average them
+                        #print(f"Station {rowdict['station']} has Tsys values per channel (but not per pol). Averaging them...")
                         Tsysarr = np.asarray(list(map(float,parts[2:])))
                         Tsysarr = Tsysarr[(Tsysarr != 0) & ~np.isnan(Tsysarr)]
                         if Tsysarr.size > 0:
@@ -1757,7 +1758,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, tr
 
     return tracks
 
-def match_scans_Tsys(scans,Tsys,only_ALMA=False):
+def match_scans_Tsys(scans, Tsys, only_ALMA=False):
     #negative labels for ANTAB data taken between scans
 
     #create scan labels to match Tsys with scans
@@ -1863,20 +1864,20 @@ def global_match_scans_Tsys_both_bands(scans,Tsys_full,only_ALMA=False):
     Tsys_match = pd.concat([Tsys_match_lo,Tsys_match_hi],ignore_index=True)
     return Tsys_match
 
-def global_match_scans_Tsys(scans, Tsys_full, only_ALMA=False):
+def global_match_scans_Tsys(scans, Tsys_full, antL=antL0, only_ALMA=False):
 
     Tsys_match = pd.DataFrame({'source' : []})
 
     #print(Tsys_full.scan_no_tot)
-    for ant in antL0:
+    for ant in antL:
         #for expt in exptL0:
         for expt in list(Tsys_full.expt_no.unique()):
             #print(ant,expt)
             
-            condA = (Tsys_full['antena']==ant)
+            condA = (Tsys_full['station']==ant)
             condE = (Tsys_full['expt_no']==expt)
             Tsys_loc = Tsys_full.loc[condA&condE].sort_values('datetime').reset_index(drop=True)
-            scans_loc = scans[(scans.expt == expt)&list(map(lambda x: ant in x,scans.antenas))].sort_values('time_min').reset_index(drop=True)
+            scans_loc = scans[(scans.expt == expt)&list(map(lambda x: ant in x,scans.stations))].sort_values('time_min').reset_index(drop=True)
             #print(np.shape(Tsys_loc),np.shape(scans_loc))
             if(np.shape(Tsys_loc)[0]>0):
                 Tsys_foo = match_scans_Tsys(scans_loc,Tsys_loc,only_ALMA=only_ALMA)
@@ -1918,11 +1919,11 @@ def get_sefds_new(antab_path ='ANTABS/', vex_path = 'VexFiles/', version = '2021
 
     print('Getting the scans data...')
     #TABLE of SCANS from VEX files, using elevation gain info
-    scans = extract_scans_from_all_vex(vex_path, gf, version=version, track2expt=track2expt, ant_locat=ant_locat)
+    scans = extract_scans_from_all_vex(vex_path, gf, version=version, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat)
 
     print('Matching calibration to scans...')
     #MATCH CALIBRATION with SCANS to determine the source and 
-    Tsys_match = global_match_scans_Tsys(scans, Ts)
+    Tsys_match = global_match_scans_Tsys(scans, Ts, antL=antL)
 
     print('Saving sefd files...')
     #produce a priori calibration data
