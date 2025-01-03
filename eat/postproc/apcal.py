@@ -1754,7 +1754,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, tr
                 coeffs = dict_gfit[(station, row.track, gfitband, gfitpol)]
                 gainf = Polynomial(coeffs)
                 foo = gainf(tracks.elev[index][station])
-                tracks[f'gain{station}'][index] = float(foo)
+                tracks.loc[index, f'gain{station}'] = float(foo)
 
     return tracks
 
