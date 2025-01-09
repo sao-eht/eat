@@ -1949,13 +1949,6 @@ def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0, only_ALMA=False):
 
     return Tsys_matched
 
-def global_match_scans_Tsys_both_bands(scans,Tsys_full,only_ALMA=False):
-    Tsys_match_lo = global_match_scans_with_Tsys(scans,Tsys_full[Tsys_full.band=='lo'],only_ALMA=False)   
-    Tsys_match_hi = global_match_scans_with_Tsys(scans,Tsys_full[Tsys_full.band=='hi'],only_ALMA=False)
-
-    Tsys_match = pd.concat([Tsys_match_lo,Tsys_match_hi],ignore_index=True)
-    return Tsys_match
-
 def get_sefds(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,antL=antL0, exptL = exptL0):
 
     print('Getting the calibration data...')
@@ -1969,7 +1962,7 @@ def get_sefds(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,antL=an
 
     print('Matching calibration to scans...')
     #MATCH CALIBRATION with SCANS to determine the source and 
-    Tsys_match = global_match_scans_Tsys(scans,Tsys_full)
+    Tsys_match = global_match_scans_with_Tsys(scans,Tsys_full)
 
     print('Saving sefd files...')
     #produce a priori calibration data
@@ -2050,7 +2043,7 @@ def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None,
 
     print('Matching calibration to scans...')
     #MATCH CALIBRATION with SCANS to determine the source and 
-    TsysA_match = global_match_scans_Tsys(scans,TsA,only_ALMA=only_ALMA)
+    TsysA_match = global_match_scans_with_Tsys(scans,TsA,only_ALMA=only_ALMA)
 
     print('Saving sefd files...')
     #produce a priori calibration data
