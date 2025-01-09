@@ -1632,7 +1632,7 @@ def extract_hms(ra):
         return (hours, minutes, seconds)
     return None
 
-def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, only_ALMA=False):
+def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, only_ALMA=False):
     """
     Generate a list of scans from all the VEX files in a given directory.
 
@@ -1642,8 +1642,8 @@ def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, tr
         Path to the directory containing VEX files.
     dict_gfit : dict
         Dictionary containing gain fit parameters.
-    version : str, optional
-        Version of the gain fit parameters to use ('2018', '2021', or other), by default '2021'.
+    year : str, optional
+        Additional processing specific to campaign year. Default is '2021'.
     ant_locat : dict
         Dictionary containing antenna locations.
     only_ALMA : bool, optional
@@ -1657,7 +1657,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, tr
     Notes
     -----
     The function processes VEX files to extract scan information, computes elevation for specified antennas,
-    and applies gain corrections based on the provided version and gain fit parameters.
+    and applies gain corrections based on the gain fit parameters provided in the metadata (via dict_gfit).
     """
 
     # get list of all VEX files in fpath
@@ -1712,7 +1712,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, tr
             elev.append(elevloc)
 
             # append list of stations in the scan to stations list
-            if version == '2017' and 'S' in stations_in_scan:
+            if year == '2017' and 'S' in stations_in_scan:
                 stations_in_scan = stations_in_scan | {'R'}
             stations.append(stations_in_scan)
 
@@ -1752,7 +1752,6 @@ def extract_scans_from_all_vex(fpath, dict_gfit, version='2021', SMT2Z=SMT2Z, tr
         tracks[f'gain{station}'] = [1.]*tracks.shape[0]
         for index, row in tracks.iterrows():
             if station in row.stations:
-                #gainf = lambda x: dict_gfit[(station, 'e21e18', 'b3', 'R')][0] + dict_gfit[(station, 'e21e18', 'b3', 'R')][1]*x + dict_gfit[(station, 'e21e18', 'b3', 'R')][2]*x**2
                 coeffs = dict_gfit[(station, row.track, gfitband, gfitpol)]
                 gainf = Polynomial(coeffs)
                 foo = gainf(tracks.elev[index][station])
@@ -1858,34 +1857,104 @@ def match_scans_Tsys(scans, Tsys, only_ALMA=False):
     
     return Tsys
 
+def match_scans_with_Tsys(Tsys, scans, only_ALMA=False):
+    """
+    Match system temperature (Tsys) data with scans.
+    Parameters
+    ----------
+    Tsys : pandas.DataFrame
+        DataFrame containing Tsys data with a 'datetime' column.
+    scans : pandas.DataFrame
+        DataFrame containing scan data with 'scan_no_tot', 'time_min', 'time_max', and 'source' columns.
+    only_ALMA : bool, optional
+        If True, only ALMA metadata is processed. Default is False.
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with Tsys data matched to scans, including additional columns for 'scan_no_tot', 'source', and 't_scan'.
+    Notes
+    -----
+    - Negative labels are used for Tsys from ANTAB corresponding to timestamps that fall between scans.
+    """
+    #create scan labels to match Tsys with scans
+    bins_labels = [None]*(2*scans.shape[0]-1)
+    bins_labels[1::2] = list(map(lambda x: -x,list(scans['scan_no_tot'])[1:]))
+    bins_labels[::2] = list(scans['scan_no_tot'])
 
-def global_match_scans_Tsys_both_bands(scans,Tsys_full,only_ALMA=False):
-    Tsys_match_lo = global_match_scans_Tsys(scans,Tsys_full[Tsys_full.band=='lo'],only_ALMA=False)   
-    Tsys_match_hi = global_match_scans_Tsys(scans,Tsys_full[Tsys_full.band=='hi'],only_ALMA=False)
+    first_scanno = list(scans['scan_no_tot'])[0]
+    if first_scanno==0:
+        first_scanno=10000
+    bins_labels = [-first_scanno]+bins_labels
+    dtmin = datetime.timedelta(seconds = 0.) 
+    dtmax = datetime.timedelta(seconds = 0.) 
+    binsT = [None]*(2*scans.shape[0])
+    binsT[::2] = list(map(lambda x: x - dtmin,list(scans.time_min)))
+    binsT[1::2] = list(map(lambda x: x + dtmax,list(scans.time_max)))
 
-    Tsys_match = pd.concat([Tsys_match_lo,Tsys_match_hi],ignore_index=True)
-    return Tsys_match
+    #add bin for time before the first scan
+    min_time = min(scans.time_min)-datetime.timedelta(seconds = 1600.)
+    binsT = [min_time]+binsT
 
-def global_match_scans_Tsys(scans, Tsys_full, antL=antL0, only_ALMA=False):
+    #add scan indexed label to Tsys 
+    ordered_labels = pd.cut(Tsys.datetime, binsT,labels = bins_labels)
 
-    Tsys_match = pd.DataFrame({'source' : []})
+    if list(Tsys.station.unique())==['Y']:
+        Tsys.loc[:,'scan_no_tot'] = np.abs(np.asarray(list(ordered_labels)))
+    else:
+        Tsys.loc[:,'scan_no_tot'] = list(ordered_labels)
 
-    #print(Tsys_full.scan_no_tot)
+    DictSource = dict(zip(list(scans.scan_no_tot), list(scans.source)))
+    DictTmin = dict(zip(list(scans.scan_no_tot), list(scans.time_min)))
+
+    if only_ALMA==False:
+        # Initialize a dictionary to store gain columns
+        DictGains = {}
+
+        # Filter columns that match the pattern 'gainX' where X is exactly one capital letter
+        gain_columns = [col for col in scans.columns if re.match(r'^gain[A-Z]$', col)]
+
+        # Store the results in dictionaries with the gain_columns as keys
+        for col in gain_columns:
+            DictGains[col] = dict(zip(list(scans.scan_no_tot), list(scans[col])))
+
+    #select only the data taken during scans, not in between scans
+    Tsys = Tsys[Tsys['scan_no_tot'] >= 0]
+    Tsys.loc[:,'source'] = Tsys['scan_no_tot'].map(DictSource)
+    if only_ALMA==False:
+        for col in gain_columns:
+            Tsys.loc[:, col] = Tsys['scan_no_tot'].map(DictGains[col])
+
+    # Add t_scan col to the DataFrame
+    Tsys.loc[:,'t_scan'] = Tsys['scan_no_tot'].map(DictTmin)    
+    Tsys = Tsys.sort_values('datetime').reset_index(drop=True)
+    
+    return Tsys
+
+def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0, only_ALMA=False):
+
+    Tsys_matched = pd.DataFrame({'source' : []})
+
     for ant in antL:
-        #for expt in exptL0:
-        for expt in list(Tsys_full.expt.unique()):            
+        for expt in list(Tsys_full.expt.unique()):       
+            # select relevant data from Tsys_full and scans dataframes    
             Tsys_loc = Tsys_full.loc[(Tsys_full['station']==ant) & (Tsys_full['expt']==expt)].sort_values('datetime').reset_index(drop=True)
             scans_loc = scans[(scans.expt == expt) & scans.stations.apply(lambda x: ant in x)].sort_values('time_min').reset_index(drop=True)
             if(np.shape(Tsys_loc)[0]>0 and np.shape(scans_loc)[0]>0):
-                Tsys_foo = match_scans_Tsys(scans_loc, Tsys_loc, only_ALMA=only_ALMA)
-                Tsys_match = pd.concat([Tsys_match, Tsys_foo], ignore_index=True)
+                Tsys_matched_loc = match_scans_with_Tsys(Tsys_loc, scans_loc, only_ALMA=only_ALMA)
+                Tsys_matched= pd.concat([Tsys_matched, Tsys_matched_loc], ignore_index=True)
             else:
                 continue
 
-    Tsys_match = Tsys_match.sort_values('datetime').reset_index(drop=True)
+    Tsys_matched = Tsys_matched.sort_values('datetime').reset_index(drop=True)
 
+    return Tsys_matched
+
+def global_match_scans_Tsys_both_bands(scans,Tsys_full,only_ALMA=False):
+    Tsys_match_lo = global_match_scans_with_Tsys(scans,Tsys_full[Tsys_full.band=='lo'],only_ALMA=False)   
+    Tsys_match_hi = global_match_scans_with_Tsys(scans,Tsys_full[Tsys_full.band=='hi'],only_ALMA=False)
+
+    Tsys_match = pd.concat([Tsys_match_lo,Tsys_match_hi],ignore_index=True)
     return Tsys_match
-
 
 def get_sefds(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,antL=antL0, exptL = exptL0):
 
@@ -1906,26 +1975,57 @@ def get_sefds(antab_path ='ANTABS/', vex_path = 'VexFiles/', sourL=sourL,antL=an
     #produce a priori calibration data
     generate_and_save_sefd_data(Tsys_match, dict_dpfu, dict_gfit, sourL, antL, exptL)
 
-def get_sefds_new(antab_path ='ANTABS/', vex_path = 'VexFiles/', version = '2021', sourL=sourL, antL=antL0, AZ2Z=AZ2Z, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, exptL = exptL0, bandL=bandL0, pathSave = 'SEFDs'):
-    '''
-    new version for when files are separate for bands
-    '''
-    print('Getting the calibration data...')
+def get_sefds_new(antab_path='ANTAB', vex_path='VEX', year='2021', sourL=sourL, antL=antL0, AZ2Z=AZ2Z, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, exptL = exptL0, bandL=bandL0, pathSave = 'SEFD'):
+    """
+    Compute SEFD values for all sources and antennas from metadata obtained from previous calibration steps, ANTAB files, and observed VEX files.
+
+    Parameters
+    ----------
+    antab_path : str, optional
+        Path to the directory containing ANTAB files. Default is 'ANTAB/'.
+    vex_path : str, optional
+        Path to the directory containing VEX files. Default is 'VEX/'.
+    year : str, optional
+        Year of the observation. Default is '2021'.
+    sourL : list
+        List of sources.
+    antL : list
+        List of antennas.
+    AZ2Z : dict
+        Dictionary mapping AZ to Z.
+    SMT2Z : dict
+        Dictionary mapping SMT to Z.
+    track2expt : dict
+        Dictionary mapping track to experiment.
+    ant_locat : dict
+        Dictionary containing antenna locations.
+    exptL : list
+        List of experiments.
+    bandL : list
+        List of bands.
+    pathSave : str, optional
+        Path to save the SEFD data. Default is 'SEFD'.
+
+    Returns
+    -------
+    None
+    """
+    print('Obtaining calibration data from ANTAB files...')
     #TABLE of CALIBRATION DATA from ANTAB files
-    dp, gf = extract_dpfu_gfit_from_all_antab(antab_path, AZ2Z, bandL)
-    Ts = extract_Tsys_from_antab(antab_path, AZ2Z, track2expt, bandL)
+    dict_dpfu, dict_gfit = extract_dpfu_gfit_from_all_antab(antab_path, AZ2Z, bandL)
+    Tsys_full = extract_Tsys_from_antab(antab_path, AZ2Z, track2expt, bandL)
 
-    print('Getting the scans data...')
+    print('Obtaining scans from VEX files...')
     #TABLE of SCANS from VEX files, using elevation gain info
-    scans = extract_scans_from_all_vex(vex_path, gf, version=version, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat)
+    scans = extract_scans_from_all_vex(vex_path, dict_gfit, year=year, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat)
 
-    print('Matching calibration to scans...')
+    print('Matching calibration information to scans...')
     #MATCH CALIBRATION with SCANS to determine the source and 
-    Tsys_match = global_match_scans_Tsys(scans, Ts, antL=antL)
+    Tsys_matched = global_match_scans_with_Tsys(Tsys_full, scans, antL=antL)
 
-    print('Saving sefd files...')
+    print('Saving SEFD files...')
     #produce a priori calibration data
-    generate_and_save_sefd_data_new(Tsys_match, dp, sourL, antL, exptL, bandL)
+    generate_and_save_sefd_data_new(Tsys_matched, dict_dpfu, sourL, antL, exptL, bandL)
 
 def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None, sourL=sourL,antL=antL0, exptL = exptL0, bandL=bandL0, pathSave = 'SEFDs_ALMA',version='ER5',only_ALMA=False,avg_Tsys=False):
     '''
