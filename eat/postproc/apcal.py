@@ -1290,19 +1290,48 @@ def generate_and_save_sefd_data(Tsys_full, dict_dpfu, dict_gfit, sourL=sourL, an
                     print(sour+'_'+Z2AZ[ant]+'crap, not ok')
 
 
-def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL0, exptL=exptL0, bandL=bandL0, pathSave = 'SEFDs'):
+def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL0, exptL=exptL0, bandL=bandL0, pathSave='SEFD'):
+    """
+    Generate and save SEFD (System Equivalent Flux Density) data.
+    Parameters
+    ----------
+    Tsys_full : pandas.DataFrame
+        DataFrame containing Tsys data with columns 'band', 'source', 'antena', 'track', 'Tsys_st_L', 'Tsys_st_R', 'gainP', 'gainZ', 'gainX'.
+    dict_dpfu : dict
+        Dictionary containing DPFU (Degrees per Flux Unit) values for different antenna, track, band, and polarization.
+    sourL : list, optional
+        List of sources to process. Default is sourL.
+    antL : list, optional
+        List of antennas to process. Default is antL0.
+    exptL : list, optional
+        List of experiments to process. Default is exptL0.
+    bandL : list, optional
+        List of bands to process. Default is bandL0.
+    pathSave : str, optional
+        Path to save the SEFD data. Default is 'SEFD'.
+
+    Returns
+    -------
+    None
+    """
     if not os.path.exists(pathSave):
         os.makedirs(pathSave)
 
-    for band in bands:
-        dirBand = pathSave+'/SEFD_'+band
-        if not os.path.exists(dirBand):
-            os.makedirs(dirBand)
+    # loop by band
+    for band in bandL:
+        banddir = os.path.join(pathSave, 'SEFD_', band)
+
+        if not os.path.exists(banddir):
+            os.makedirs(banddir)
+
+        # loop by expt_no
         for expt in exptL:
-            dir_expt = dirBand+'/'+str(int(expt))
-            if not os.path.exists(dir_expt):
-                os.makedirs(dir_expt)
+            exptdir = os.path.join(banddir, str(int(expt)))
+
+            if not os.path.exists(exptdir):
+                os.makedirs(exptdir)
             
+            # loop by station
             for ant in antL:
                 print('no ad hoc fix')
                 for sour in sourL:
@@ -1339,7 +1368,7 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
                             if sour=='1921-293': sour='J1924-2914'
                             #####################################
                         
-                            NameF = dir_expt+'/'+sour+'_'+Z2AZ[ant]+'.txt'
+                            NameF = exptdir+'/'+sour+'_'+Z2AZ[ant]+'.txt'
                             ###APPLY AD HOC FIXES
 
                             SEFDS = ad_dummy_values(SEFDS)
@@ -1878,30 +1907,31 @@ def match_scans_with_Tsys(Tsys, scans, only_ALMA=False):
     """
     #create scan labels to match Tsys with scans
     bins_labels = [None]*(2*scans.shape[0]-1)
-    bins_labels[1::2] = list(map(lambda x: -x,list(scans['scan_no_tot'])[1:]))
-    bins_labels[::2] = list(scans['scan_no_tot'])
+    bins_labels[1::2] = [-x for x in scans['scan_no_tot'][1:]]
+    bins_labels[::2] = scans['scan_no_tot'].tolist()
 
-    first_scanno = list(scans['scan_no_tot'])[0]
+    first_scanno = scans['scan_no_tot'].iloc[0]
     if first_scanno==0:
         first_scanno=10000
-    bins_labels = [-first_scanno]+bins_labels
-    dtmin = datetime.timedelta(seconds = 0.) 
-    dtmax = datetime.timedelta(seconds = 0.) 
-    binsT = [None]*(2*scans.shape[0])
-    binsT[::2] = list(map(lambda x: x - dtmin,list(scans.time_min)))
-    binsT[1::2] = list(map(lambda x: x + dtmax,list(scans.time_max)))
+    bins_labels = [-first_scanno] + bins_labels
+
+    dtmin = datetime.timedelta(seconds=0.) 
+    dtmax = datetime.timedelta(seconds=0.) 
+    binsT = [None] * (2*scans.shape[0])
+    binsT[::2] = [x - dtmin for x in scans.time_min]
+    binsT[1::2] = [x + dtmax for x in scans.time_max]
 
     #add bin for time before the first scan
-    min_time = min(scans.time_min)-datetime.timedelta(seconds = 1600.)
-    binsT = [min_time]+binsT
+    min_time = min(scans.time_min) - datetime.timedelta(seconds = 1600.)
+    binsT = [min_time] + binsT
 
     #add scan indexed label to Tsys 
-    ordered_labels = pd.cut(Tsys.datetime, binsT,labels = bins_labels)
+    ordered_labels = pd.cut(Tsys.datetime, binsT, labels=bins_labels)
 
     if list(Tsys.station.unique())==['Y']:
-        Tsys.loc[:,'scan_no_tot'] = np.abs(np.asarray(list(ordered_labels)))
+        Tsys = Tsys.assign(scan_no_tot=np.abs(np.asarray(list(ordered_labels))))
     else:
-        Tsys.loc[:,'scan_no_tot'] = list(ordered_labels)
+        Tsys = Tsys.assign(scan_no_tot=list(ordered_labels))
 
     DictSource = dict(zip(list(scans.scan_no_tot), list(scans.source)))
     DictTmin = dict(zip(list(scans.scan_no_tot), list(scans.time_min)))
@@ -1919,13 +1949,13 @@ def match_scans_with_Tsys(Tsys, scans, only_ALMA=False):
 
     #select only the data taken during scans, not in between scans
     Tsys = Tsys[Tsys['scan_no_tot'] >= 0]
-    Tsys.loc[:,'source'] = Tsys['scan_no_tot'].map(DictSource)
+    Tsys = Tsys.assign(source=Tsys['scan_no_tot'].map(DictSource))
     if only_ALMA==False:
         for col in gain_columns:
-            Tsys.loc[:, col] = Tsys['scan_no_tot'].map(DictGains[col])
+            Tsys = Tsys.assign(**{col: Tsys['scan_no_tot'].map(DictGains[col])})
 
     # Add t_scan col to the DataFrame
-    Tsys.loc[:,'t_scan'] = Tsys['scan_no_tot'].map(DictTmin)    
+    Tsys = Tsys.assign(t_scan=Tsys['scan_no_tot'].map(DictTmin))
     Tsys = Tsys.sort_values('datetime').reset_index(drop=True)
     
     return Tsys
