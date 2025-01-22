@@ -2081,45 +2081,6 @@ def get_sefds_ALMA(antab_path='ANTAB', vex_path='VEX', sourL=sourL,antL=antL0, e
     else:
         generate_and_save_sefd_data_ALMA(TsysA_match, dict_dpfu, sourL, antL, exptL, bandL, pathSave)
 
-
-def modify_Tsys_match(Tsys_match,dict_dpfu):
-    Tsys_match['dpfu'] = list(map(lambda x: dict_dpfu[x],list(zip(Tsys_match['antena'],Tsys_match['track']))))
-    Tsys_P = Tsys_match[Tsys_match.antena=='P']
-    Tsys_Z = Tsys_match[Tsys_match.antena=='Z']
-    Tsys_rest = Tsys_match[list(map(lambda x: x not in ['P', 'Z'],Tsys_match.antena))]
-    Tsys_P.loc[:,'gain'] = Tsys_P['gainP']
-    Tsys_Z.loc[:,'gain'] = Tsys_Z['gainZ']
-    Tsys_rest.loc[:,'gain'] = [1.]*np.shape(Tsys_rest)[0]
-    Tsys = pd.concat([Tsys_P,Tsys_Z,Tsys_rest],ignore_index=True)
-    Tsys['sefd_L_lo'] = Tsys['Tsys_st_L_lo']/Tsys['gain']/Tsys['dpfu']
-    Tsys['sefd_R_lo'] = Tsys['Tsys_st_R_lo']/Tsys['gain']/Tsys['dpfu']
-    Tsys['sefd_L_hi'] = Tsys['Tsys_st_L_hi']/Tsys['gain']/Tsys['dpfu']
-    Tsys['sefd_R_hi'] = Tsys['Tsys_st_R_hi']/Tsys['gain']/Tsys['dpfu']
-    SEFD = Tsys[['datetime','antena','expt_no','source','mjd','scan_no_tot','sefd_L_lo','sefd_R_lo','sefd_L_hi','sefd_R_hi']].copy()
-    SEFD.sort_values(['datetime','antena'], inplace=True)
-    SEFD.reset_index(inplace=True)
-    return SEFD
-
-def modify_Tsys_match_new(Tsys_match,dict_dpfu):
-    Tsys_match['dpfu_R'] = list(map(lambda x: dict_dpfu[x],list(zip(Tsys_match['antena'],Tsys_match['track'],Tsys_match['band'],['R']*len(Tsys_match['antena'])))))
-    Tsys_match['dpfu_L'] = list(map(lambda x: dict_dpfu[x],list(zip(Tsys_match['antena'],Tsys_match['track'],Tsys_match['band'],['L']*len(Tsys_match['antena'])))))
-    Tsys_P = Tsys_match[Tsys_match.antena=='P']
-    Tsys_Z = Tsys_match[Tsys_match.antena=='Z']
-    Tsys_X = Tsys_match[Tsys_match.antena=='X']
-    Tsys_rest = Tsys_match[list(map(lambda x: x not in ['P', 'Z','X'],Tsys_match.antena))]
-    Tsys_P.loc[:,'gain'] = Tsys_P['gainP']
-    Tsys_Z.loc[:,'gain'] = Tsys_Z['gainZ']
-    Tsys_X.loc[:,'gain'] = Tsys_X['gainX']
-    Tsys_rest.loc[:,'gain'] = [1.]*np.shape(Tsys_rest)[0]
-    Tsys = pd.concat([Tsys_P,Tsys_Z,Tsys_X,Tsys_rest],ignore_index=True)
-    Tsys['sefd_L'] = Tsys['Tsys_star_L']/Tsys['gain']/Tsys['dpfu_L']
-    Tsys['sefd_R'] = Tsys['Tsys_star_R']/Tsys['gain']/Tsys['dpfu_R']
-    SEFD = Tsys[['datetime','antena','expt_no','source','mjd','scan_no_tot','sefd_L','sefd_R']].copy()
-    SEFD.sort_values(['datetime','antena'], inplace=True)
-    SEFD.reset_index(inplace=True)
-    return SEFD
-
-
 def apply_sefds(alist,SEFDfits):
 
     alist['mjd'] = Time(list(alist.datetime)).mjd
