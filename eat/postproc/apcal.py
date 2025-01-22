@@ -1290,13 +1290,13 @@ def generate_and_save_sefd_data(Tsys_full, dict_dpfu, dict_gfit, sourL=sourL, an
                     print(sour+'_'+Z2AZ[ant]+'crap, not ok')
 
 
-def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL0, exptL=exptL0, bandL=bandL0, pathSave='SEFD'):
+def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL0, exptL=exptL0, bandL=bandL0, expt2track={}, Z2AZ={}, pathSave='SEFD'):
     """
     Generate and save SEFD (System Equivalent Flux Density) data.
     Parameters
     ----------
     Tsys_full : pandas.DataFrame
-        DataFrame containing Tsys data with columns 'band', 'source', 'antena', 'track', 'Tsys_st_L', 'Tsys_st_R', 'gainP', 'gainZ', 'gainX'.
+        DataFrame containing Tsys data with columns 'band', 'source', 'antena', 'track', 'Tsys_star_pol1', 'Tsys_star_pol2', 'gainP', 'gainZ', 'gainX'.
     dict_dpfu : dict
         Dictionary containing DPFU (Degrees per Flux Unit) values for different antenna, track, band, and polarization.
     sourL : list, optional
@@ -1319,7 +1319,7 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
 
     # loop by band
     for band in bandL:
-        banddir = os.path.join(pathSave, 'SEFD_', band)
+        banddir = os.path.join(pathSave, f'SEFD_{band}')
 
         if not os.path.exists(banddir):
             os.makedirs(banddir)
@@ -1338,14 +1338,14 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
 
                     condB = (Tsys_full['band']==band)
                     condS = (Tsys_full['source']==sour)
-                    condA = (Tsys_full['antena']==ant)
+                    condA = (Tsys_full['station']==ant)
                     condE = (Tsys_full['track']==expt2track[expt])
-                    condPositive = (Tsys_full['Tsys_st_L']>0)&(Tsys_full['Tsys_st_R']>0)
+                    condPositive = (Tsys_full['Tsys_star_pol1']>0)&(Tsys_full['Tsys_star_pol2']>0)
                     Tsys_local = Tsys_full.loc[condB&condS&condA&condE&condPositive]
                     
                     try:
-                        Tsys_local.loc[:,'sefd_L'] = np.sqrt(Tsys_local['Tsys_st_L']/dict_dpfu[(ant,expt2track[expt],band,'L')])
-                        Tsys_local.loc[:,'sefd_R'] = np.sqrt(Tsys_local['Tsys_st_R']/dict_dpfu[(ant,expt2track[expt],band,'R')])
+                        Tsys_local.loc[:,'sefd_L'] = np.sqrt(Tsys_local['Tsys_star_pol1']/dict_dpfu[(ant,expt2track[expt],band,'L')])
+                        Tsys_local.loc[:,'sefd_R'] = np.sqrt(Tsys_local['Tsys_star_pol2']/dict_dpfu[(ant,expt2track[expt],band,'R')])
                         if ant=='P':
                             Tsys_local.loc[:,'sefd_L'] = Tsys_local['sefd_L']/np.sqrt(Tsys_local['gainP'])
                             Tsys_local.loc[:,'sefd_R'] = Tsys_local['sefd_R']/np.sqrt(Tsys_local['gainP'])
@@ -2048,7 +2048,9 @@ def get_sefds_new(antab_path='ANTAB', vex_path='VEX', year='2021', sourL=sourL, 
 
     print('Saving SEFD files...')
     #produce a priori calibration data
-    generate_and_save_sefd_data_new(Tsys_matched, dict_dpfu, sourL, antL, exptL, bandL)
+    expt2track = {value: key for key, value in track2expt.items()}
+    Z2AZ = {value: key for key, value in AZ2Z.items()}
+    generate_and_save_sefd_data_new(Tsys_matched, dict_dpfu, sourL=sourL, antL=antL, exptL=exptL, bandL=bandL, expt2track=expt2track, Z2AZ=Z2AZ, pathSave=pathSave)
 
 def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None, sourL=sourL,antL=antL0, exptL = exptL0, bandL=bandL0, pathSave = 'SEFDs_ALMA',version='ER5',only_ALMA=False,avg_Tsys=False):
     '''
@@ -2113,8 +2115,8 @@ def modify_Tsys_match_new(Tsys_match,dict_dpfu):
     Tsys_X.loc[:,'gain'] = Tsys_X['gainX']
     Tsys_rest.loc[:,'gain'] = [1.]*np.shape(Tsys_rest)[0]
     Tsys = pd.concat([Tsys_P,Tsys_Z,Tsys_X,Tsys_rest],ignore_index=True)
-    Tsys['sefd_L'] = Tsys['Tsys_st_L']/Tsys['gain']/Tsys['dpfu_L']
-    Tsys['sefd_R'] = Tsys['Tsys_st_R']/Tsys['gain']/Tsys['dpfu_R']
+    Tsys['sefd_L'] = Tsys['Tsys_star_pol1']/Tsys['gain']/Tsys['dpfu_L']
+    Tsys['sefd_R'] = Tsys['Tsys_star_pol2']/Tsys['gain']/Tsys['dpfu_R']
     SEFD = Tsys[['datetime','antena','expt_no','source','mjd','scan_no_tot','sefd_L','sefd_R']].copy()
     SEFD.sort_values(['datetime','antena'], inplace=True)
     SEFD.reset_index(inplace=True)
