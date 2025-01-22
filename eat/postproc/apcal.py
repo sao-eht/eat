@@ -1064,7 +1064,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
     -------
     pd.DataFrame
         DataFrame containing the extracted Tsys values with columns:
-        ['datetime', 'mjd', 'Tsys_star_pol1', 'Tsys_star_pol2', 'band', 'station', 'track', 'expt'].
+        ['datetime', 'mjd', 'Tsys_star_R', 'Tsys_star_L', 'band', 'station', 'track', 'expt'].
     Notes
     -----
     - The function assumes that the ANTAB files are named in a specific format and contain Tsys blocks.
@@ -1073,7 +1073,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
     list_files = [f for f in os.listdir(antabpath) if f[0] == 'e' and any(f'_{band}_' in f for band in bandL)]
 
-    cols = ['datetime', 'mjd', 'Tsys_star_pol1','Tsys_star_pol2','band', 'station', 'track', 'expt']
+    cols = ['datetime', 'mjd', 'Tsys_star_R','Tsys_star_L','band', 'station', 'track', 'expt']
     Tsys = pd.DataFrame(columns=cols)
 
     for f in list_files:
@@ -1132,22 +1132,22 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
                     # get Tsys values
                     if len(parts) == 3:
-                        Tsys_star_pol1 = Tsys_star_pol2 = float(parts[2])
+                        Tsys_star_R = Tsys_star_L = float(parts[2])
                     elif len(parts) == 4:
-                        Tsys_star_pol1 = float(parts[2])
-                        Tsys_star_pol2 = float(parts[3])
+                        Tsys_star_R = float(parts[2])
+                        Tsys_star_L = float(parts[3])
                     else:
                         # this station has Tsys values per channel (but not per pol); average them
                         #print(f"Station {rowdict['station']} has Tsys values per channel (but not per pol). Averaging them...")
                         Tsysarr = np.asarray(list(map(float,parts[2:])))
                         Tsysarr = Tsysarr[(Tsysarr != 0) & ~np.isnan(Tsysarr)]
                         if Tsysarr.size > 0:
-                            Tsys_star_pol1 = Tsys_star_pol2 = (1./np.mean(1./np.sqrt(Tsysarr)))**2
+                            Tsys_star_R = Tsys_star_L = (1./np.mean(1./np.sqrt(Tsysarr)))**2
                         else:
-                            Tsys_star_pol1 = Tsys_star_pol2 = np.nan
+                            Tsys_star_R = Tsys_star_L = np.nan
 
-                    rowdict['Tsys_star_pol1'] = Tsys_star_pol1
-                    rowdict['Tsys_star_pol2'] = Tsys_star_pol2
+                    rowdict['Tsys_star_R'] = Tsys_star_R
+                    rowdict['Tsys_star_L'] = Tsys_star_L
 
                     rowdf = pd.DataFrame([rowdict], columns=cols)
                     Tsys = pd.concat([Tsys, rowdf], ignore_index=True)
@@ -1296,7 +1296,7 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
     Parameters
     ----------
     Tsys_full : pandas.DataFrame
-        DataFrame containing Tsys data with columns 'band', 'source', 'antena', 'track', 'Tsys_star_pol1', 'Tsys_star_pol2', 'gainP', 'gainZ', 'gainX'.
+        DataFrame containing Tsys data with columns 'band', 'source', 'antena', 'track', 'Tsys_star_R', 'Tsys_star_L', 'gainP', 'gainZ', 'gainX'.
     dict_dpfu : dict
         Dictionary containing DPFU (Degrees per Flux Unit) values for different antenna, track, band, and polarization.
     sourL : list, optional
@@ -1340,12 +1340,12 @@ def generate_and_save_sefd_data_new(Tsys_full, dict_dpfu, sourL=sourL, antL=antL
                     condS = (Tsys_full['source']==sour)
                     condA = (Tsys_full['station']==ant)
                     condE = (Tsys_full['track']==expt2track[expt])
-                    condPositive = (Tsys_full['Tsys_star_pol1']>0)&(Tsys_full['Tsys_star_pol2']>0)
+                    condPositive = (Tsys_full['Tsys_star_R']>0)&(Tsys_full['Tsys_star_L']>0)
                     Tsys_local = Tsys_full.loc[condB&condS&condA&condE&condPositive]
                     
                     try:
-                        Tsys_local.loc[:,'sefd_L'] = np.sqrt(Tsys_local['Tsys_star_pol1']/dict_dpfu[(ant,expt2track[expt],band,'L')])
-                        Tsys_local.loc[:,'sefd_R'] = np.sqrt(Tsys_local['Tsys_star_pol2']/dict_dpfu[(ant,expt2track[expt],band,'R')])
+                        Tsys_local.loc[:,'sefd_L'] = np.sqrt(Tsys_local['Tsys_star_L']/dict_dpfu[(ant,expt2track[expt],band,'L')])
+                        Tsys_local.loc[:,'sefd_R'] = np.sqrt(Tsys_local['Tsys_star_R']/dict_dpfu[(ant,expt2track[expt],band,'R')])
                         if ant=='P':
                             Tsys_local.loc[:,'sefd_L'] = Tsys_local['sefd_L']/np.sqrt(Tsys_local['gainP'])
                             Tsys_local.loc[:,'sefd_R'] = Tsys_local['sefd_R']/np.sqrt(Tsys_local['gainP'])
@@ -2052,17 +2052,14 @@ def get_sefds_new(antab_path='ANTAB', vex_path='VEX', year='2021', sourL=sourL, 
     Z2AZ = {value: key for key, value in AZ2Z.items()}
     generate_and_save_sefd_data_new(Tsys_matched, dict_dpfu, sourL=sourL, antL=antL, exptL=exptL, bandL=bandL, expt2track=expt2track, Z2AZ=Z2AZ, pathSave=pathSave)
 
-def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None, sourL=sourL,antL=antL0, exptL = exptL0, bandL=bandL0, pathSave = 'SEFDs_ALMA',version='ER5',only_ALMA=False,avg_Tsys=False):
+def get_sefds_ALMA(antab_path='ANTAB', vex_path='VEX', sourL=sourL,antL=antL0, exptL = exptL0, bandL=bandL0, pathSave = 'SEFDs_ALMA',version='ER5',only_ALMA=False,avg_Tsys=False):
     '''
     new version for when files are separate for bands
     '''
     print('Getting the calibration data...')
     #TABLE of CALIBRATION DATA from ANTAB files
 
-    if dpfu_path:
-        dp, gf = extract_dpfu_gfit_from_all_antab(dpfu_path)
-    else:
-        dp, gf = extract_dpfu_gfit_from_all_antab(antab_path)
+    dict_dpfu, dict_gfit = extract_dpfu_gfit_from_all_antab(antab_path)
 
     if version=='ER6':
         TsA = prepare_Tsys_data_ALMA_ER6(antab_path,only_ALMA=only_ALMA,avg_Tsys=avg_Tsys)
@@ -2080,9 +2077,9 @@ def get_sefds_ALMA(antab_path ='ANTABS/', vex_path = 'VexFiles/',dpfu_path=None,
     print('Saving sefd files...')
     #produce a priori calibration data
     if avg_Tsys:
-        generate_and_save_sefd_data_new(TsysA_match, dp, sourL, antL, exptL, bandL)
+        generate_and_save_sefd_data_new(TsysA_match, dict_dpfu, sourL, antL, exptL, bandL)
     else:
-        generate_and_save_sefd_data_ALMA(TsysA_match, dp, sourL, antL, exptL, bandL, pathSave)
+        generate_and_save_sefd_data_ALMA(TsysA_match, dict_dpfu, sourL, antL, exptL, bandL, pathSave)
 
 
 def modify_Tsys_match(Tsys_match,dict_dpfu):
@@ -2115,8 +2112,8 @@ def modify_Tsys_match_new(Tsys_match,dict_dpfu):
     Tsys_X.loc[:,'gain'] = Tsys_X['gainX']
     Tsys_rest.loc[:,'gain'] = [1.]*np.shape(Tsys_rest)[0]
     Tsys = pd.concat([Tsys_P,Tsys_Z,Tsys_X,Tsys_rest],ignore_index=True)
-    Tsys['sefd_L'] = Tsys['Tsys_star_pol1']/Tsys['gain']/Tsys['dpfu_L']
-    Tsys['sefd_R'] = Tsys['Tsys_star_pol2']/Tsys['gain']/Tsys['dpfu_R']
+    Tsys['sefd_L'] = Tsys['Tsys_star_L']/Tsys['gain']/Tsys['dpfu_L']
+    Tsys['sefd_R'] = Tsys['Tsys_star_R']/Tsys['gain']/Tsys['dpfu_R']
     SEFD = Tsys[['datetime','antena','expt_no','source','mjd','scan_no_tot','sefd_L','sefd_R']].copy()
     SEFD.sort_values(['datetime','antena'], inplace=True)
     SEFD.reset_index(inplace=True)
