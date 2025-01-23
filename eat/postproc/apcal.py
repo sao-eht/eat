@@ -456,6 +456,7 @@ def prepare_calibration_data(folder_path):
     RCP_first=True
     for f in list_files:
         fpath = folder_path+f
+        year = '20' + fpath[-16:-14]
         dict_dpfu_loc, dict_gfit_loc, track_loc = dict_DPFU_GFIT(fpath)
         dict_dpfu = merge_dicts(dict_dpfu,dict_dpfu_loc)
         dict_gfit = merge_dicts(dict_gfit,dict_gfit_loc)
@@ -484,10 +485,10 @@ def prepare_calibration_data(folder_path):
                 foo = line.split(' ')
                 foo = [x for x in foo if len(x)>0]
                 if antena=='A':
-                    datetime_loc = time2datetime1(foo[0],'00:00:00')
+                    datetime_loc = time2datetimeyear(year, foo[0], '00:00:00')
                     datetime_loc = datetime_loc + ALMAtime2STANDARDtime(foo[1]) + timeoff
                 else:
-                    datetime_loc = time2datetime1(foo[0],foo[1]) + timeoff
+                    datetime_loc = time2datetimeyear(year, foo[0], foo[1]) + timeoff
                 
                 Tsys_R_lo_loc = float(foo[2])
                 if antena in {'S', 'A'}:
@@ -627,105 +628,6 @@ def prepare_Tsys_data(folder_path, AZ2Z=AZ2Z, track2expt=track2expt, bandL=bandL
     Tsfull = make_single_Tsys_table(Tsys, track2expt)
     return Tsfull
 
-
-def prepare_Tsys_data_separate(folder_path):
-    Tsys={}
-    list_files = os.listdir(folder_path)
-    list_files = [f for f in list_files if f[0] =='e']
-    cols = ['datetime','Tsys_st_R','Tsys_st_L','band']
-    antena='NoAntena'
-    FooDF = pd.DataFrame(columns=cols)
-
-    for f in list_files:
-        fpath = os.path.join(folder_path, f) # INI: what is this?!
-    
-        with open(fpath) as f:
-            content = f.readlines()
-        for line in content:
-            #first line of data for given antenna
-            if 'TSYS ' in line:
-                #antena = AZ2Z[line[5:7]]
-                antena = AZ2Z[line.split(' ')[1]]
-                print(fpath+', '+antena)
-                if line.split(' ')[2]=='timeoff=':
-                    timeoff = int(float(line.split(' ')[3]))
-                else:
-                    timeoff = 0
-                timeoff = datetime.timedelta(seconds = timeoff)
-                FooDF = pd.DataFrame(columns=cols)
-            
-            if 'INDEX'in line:
-                RCP_first = line.find('R1')<line.find('L1')
-                print('Order RCP - LCP: ', RCP_first)
-            
-            #data rows are the ones strarting with sth that can be converted to flow
-            
-            if isfloat(line.split(' ')[0]):
-                foo = line.split(' ')
-                foo = [x for x in foo if len(x)>0]
-                #get the timestamp
-                if antena=='A':
-                    
-                    datetime_loc = time2datetime1(foo[0],'00:00:00')
-                    datetime_loc = datetime_loc + ALMAtime2STANDARDtime(foo[1]) + timeoff
-                    #print(datetime_loc)
-                else:
-                    datetime_loc = time2datetime1(foo[0],foo[1]) + timeoff
-                
-                #get the band
-                band_loc = dic_band[f.name[-4]]
-
-                #now get the Tsys data
-                
-                #JCMT and SMAR have single pol, so we just fill both with same value
-                if antena=='A':
-                    TsysAA = np.asarray(list(map(float,foo[2:-1])))
-                    if len(TsysAA)==0:
-                        TsysAA = np.asarray(list(map(float,foo[2:])))
-                    TsysAA = TsysAA[(TsysAA!=0)&(TsysAA==TsysAA)]
-                    #print(TsysAA)
-                    if len(TsysAA) > 0:
-                        Tsys_R_loc = (1./np.mean(1./np.sqrt(TsysAA)))**2
-                        #Tsys_R_loc = np.mean(TsysAA)   
-                    else:
-                        Tsys_R_loc = np.nan
-                    Tsys_L_loc = Tsys_R_loc
-                    
-                else:
-                    Tsys_R_loc = float(foo[2])
-                    try:
-                        Tsys_L_loc = float(foo[3])
-                    except IndexError:
-                        Tsys_L_loc = Tsys_R_loc
-                
-                if RCP_first==True:
-                    data_loc = [datetime_loc,Tsys_R_loc,Tsys_L_loc,band_loc]
-                else:
-                    data_loc = [datetime_loc,Tsys_L_loc,Tsys_R_loc,band_loc] 
-                ############################
-                #FORCE L R order for APEX
-                #if antena=='X':
-                #    print('MANUALLY REVERSING APEX!!!')
-                #    data_loc = [datetime_loc,Tsys_L_loc,Tsys_R_loc,band_loc] 
-                ############################
-                #data_loc = [datetime_loc,Tsys_R_loc,Tsys_L_loc,band_loc]
-                if np.sum(np.isnan(data_loc[1:3]))==0:
-                    line_df = pd.DataFrame([data_loc], columns = cols)
-                    FooDF = FooDF.append(line_df, ignore_index=True)
-                else:
-                    continue
-            
-            #lines at the end of data for given antena
-            #print(f.name)
-        
-            track_loc = f.name.split('_')[-2]
-            if line[0]=='/':
-                if (antena,track_loc) in Tsys:
-                    Tsys[(antena,track_loc)]=pd.concat([Tsys[(antena,track_loc)],FooDF ])
-                else:
-                    Tsys[(antena,track_loc)] = FooDF
-    return Tsys
-
 def merge_all_Tsys(Tsys):
 
     for key in Tsys:
@@ -748,7 +650,8 @@ def prepare_Tsys_data_ALMA(folder_path):
     FooDF = pd.DataFrame(columns=cols)
 
     for f in list_files:
-        fpath = os.path.join(folder_path, f) # INI: what is this?!
+        fpath = os.path.join(folder_path, f)
+        year = '20' + fpath[-16:-14]
     
         with open(fpath) as f:
             content = f.readlines()
@@ -773,12 +676,12 @@ def prepare_Tsys_data_ALMA(folder_path):
                 foo = [x for x in foo if len(x)>0]
                 #get the timestamp
                 if antena=='A':
-                    datetime_loc = time2datetime1(foo[0],'00:00:00')
+                    datetime_loc = time2datetimeyear(year, foo[0], '00:00:00')
                     datetime_loc = datetime_loc + ALMAtime2STANDARDtime(foo[1]) + timeoff
                     #print(datetime_loc)
                 else:
                     continue
-                    #datetime_loc = time2datetime1(foo[0],foo[1]) + timeoff
+                    #datetime_loc = time2datetimeyear(year, foo[0], foo[1]) + timeoff
                 
                 #get the band
                 band_loc = dic_band[f.name[-4]]
@@ -832,7 +735,7 @@ def prepare_Tsys_data_ALMA_ER6(folder_path,only_ALMA=False,avg_Tsys=False):
     FooDF = pd.DataFrame(columns=cols)
 
     for f in list_files:
-        fpath = os.path.join(folder_path, f) # INI: what is this?!
+        fpath = os.path.join(folder_path, f)
         year = '20' + fpath[-16:-14]
     
         with open(fpath) as f:
@@ -862,12 +765,12 @@ def prepare_Tsys_data_ALMA_ER6(folder_path,only_ALMA=False,avg_Tsys=False):
                 
                 #get the timestamp
                 if antena=='A':
-                    datetime_loc = time2datetimeyear(year,foo[0],'00:00:00')
+                    datetime_loc = time2datetimeyear(year, foo[0], '00:00:00')
                     datetime_loc = datetime_loc + ALMAtime2STANDARDtime(foo[1]) + timeoff
                     #print(datetime_loc)
                 else:
                     continue
-                    #datetime_loc = time2datetime1(foo[0],foo[1]) + timeoff
+                    #datetime_loc = time2datetimeyear(year, foo[0],foo[1]) + timeoff
                 
                 #get the band
                 #band_loc = dic_band[f.name[-4]]
@@ -935,14 +838,6 @@ def time_scans(a0,expt_no,scan_id, deltat_sec = 0):
         return tmin, tmax
     else:
         return np.nan, np.nan
-
-def time2datetime1(day,hour):
-    #calculateslist of datetime stamps
-    foo = hour.split(':')
-    day = int(day)
-    h = int(foo[0])%24; m = int(foo[1]); s = int(foo[2])
-    datet = (datetime.datetime(2017, 1,1,h,m,s) + datetime.timedelta(days=day-1))    
-    return datet
 
 def time2datetimeyear(year, day, hour):
     """
@@ -1073,7 +968,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
     list_files = [f for f in os.listdir(antabpath) if f[0] == 'e' and any(f'_{band}_' in f for band in bandL)]
 
-    cols = ['datetime', 'mjd', 'Tsys_star_R','Tsys_star_L','band', 'station', 'track', 'expt']
+    cols = ['datetime', 'mjd', 'Tsys_star_R', 'Tsys_star_L', 'band', 'station', 'track', 'expt']
     Tsys = pd.DataFrame(columns=cols)
 
     for f in list_files:
@@ -1132,12 +1027,14 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
                     # get Tsys values
                     if len(parts) == 3:
+                        # this station has one Tsys value per time, averaged over channels and polarization feeds
                         Tsys_star_R = Tsys_star_L = float(parts[2])
                     elif len(parts) == 4:
+                        # this station has Tsys values per time per pol, averaged over channels
                         Tsys_star_R = float(parts[2])
                         Tsys_star_L = float(parts[3])
                     else:
-                        # this station has Tsys values per channel (but not per pol); average them
+                        # this station has Tsys values per time per channel, averaged over polarization feeds
                         #print(f"Station {rowdict['station']} has Tsys values per channel (but not per pol). Averaging them...")
                         Tsysarr = np.asarray(list(map(float,parts[2:])))
                         Tsysarr = Tsysarr[(Tsysarr != 0) & ~np.isnan(Tsysarr)]
@@ -1155,51 +1052,6 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
     Tsys.expt = Tsys.expt.astype(int) # convert expt to integer
 
     return Tsys
-
-def prepare_data_for_sefd(alist, path_antab ='ANTABS/'):
-
-    #information about scans
-    scans = list_of_scans(alist)
-
-    #get dpfu, gain fits, raw system temperatures star
-    dict_dpfu, dict_gfit, Tsys = prepare_calibration_data(path_antab)
-
-    #add mjd information
-    for key in Tsys:
-        foo = Time(list(Tsys[key].datetime)).mjd
-        Tsys[key]['mjd'] = foo
-    Tsys_full = make_single_Tsys_table(Tsys)
-    Tsys_full = Tsys_full.drop_duplicates()
-
-    scans = scans.sort_values('time_max')
-    scans = scans.reset_index(drop=True)
-    scans['gainP'] = [1.]*scans.shape[0]
-    scans['gainZ'] = [1.]*scans.shape[0]
-
-    #calculating elevation gains for Pv and Az
-    gainPf = lambda x: dict_gfit[('P','A')][0] + dict_gfit[('P','A')][1]*x + dict_gfit[('P','A')][2]*x**2
-    gainZf = lambda x: dict_gfit[('Z','A')][0] + dict_gfit[('Z','A')][1]*x + dict_gfit[('Z','A')][2]*x**2
-    for index, row in scans.iterrows():
-        if 'P' in row.antenas:
-            foo = gainPf(scans['elevP'][index])
-            scans.gainP[index] = float(foo)
-        if 'Z' in row.antenas:
-            foo = gainZf(scans['elevZ'][index])
-            scans.gainZ[index] = float(foo) 
-
-    bins_labels = range((scans.shape[0]))
-    DictSource = dict(zip(bins_labels, list(scans.source)))
-    DictGainP = dict(zip(bins_labels, list(scans.gainP)))
-    DictGainZ = dict(zip(bins_labels, list(scans.gainZ)))
-    bins_labels = range((scans.shape[0]))
-    binsT = [scans.time_min[0]]+list(scans.time_max)
-    ordered_labels = pd.cut(Tsys_full.datetime, binsT,labels = bins_labels)
-    Tsys_full['BinScan'] = ordered_labels
-    Tsys_full = Tsys_full[Tsys_full.BinScan == Tsys_full.BinScan]
-    Tsys_full['source'] = map(lambda x: DictSource[x], list(Tsys_full['BinScan']))
-    Tsys_full['gainP'] = map(lambda x: DictGainP[x], list(Tsys_full['BinScan']))
-    Tsys_full['gainZ'] = map(lambda x: DictGainZ[x], list(Tsys_full['BinScan']))
-    return Tsys_full, dict_dpfu, dict_gfit
 
 def get_exact_elevation(Tsys, dict_gfit, fpath =  'VexFiles/'):
 
