@@ -40,6 +40,13 @@ def get_info(observation='EHT2017',path_vex='VEX/'):
             scans = make_scan_list_EHT2021(path_vex)
         else: scans = {}
         
+    if observation=='EHT2022':
+        stations_2lett_1lett = {'MG':'Z', 'GL':'G', 'PV':'P', 'SW':'S', 'MM':'J', 'AA':'A', 'AX':'X', 'LM':'L','SZ':'Y','NN':'N','KT':'K'}
+        jd_expt = jd2expt2021
+        if path_vex!='':
+            scans = make_scan_list_EHT2022(path_vex)
+        else: scans = {}
+        
 
     if observation=='EHT2017_Dan_Mel':
 
@@ -313,6 +320,261 @@ def make_scan_list_EHT2021(fpath):
     scans = scans.reset_index(drop=True)
     scans['scan_no_tot'] = scans.index
     return scans
+
+def make_scan_list_EHT2022(fpath):
+    '''
+    generates data frame with information about scans for EHT2022
+    '''
+    import ehtim.vex as vex
+    nam2lett = {'ALMA':'A','APEX':'X','THULE':'G','LMT':'L','PICOVEL':'P','SMTO':'Z','SPT':'Y','JCMT':'J','SMAP':'S','NOEMA':'N','KITTPEAK':'K'}
+    track2expt ={'G18':3803,'B19':3804, 'C20':3805, 'E22':3806,'D23':3807, 'A26':3808, 'F27':3809}
+    list_files = [x.split('/')[-1] for x in glob.glob(fpath+'/*.vex')]
+    #list_files = os.listdir(fpath)
+    scans = pd.DataFrame({'source' : []})
+    
+
+    for fi in list_files:#loop over vex files in folder
+        track_loc = fi[3:6].upper()
+        vpath = fpath+fi
+        aa = vex.Vex(vpath)
+        dec = []
+        for cou in range(len(aa.source)):
+            dec_h = float(aa.source[cou]['dec'].split('d')[0])
+            dec_m = float((aa.source[cou]['dec'].split('d')[1])[0:2])
+            dec_s = float((aa.source[cou]['dec'].split('d')[1])[3:-1])
+            dec.append(tuple((dec_h,dec_m,dec_s)))    
+        ra = []
+        for cou in range(len(aa.source)):
+            ra_d = float(aa.source[cou]['ra'].split('h')[0])
+            ra_m = float(aa.source[cou]['ra'].split('h')[1].split('m')[0])
+            ra_s = float(aa.source[cou]['ra'].split('h')[1].split('m')[1][:-1])
+            ra.append(tuple((ra_d,ra_m,ra_s)))      
+        sour_name = [aa.source[x]['source'] for x in range(len(aa.source))]
+        dict_ra = dict(zip(sour_name,ra))
+        dict_dec = dict(zip(sour_name,dec))
+        t_min = [aa.sched[x]['start_hr'] for x in range(len(aa.sched))]
+        sour = [aa.sched[x]['source'] for x in range(len(aa.sched))]
+        datet = []
+        elev = []
+        antenas = []
+        duration=[]
+        for x in range(len(aa.sched)):#loop over scans in given file
+            t = Time(aa.sched[x]['mjd_floor'], format='mjd', scale='utc')
+            tiso = Time(t, format='iso', scale='utc')
+            tiso = tiso + TimeDelta(t_min[x]*3600., format='sec')
+            datet.append(tiso)
+            ant_foo = set([nam2lett[aa.sched[x]['scan'][y]['site']] for y in range(len(aa.sched[x]['scan']))])
+            antenas.append(ant_foo)
+            duration_foo =max([aa.sched[x]['scan'][y]['scan_sec'] for y in range(len(aa.sched[x]['scan']))])
+            duration.append(duration_foo)
+        #time_min = [pd.tslib.Timestamp(datet[x].datetime) for x in range(len(datet))]
+        time_min = [pd.Timestamp(datet[x].datetime) for x in range(len(datet))]
+        time_max = [time_min[x] + datetime.timedelta(seconds=duration[x]) for x in range(len(aa.sched))]
+        foo = pd.DataFrame(aa.sched)
+        foo = foo[['source','mjd_floor','start_hr']]
+        foo['time_min']=time_min
+        foo['time_max']=time_max
+        foo['scan_no'] = foo.index
+        foo['scan_no'] = list(map(int,foo['scan_no']))
+        foo['track'] = [track_loc]*foo.shape[0]
+        foo['expt'] = [int(track2expt[track_loc])]*foo.shape[0]
+        foo['antenas'] = antenas
+        foo['duration'] = duration
+        scans = pd.concat([scans,foo], ignore_index=True,sort=True)
+    scans = scans.reindex(['mjd_floor','expt','track','scan_no','source','time_min','time_max','duration','antenas'],axis=1)
+    scans = scans.sort_values('time_max')
+    scans = scans.reset_index(drop=True)
+    scans['scan_no_tot'] = scans.index
+    return scans
+
+# Function to extract degrees, minutes, and seconds from dec
+def extract_dms(dec):
+    """
+    Extracts degrees, minutes, and seconds from a declination string.
+    Parameters
+    ----------
+    dec : str
+        A string representing the declination in the format "±DdMmSs.s".
+    Returns
+    -------
+    tuple or None
+        A tuple containing degrees, minutes, and seconds as floats if the input matches the expected format.
+        Returns None if the input does not match the expected format.
+    Examples
+    --------
+    >>> extract_dms("+12d34'56.7\"")
+    (12.0, 34.0, 56.7)
+    >>> extract_dms("-12d34'56.7\"")
+    (-12.0, 34.0, 56.7)
+    >>> extract_dms("invalid")
+    None
+    """
+
+    match = re.match(r"([+-]?\d+)d(\d+)'(\d+\.\d+)\"", dec)
+    if match:
+        degrees = float(match.group(1))
+        minutes = float(match.group(2))
+        seconds = float(match.group(3))
+        return (degrees, minutes, seconds)
+    return None
+
+# Function to extract hours, minutes, and seconds from ra
+def extract_hms(ra):
+    """
+    Extract hours, minutes, and seconds from a right ascension string.
+    Parameters
+    ----------
+    ra : str
+        A string representing the right ascension in the format "XhYmZs",
+        where X, Y, and Z are numbers.
+    Returns
+    -------
+    tuple of float or None
+        A tuple containing hours, minutes, and seconds as floats if the input
+        string matches the expected format. Returns None if the input string
+        does not match the expected format.
+    Examples
+    --------
+    >>> extract_hms("12h34m56.78s")
+    (12.0, 34.0, 56.78)
+    >>> extract_hms("invalid_string")
+    None
+    """
+
+    match = re.match(r"(\d+)h(\d+)m(\d+\.\d+)s", ra)
+    if match:
+        hours = float(match.group(1))
+        minutes = float(match.group(2))
+        seconds = float(match.group(3))
+        return (hours, minutes, seconds)
+    return None
+
+def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, only_ALMA=False):
+    """
+    Generate a list of scans from all the VEX files in a given directory.
+
+    Parameters
+    ----------
+    fpath : str
+        Path to the directory containing VEX files.
+    dict_gfit : dict
+        Dictionary containing gain fit parameters.
+    year : str, optional
+        Additional processing specific to campaign year. Default is '2021'.
+    ant_locat : dict
+        Dictionary containing antenna locations.
+    only_ALMA : bool, optional
+        If False, do some additional processing for other stations. Default is False.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing scan information including source, time, elevation, antennas, and gain.
+
+    Notes
+    -----
+    The function processes VEX files to extract scan information, computes elevation for specified antennas,
+    and applies gain corrections based on the gain fit parameters provided in the metadata (via dict_gfit).
+    """
+
+    # get list of all VEX files in fpath
+    list_files = [os.path.join(fpath, fname) for fname in os.listdir(fpath)]
+
+    # initialize DataFrame to store scan information for all tracks
+    tracks = pd.DataFrame({'source' : []})
+
+    # extract only those sites that have polynomial coefficients for gains in the ANTAB files
+    # convert to set to avoid duplicate sites that show up for different polarizations
+    polygain_stations = list(set([key[0] for key, value in dict_gfit.items() if len(value) > 1]))
+
+    # loop over all VEX files in fpath; one VEX file per observing track
+    for fi in list_files:
+        track_loc = os.path.splitext(os.path.basename(fi))[0] # get track name from vex file name
+
+        aa = vex.Vex(fi) # read VEX file
+
+        # Create dict_ra with 'source' as keys and the 3-tuple (hours, minutes, seconds) as values
+        dict_ra = {d['source']: extract_hms(d['ra']) for d in aa.source}
+
+        # Create dict_dec with 'source' as keys and the 3-tuple (degrees, minutes, seconds) as values
+        dict_dec = {d['source']: extract_dms(d['dec']) for d in aa.source}
+
+        # populate dataframe with scan information
+        tstart_hr = [aa.sched[x]['start_hr'] for x in range(len(aa.sched))]
+        source = [aa.sched[x]['source'] for x in range(len(aa.sched))]
+        datet = []
+        elev = []
+        stations = []
+        duration=[]
+
+        # loop over each item in aa.sched to extract scan information
+        for scanind in range(len(aa.sched)):
+            # extract MJD floor from VEX file and convert to ISO format
+            mjd_floor = Time(aa.sched[scanind]['mjd_floor'], format='mjd', scale='utc')
+            mjd_floor_iso = Time(mjd_floor, format='iso', scale='utc')
+            mjd_floor_iso = mjd_floor_iso + TimeDelta(tstart_hr[scanind]*3600., format='sec')
+            datet.append(mjd_floor_iso)
+
+            # Include only those stations in the elevation dict that have polynomial (degree > 1) coefficients for gains.
+            # Exclude stations that are absent in SMT2Z dict (derived from ovex files) which contains only those stations
+            # that actually observed. The info derived from VEX files may contain stations that were scheduled but ended up not observing.
+            stations_in_scan = [value['site'] for value in aa.sched[scanind]['scan'].values()]
+            stations_in_scan = [SMT2Z[station] for station in stations_in_scan if station in SMT2Z.keys()]
+
+            # compute elevation for each station in the scan and append to elevation list
+            elevloc = {}
+            for station in stations_in_scan:
+                if station in polygain_stations:
+                    elevloc[station] = compute_elev(dict_ra[source[scanind]], dict_dec[source[scanind]], ant_locat[station], datet[scanind] + TimeDelta(100., format='sec'))
+            elev.append(elevloc)
+
+            # append list of stations in the scan to stations list
+            if year == '2017' and 'S' in stations_in_scan:
+                stations_in_scan = stations_in_scan | {'R'}
+            stations.append(stations_in_scan)
+
+            # append scan durations to duration list
+            scan_sec = max([aa.sched[scanind]['scan'][y]['scan_sec'] for y in range(len(aa.sched[scanind]['scan']))])
+            duration.append(scan_sec)
+
+        time_min = [pd.Timestamp(datet[x].datetime) for x in range(len(datet))]
+        time_max = [time_min[x] + datetime.timedelta(seconds=duration[x]) for x in range(len(aa.sched))]
+
+        pervexdf = pd.DataFrame(aa.sched)
+        pervexdf = pervexdf[['source','mjd_floor','start_hr']]
+        pervexdf['time_min'] = time_min
+        pervexdf['time_max'] = time_max
+        pervexdf['elev'] = elev
+        pervexdf['scan_no'] = pervexdf.index
+        pervexdf['scan_no'] = list(map(int, pervexdf['scan_no']))
+        pervexdf['track'] = [track_loc]*pervexdf.shape[0]
+        pervexdf['expt'] = [int(track2expt[track_loc])]*pervexdf.shape[0]
+        pervexdf['stations'] = stations
+        pervexdf['duration'] = duration
+
+        # concatenate pervexdf to scans DataFrame
+        tracks = pd.concat([tracks, pervexdf], ignore_index=True)
+
+    tracks = tracks.reindex(['mjd_floor','expt','track','scan_no','source','time_min','time_max','duration','elev','stations'], axis=1)
+    tracks = tracks.sort_values('time_max')
+    tracks = tracks.reset_index(drop=True)
+    tracks['scan_no_tot'] = tracks.index
+
+    # Compute gain curves and add to dataframe
+    # Get the current band from dict_gfit and set pol to 'R' for accessing gfit coeffs.
+    # This works because all keys pertain to the same band and both polarizations.
+    gfitband = list(dict_gfit.keys())[0][2]
+    gfitpol = 'R'
+    for station in polygain_stations:
+        tracks[f'gain{station}'] = [1.]*tracks.shape[0]
+        for index, row in tracks.iterrows():
+            if station in row.stations:
+                coeffs = dict_gfit[(station, row.track, gfitband, gfitpol)]
+                gainf = Polynomial(coeffs)
+                foo = gainf(tracks.elev[index][station])
+                tracks.loc[index, f'gain{station}'] = float(foo)
+
+    return tracks
 
 def match_scans(scans,data):
     '''
