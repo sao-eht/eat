@@ -1,30 +1,7 @@
-'''
-#This module allows to read in ANTAB files
-#match them with VEX schedules
-#and generate output SEFD files in a folder structure
-#single SEFD file columns are:
-#0) fractional MJD, 
-#1) square root of SEFD R-polarization,
-#2) zeros
-#3) square root of SEFD L-polarization, 
-#4) zeros
-#Maciek Wielgus, Nov/29/2017, maciek.wielgus@gmail.com
+"""
+This script adapts and updates the routines to generate SEFDs from the original script by Maciek Wielgus.
+"""
 
-#INSTRUCTION FOR USING APCAL MODULE
-import apcal as ap
-#provide path to ANTAB calibration files
-antab_path = 'ANTABS/'
-#provide path to VEX scans information
-vex_path = 'VexFiles/'
-#for which sources, antenas, nights we want to generate calibration
-sourL = ['OJ287','3C279']
-antL = ['S','J','P','Z','X','L','R','A']
-exptL = [3597,3598,3599,3600,3601]
-#run the SEFD files generator
-ap.get_sefds(antab_path,vex_path,sourL,antL,exptL)
-
-
-'''
 import re
 import pandas as pd
 import numpy as np
@@ -47,25 +24,27 @@ exptL0 = []
 bandL0 = ['b1', 'b2', 'b3', 'b4']
 
 def compute_elev(ra_source, dec_source, xyz_antenna, time):
-    #this one is by Michael Janssen
-   """
-   given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
-   and given the position of the telescope from the vex file [Geocentric coordinates (m)]
-   and the time of the observation (e.g. '2012-7-13 23:00:00') [UTC:yr-m-d],
-   returns the elevation of the telescope.
-   Note that every parameter can be an array (e.g. the time)
-   """
-   #angle conversions:
-   ra_src_deg       = Angle(ra_source, unit=u.hour)
-   ra_src_deg       = ra_src_deg.degree * u.deg
-   dec_src_deg      = Angle(dec_source, unit=u.deg)
+    """
+    Given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
+    and given the position of the telescope from the vex file [Geocentric coordinates (m)]
+    and the time of the observation (e.g. '2012-7-13 23:00:00') [UTC:yr-m-d],
+    returns the elevation of the telescope.
+    Note that every parameter can be an array (e.g. the time)
 
-   source_position  = ICRS(ra=ra_src_deg, dec=dec_src_deg)
-   antenna_position = EarthLocation(x=xyz_antenna[0]*u.m, y=xyz_antenna[1]*u.m, z=xyz_antenna[2]*u.m)
-   altaz_system     = AltAz(location=antenna_position, obstime=time)
-   trans_to_altaz   = source_position.transform_to(altaz_system)
-   elevation        = trans_to_altaz.alt
-   return elevation.degree
+    Written by Michael Janssen
+    """
+    #angle conversions:
+    ra_src_deg       = Angle(ra_source, unit=u.hour)
+    ra_src_deg       = ra_src_deg.degree * u.deg
+    dec_src_deg      = Angle(dec_source, unit=u.deg)
+
+    source_position  = ICRS(ra=ra_src_deg, dec=dec_src_deg)
+    antenna_position = EarthLocation(x=xyz_antenna[0]*u.m, y=xyz_antenna[1]*u.m, z=xyz_antenna[2]*u.m)
+    altaz_system     = AltAz(location=antenna_position, obstime=time)
+    trans_to_altaz   = source_position.transform_to(altaz_system)
+    elevation        = trans_to_altaz.alt
+    
+    return elevation.degree
 
 def extract_dpfu_gfit_from_antab(filename, az2z):
     """
