@@ -940,7 +940,7 @@ def group_tsys_blocks(filename):
 
     return blocks
 
-def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=bandL0, avg_channels=True):
+def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=bandL0):
     """
     Extracts Tsys values from ANTAB files and returns them as a DataFrame.
     Parameters
@@ -953,8 +953,6 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
         Dictionary mapping track identifiers to experiment numbers.
     bandL : list, optional
         List of bands to filter the ANTAB files.
-    avg_channels : bool, optional
-        Whether to average Tsys values per channel.
     Returns
     -------
     pd.DataFrame
@@ -963,7 +961,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
     Notes
     -----
     - The function assumes that the ANTAB files are named in a specific format and contain Tsys blocks.
-    - The function handles different formats of Tsys values, including averaging per channel values if necessary.
+    - The function handles different formats of Tsys values, including averaging per channel values if necessary (this is the case for ALMA).
     """
 
     list_files = [f for f in os.listdir(antabpath) if f[0] == 'e' and any(f'_{band}_' in f for band in bandL)]
@@ -1035,7 +1033,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
                         Tsys_star_L = float(parts[3])
                     else:
                         # this station has Tsys values per time per channel, averaged over polarization feeds
-                        #print(f"Station {rowdict['station']} has Tsys values per channel (but not per pol). Averaging them...")
+                        # We channel-average the Tsys values to get a single Tsys value per time
                         Tsysarr = np.asarray(list(map(float,parts[2:])))
                         Tsysarr = Tsysarr[(Tsysarr != 0) & ~np.isnan(Tsysarr)]
                         if Tsysarr.size > 0:
@@ -1513,7 +1511,7 @@ def extract_hms(ra):
         return (hours, minutes, seconds)
     return None
 
-def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, only_ALMA=False):
+def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat):
     """
     Generate a list of scans from all the VEX files in a given directory.
 
@@ -1527,8 +1525,6 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
         Additional processing specific to campaign year. Default is '2021'.
     ant_locat : dict
         Dictionary containing antenna locations.
-    only_ALMA : bool, optional
-        If False, do some additional processing for other stations. Default is False.
 
     Returns
     -------
@@ -1738,7 +1734,7 @@ def match_scans_Tsys(scans, Tsys, only_ALMA=False):
     
     return Tsys
 
-def match_scans_with_Tsys(Tsys, scans, only_ALMA=False):
+def match_scans_with_Tsys(Tsys, scans):
     """
     Match system temperature (Tsys) data with scans.
     Parameters
@@ -1747,8 +1743,6 @@ def match_scans_with_Tsys(Tsys, scans, only_ALMA=False):
         DataFrame containing Tsys data with a 'datetime' column.
     scans : pandas.DataFrame
         DataFrame containing scan data with 'scan_no_tot', 'time_min', 'time_max', and 'source' columns.
-    only_ALMA : bool, optional
-        If True, only ALMA metadata is processed. Default is False.
     Returns
     -------
     pandas.DataFrame
@@ -1788,23 +1782,22 @@ def match_scans_with_Tsys(Tsys, scans, only_ALMA=False):
     DictSource = dict(zip(list(scans.scan_no_tot), list(scans.source)))
     DictTmin = dict(zip(list(scans.scan_no_tot), list(scans.time_min)))
 
-    if only_ALMA==False:
-        # Initialize a dictionary to store gain columns
-        DictGains = {}
 
-        # Filter columns that match the pattern 'gainX' where X is exactly one capital letter
-        gain_columns = [col for col in scans.columns if re.match(r'^gain[A-Z]$', col)]
+    # Initialize a dictionary to store gain columns
+    DictGains = {}
 
-        # Store the results in dictionaries with the gain_columns as keys
-        for col in gain_columns:
-            DictGains[col] = dict(zip(list(scans.scan_no_tot), list(scans[col])))
+    # Filter columns that match the pattern 'gainX' where X is exactly one capital letter
+    gain_columns = [col for col in scans.columns if re.match(r'^gain[A-Z]$', col)]
+
+    # Store the results in dictionaries with the gain_columns as keys
+    for col in gain_columns:
+        DictGains[col] = dict(zip(list(scans.scan_no_tot), list(scans[col])))
 
     #select only the data taken during scans, not in between scans
     Tsys = Tsys[Tsys['scan_no_tot'] >= 0]
     Tsys = Tsys.assign(source=Tsys['scan_no_tot'].map(DictSource))
-    if only_ALMA==False:
-        for col in gain_columns:
-            Tsys = Tsys.assign(**{col: Tsys['scan_no_tot'].map(DictGains[col])})
+    for col in gain_columns:
+        Tsys = Tsys.assign(**{col: Tsys['scan_no_tot'].map(DictGains[col])})
 
     # Add t_scan col to the DataFrame
     Tsys = Tsys.assign(t_scan=Tsys['scan_no_tot'].map(DictTmin))
@@ -1812,7 +1805,7 @@ def match_scans_with_Tsys(Tsys, scans, only_ALMA=False):
     
     return Tsys
 
-def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0, only_ALMA=False):
+def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0):
 
     Tsys_matched = pd.DataFrame({'source' : []})
 
@@ -1822,7 +1815,7 @@ def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0, only_ALMA=False):
             Tsys_loc = Tsys_full.loc[(Tsys_full['station']==ant) & (Tsys_full['expt']==expt)].sort_values('datetime').reset_index(drop=True)
             scans_loc = scans[(scans.expt == expt) & scans.stations.apply(lambda x: ant in x)].sort_values('time_min').reset_index(drop=True)
             if(np.shape(Tsys_loc)[0]>0 and np.shape(scans_loc)[0]>0):
-                Tsys_matched_loc = match_scans_with_Tsys(Tsys_loc, scans_loc, only_ALMA=only_ALMA)
+                Tsys_matched_loc = match_scans_with_Tsys(Tsys_loc, scans_loc)
                 Tsys_matched= pd.concat([Tsys_matched, Tsys_matched_loc], ignore_index=True)
             else:
                 continue
@@ -1886,8 +1879,9 @@ def get_sefds_new(antab_path='ANTAB', vex_path='VEX', year='2021', sourL=sourL, 
     None
     """
     print('Obtaining calibration data from ANTAB files...')
-    #TABLE of CALIBRATION DATA from ANTAB files
     dict_dpfu, dict_gfit = extract_dpfu_gfit_from_all_antab(antab_path, AZ2Z, bandL)
+
+    # get all Tsys data from ANTAB files
     Tsys_full = extract_Tsys_from_antab(antab_path, AZ2Z, track2expt, bandL)
 
     print('Obtaining scans from VEX files...')
@@ -1908,9 +1902,7 @@ def get_sefds_ALMA(antab_path='ANTAB', vex_path='VEX', sourL=sourL,antL=antL0, e
     '''
     new version for when files are separate for bands
     '''
-    print('Getting the calibration data...')
-    #TABLE of CALIBRATION DATA from ANTAB files
-
+    print('Obtaining calibration data from ANTAB files...')
     dict_dpfu, dict_gfit = extract_dpfu_gfit_from_all_antab(antab_path)
 
     if version=='ER6':
@@ -1918,9 +1910,10 @@ def get_sefds_ALMA(antab_path='ANTAB', vex_path='VEX', sourL=sourL,antL=antL0, e
     else:
         TsA = prepare_Tsys_data_ALMA(antab_path)
 
-    print('Getting the scans data...')
+    print('Obtaining scans from VEX files...')
     #TABLE of SCANS from VEX files, using elevation gain info
-    scans = make_scan_list(vex_path,gf,only_ALMA=only_ALMA)
+    #scans = make_scan_list(vex_path,gf,only_ALMA=only_ALMA)
+    scans = extract_scans_from_all_vex(vex_path, dict_gfit, year=year, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat)
 
     print('Matching calibration to scans...')
     #MATCH CALIBRATION with SCANS to determine the source and 
