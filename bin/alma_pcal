@@ -29,8 +29,8 @@ def unwrap(phi):
     """Unwrap an array of angles to avoid artificial jumps due to branching
     """
     for i in np.arange(len(phi)-1)+1:
-        if   phi[i] - phi[i-1] >  180: phi[i:] -= 360
-        elif phi[i] - phi[i-1] < -180: phi[i:] += 360
+        if   phi.iloc[i] - phi.iloc[i-1] >  180: phi.iloc[i:] -= 360
+        elif phi.iloc[i] - phi.iloc[i-1] < -180: phi.iloc[i:] += 360
     return phi
 
 def offset(phi):
