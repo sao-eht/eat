@@ -67,8 +67,12 @@ def tag(tagstr, **kwargs):
     ax = plt.gca()
     h, = ax.plot(np.NaN, np.NaN, '-', color='none') # empty line for legend
     leg = Legend(ax, (h,), (tagstr,), handlelength=0, handletextpad=0, **kwargs)
-    for item in leg.legendHandles:
-        item.set_visible(False)
+    if hasattr(leg, 'legendHandles'): # matplotlib < 3.6.0
+        for item in leg.legendHandles:
+            item.set_visible(False)
+    elif hasattr(leg, 'legend_handles'): # matplotlib >= 3.6.0
+        for item in leg.legend_handles:
+            item.set_visible(False)
     ax.add_artist(leg)
 
 def figsize(width, height):
