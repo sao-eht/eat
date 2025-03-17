@@ -256,6 +256,7 @@ def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, re
             baselineNames.append(fn.split(os.extsep)[0])
     baselineNames = list(set(baselineNames))
     baselineNames.sort()
+    logging.debug(f"Unique baselines in scan {os.path.basename(scandir)}: {baselineNames}")
     
     ########### loop through baselines and create per-baseline uvfits files ###########
     for baselineName in baselineNames:
@@ -270,7 +271,7 @@ def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, re
 
         # remove type 1 and 2 files and uvfits files with the same basename
         bl_flist = [f for f in glob.glob(os.path.join(scandir, f'{baselineName}*')) if f.split(os.extsep)[-1] != "uvfits" and os.path.basename(f).count('.')==3]
-        logging.info(f"Converting {len(bl_flist)} fringefiles in scan {os.path.basename(scandir)} to uvfits for baseline {baselineName}")
+        logging.info(f"Converting {len(bl_flist)} fringefiles corresponding to baseline {baselineName} in scan {os.path.basename(scandir)}...")
         for index, filename in enumerate(bl_flist):
             logging.info(f"Reading fringe file {index}: {filename}")
             try:
@@ -598,6 +599,7 @@ def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, re
         outstruct = Datastruct(obsinfo,  antennainfo, alldata)
 
         fname = os.path.join(scandir, baselineName+bluvfits_pattern)
+        logging.debug(f"Saving per-baseline uvfits file: {fname}")
         save_uvfits(outstruct, fname)
 
     return 0
@@ -1173,7 +1175,7 @@ def save_uvfits(datastruct, fname):
     #Antenna Table entries
     col1 = fits.Column(name='ANNAME', format='8A', array=antnames)
     col2 = fits.Column(name='STABXYZ', format='3D', unit='METERS', array=xyz)
-    col3= fits.Column(name='ORBPARM', format='0D', array=np.zeros(0))
+    col3= fits.Column(name='ORBPARM', format='D', array=np.zeros(0))
     col4 = fits.Column(name='NOSTA', format='1J', array=antnums)
 
     #TODO get the actual information for these parameters for each station
@@ -1345,8 +1347,8 @@ def write_dict_to_file(fpath, dictionary):
 def create_parser():
     p = argparse.ArgumentParser()
 
-    p.add_argument("datadir", help="Directory containing input fringe files organised by epoch and scan")
-    p.add_argument("outdir", help="Directory to which UVFITS files must be written")
+    p.add_argument("datadir", help="Input directory corresponding to single epoch containing scan directories")
+    p.add_argument("outdir", help="Output directory to which UVFITS files are written")
     p.add_argument('--computebluvfits', action='store_true', help='Generate per-baseline uvfits files')
     p.add_argument('--discardbluvfits', action='store_true', help='Remove individual baseline files after merging')
     p.add_argument('--recomputeuv', action='store_true', help='Recompute uv-coordinates')
@@ -1378,10 +1380,10 @@ def main(args):
 
     # get list of only the subdirectories under datadir and sort them; these are the individual scan directories for a given epoch
     scandirs = sorted([os.path.join(datadir, d) for d in os.listdir(datadir) if os.path.isdir(os.path.join(datadir, d))])
-    ndirs = len(scandirs)
+    nscandirs = len(scandirs)
 
-    allscans_uvfits = np.empty(ndirs, dtype=object)
-    allscans_sources = np.empty(ndirs, dtype=object)
+    allscans_uvfits = np.empty(nscandirs, dtype=object)
+    allscans_sources = np.empty(nscandirs, dtype=object)
 
     # declare dictionaries for extracting metadata from ovex files
     az2z = {}
@@ -1392,22 +1394,22 @@ def main(args):
     for idx, scandir in enumerate(tqdm.tqdm(scandirs, desc='Processing scan directories')):
 
         # process scandir to get station codes and expt numbers
-        pattern = r'^[^.]+\.[A-Z0-9]{6}$'
-        ovexname = next((entry.name for entry in os.scandir(scandir) if entry.is_file() and re.match(pattern, entry.name)), None)
-        if ovexname is None:
-            logging.warning(f"No valid ovex file found in scan directory {scandir}. Skipping scan...")
+        pattern = r"^[a-zA-Z0-9+-]+\.[a-zA-Z0-9]{6}$"
+        rootfilename = next((entry.name for entry in os.scandir(scandir) if entry.is_file() and re.match(pattern, entry.name)), None)
+        if rootfilename is None:
+            logging.warning(f"No valid root file (ovex) found in scan directory {scandir}. Skipping scan...")
             continue
         else:
-            with open(os.path.join(scandir, ovexname)) as f:
-                logging.info(f"Processing ovex file {ovexname}")
+            with open(os.path.join(scandir, rootfilename)) as f:
+                logging.info(f"Processing root file {rootfilename}...")
                 contents = f.read()                
-                # extract experiment name and number from ovex file
+                # extract track name and HOPS expt_no from root file
                 pattern = r'def (\w+);.*?exper_num = (\d+);.*?exper_name = \1;'
                 match = re.search(pattern, contents, re.DOTALL)
                 if match and match.group(1) not in track2expt.keys():
                     track2expt[match.group(1)] = match.group(2)
 
-                # extract station codes from ovex file
+                # extract station codes from root file
                 pattern = r'def (\w+);.*?site_name = \1;.*?site_ID = (\w+);.*?mk4_site_ID = (\w+);'
                 matches = re.findall(pattern, contents, re.DOTALL)               
                 if matches:
@@ -1425,12 +1427,12 @@ def main(args):
                     contains_fringefiles = True
                     break
         if not contains_fringefiles:
-            logging.warning(f"No valid fringe files found in scan directory {scandir}. Skipping scan...")
+            logging.warning(f"No valid fringe files found in scan directory {scandir}. Skipping...")
             continue
 
         if args.computebluvfits:
             # generate per-baseline uvfits files
-            logging.info(f"Processing scan {scandir}")
+            logging.info(f"Processing scan {scandir}...")
 
             # remove existing per-baseline uvfits files since we are generating them anew
             logging.info('Deleting existing per-baseline uvfits files...')
