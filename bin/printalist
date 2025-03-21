@@ -61,7 +61,7 @@ parser.add_argument('-e', '--expression', help='expression is a python expressio
 parser.add_argument('-t', '--threshold', help='signal-to-noise threshold (same as -e "snr > <threshold>")', type=float, default=None)
 parser.add_argument('-l', '--long', help='long format output for more decimal places', action="store_true")
 parser.add_argument('-ll', '--longlong', help='full alist format output all columns', action="store_true")
-parser.add_argument('-na', '--no-auto', help='do not print autocorrelations', action="store_true")
+parser.add_argument('-wa', '--with-auto', help='include autocorrelations', action="store_true")
 parser.add_argument('-nh', '--no-header', help="don't print column header", action="store_true")
 # parser.add_argument('-ni', '--no-index', help="don't print index (row number)", action="store_true")
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
@@ -69,6 +69,7 @@ parser.add_argument('-bs', '--baseline-sites', help='only use baseline formed fr
 parser.add_argument('-pp', '--parallel-products', help='only show parallel hand polarization products', action="store_true")
 parser.add_argument('-cp', '--cross-products', help='only show cross hand polarization products', action="store_true")
 parser.add_argument('-dup', '--duplicates',  help='remove duplicates keeping last sorted value (-s), default groupby: expt_no scan_id baseline polarization', nargs='*', default=None)
+parser.add_argument('-summ', '--summary', help='print summary of observations rather than data', action="store_true")
 # "expt_no scan_id baseline polarization".split())
 args = parser.parse_args()
 
@@ -128,7 +129,7 @@ if args.parallel_products:
     a = a[a.polarization.isin({'RR', 'LL', 'XX', 'YY'})]
 if args.cross_products: # not going to handle mixed pol
     a = a[a.polarization.isin({'RL', 'LR', 'XY', 'YX'})]
-if args.no_auto:
+if not args.with_auto:
     a = a[a.baseline.map(lambda x: x[0] != x[1])]
 to_string_kwargs = dict()
 if args.no_header:
@@ -186,7 +187,15 @@ if args.duplicates is not None:
 
 fmt.update(additional_fmt)
 fmt.pop('source', None) # let source autoformat because HOPS %32s is really long
-if not args.longlong:
-    print(a[columns].to_string(formatters=fmt, **to_string_kwargs))
-else:
+if args.summary:
+    print("summary")
+    b1 = util.noauto(a)["expt_no source scan_id baseline".split()].drop_duplicates()
+    b2 = b1.copy()
+    c = pd.concat((b1, b2))
+    c['site'] = c['baseline'].str[0]
+    print(c.groupby(['expt_no', 'source', 'site'])['scan_id'].count().unstack(fill_value='-'))
+elif args.longlong:
     writefun(a, sys.stdout)
+else:
+    print(a[columns].to_string(formatters=fmt, **to_string_kwargs))
+
