@@ -20,8 +20,7 @@ def create_parser():
     p.add_argument("metadir", help="Directory containing calibration metadata (VEX files, ANTAB files)")
     p.add_argument("wrkdir", help="Directory to which SEFD files must be written")
     p.add_argument("-v", "--version", help="Version of the calibration metadata", default='2021')
-    p.add_argument("-av", "--almaversion", help="Version of the ALMA calibration metadata", default='ER6')
-
+    
     return p
 
 def read_coordinates(fname):
@@ -44,7 +43,7 @@ def main(args):
 
     # check if metadata files exist
     if not all(os.path.exists(os.path.join(args.wrkdir, file)) for file in [az2z_file, smt2z_file, track2expt_file]):
-        print("One or more metadata files do not exist in {args.wrkdir}. Exiting without generating SEFDs!")
+        print("One or more of metadata files AZ2Z/SMT2Z/track2expt generated in the previous stage missing in {args.wrkdir}. Exiting without generating SEFDs.")
         return
 
     # get list of sources from metadata
