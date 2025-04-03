@@ -38,6 +38,7 @@ setup(
              "bin/alma_pcal",
              "bin/alma_sbdmbd",
              "bin/antab2sefd",
+             "bin/applycal",
              "bin/cal_apriori_pang_uvfits.py",
              "bin/cal_polcal_gains_uvfits.py",
              "bin/caluvfits.py",
@@ -51,7 +52,6 @@ setup(
              "bin/mksnr",
              "bin/noauto",
              "bin/ovex2codes",
-             "bin/apriorical",
              "bin/printalist",
              "bin/runall.py",
              "bin/uv_comb.py"]
