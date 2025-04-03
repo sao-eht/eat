@@ -84,9 +84,10 @@ def main(args):
 
     # get list of bands -- this will be just the current band for now
     # Use regular expression to extract 'b1' from 'hops-b1'
-    match = re.search(r'hops-(\w+)/', args.wrkdir)
-    if match:
-        bandL = [match.group(1)]
+    # match only the last occurrence to avoid confusion with top level dirs with "hops-" in their names
+    matches = re.findall(r'hops-(\w+)/', args.wrkdir)
+    if matches:
+        bandL = [matches[-1]]
     else:
         print('Band not found. Exiting without generating SEFDs!')
     print(f'List of bands: {bandL}')
