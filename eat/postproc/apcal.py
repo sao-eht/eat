@@ -84,7 +84,12 @@ def extract_dpfu_gfit_from_antab(filename, az2z):
     with open(filename, 'r') as f:
         for line in f:
             if line.startswith("GAIN"):
-                ant = az2z[line.split(' ')[1]]
+                line_station = line.split(' ')[1]
+                # Check if the line contains a valid station code
+                if line_station not in az2z:
+                    continue
+                # Extract the antenna code from the line
+                ant = az2z[line_station]
                 dpfu_match = dpfu_pattern.search(line)
                 poly_match = poly_pattern.search(line)
                 if dpfu_match and poly_match:
@@ -307,6 +312,9 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
             for line in block:
                 if line.startswith('TSYS'):
                     parts = line.split()
+                    # check if the line contains a valid station code
+                    if parts[1] not in AZ2Z:
+                        continue
                     rowdict['station'] = AZ2Z[parts[1]] # get station code
                     print(rowdict['station'])
 
@@ -618,9 +626,10 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
 
             # compute elevation for each station in the scan and append to elevation list
             elevloc = {}
+            Z2SMT = {v: k for k, v in SMT2Z.items()} # to access the keys of ant_locat easily
             for station in stations_in_scan:
                 if station in polygain_stations:
-                    elevloc[station] = compute_elev(dict_ra[source[scanind]], dict_dec[source[scanind]], ant_locat[station], datet[scanind] + TimeDelta(100., format='sec'))
+                    elevloc[station] = compute_elev(dict_ra[source[scanind]], dict_dec[source[scanind]], ant_locat[Z2SMT[station]], datet[scanind] + TimeDelta(100., format='sec'))
             elev.append(elevloc)
 
             # append list of stations in the scan to stations list
