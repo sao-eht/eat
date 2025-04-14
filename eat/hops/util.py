@@ -2053,6 +2053,7 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
     ulthreshold = ulthreshold or threshold
     detections = measurements[measurements.snr >= ulthreshold]
     upperlimits = measurements[measurements.snr < ulthreshold]
+    annotations = []
     # add extra non-detections
     if allscans is not None:
         util.add_id(df, col=['scan_id', 'baseline'])
@@ -2068,6 +2069,10 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
         # labels for legend
         for name in sorted(set(itertools.chain(detections.baseline, upperlimits.baseline))):
             plt.plot([], [], 'o', mew=1, label=bltrans(name), alpha=1, color=color[name])
+        for (name, rows) in df.sort_values('baseline').groupby('baseline'):
+            if name not in {'AA', 'SS'}:
+                annotations.append(plt.text(rows.u.iloc[0]/1e3, rows.v.iloc[0]/1e3, name,
+                                   ha='center', va='center', color=color[name], fontsize='small', weight='bold'))
         for (name, rows) in detections.sort_values('baseline').groupby('baseline'):
             h = plt.plot(rows.u/1e3, rows.v/1e3, 'o', mew=1, label='_nolegend_', alpha=1, color=color[name], zorder=100)
             plt.plot(-rows.u/1e3, -rows.v/1e3, 'o', mew=1, label='_nolegend_', alpha=1, color=color[name], zorder=100)
@@ -2102,18 +2107,17 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
 
     if 330e3 < df.ref_freq.iloc[0] < 360e3:
         plt.xlim(-15, 15)
+        plt.ylim(-15, 15)
+        plt.xticks(list(range(-15, 16, 3)))
+        plt.yticks(list(range(-15, 16, 3)))
     elif 210e3 < df.ref_freq.iloc[0] < 240e3:
-        plt.xlim(-10, 10)
+        plt.xlim(-10.5, 10.5)
+        plt.ylim(-9.5, 9.5)
+        plt.xticks(list(range(-8, 9, 2)))
+        plt.yticks(list(range(-8, 9, 2)))
 
     if flip:
         plt.xlim(plt.xlim()[::-1])
-
-    if 330e3 < df.ref_freq.iloc[0] < 360e3:
-        plt.ylim(-15, 15)
-        plt.xticks(list(range(-15, 16, 3)))
-    elif 210e3 < df.ref_freq.iloc[0] < 240e3:
-        plt.ylim(-9, 9)
-        plt.xticks(list(range(-8, 9, 2)))
 
     plt.plot(0, 0, 'k.')
     plt.title('EHT %s %s coverage' % (year, source))
@@ -2132,8 +2136,6 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
             if leg is not None:
                 leg.set_zorder(300)
                 plt.gca().add_artist(leg)
-        leg = plt.legend(loc='upper right')
-        leg.set_zorder(300)
     else:
         from mpl_toolkits.axes_grid1 import inset_locator as il
         cax = il.inset_axes(ax, width="5%", height="90%", loc='center right')
@@ -2148,4 +2150,15 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
         tag = tag or col
         plt.sca(ax)
         pu.tag(tag, loc='upper left')
+
+    # use adjusttext labels if available
+    try:
+        from adjustText import adjust_text
+        adjust_text(annotations,
+                    x = pd.concat((detections.u/1e3, -detections.u/1e3)),
+                    y = pd.concat((detections.v/1e3, -detections.v/1e3)),
+                    time_lim=10, max_move=10)
+    except:
+        leg = plt.legend(loc='upper right')
+        leg.set_zorder(300)
 
