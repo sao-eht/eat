@@ -373,7 +373,11 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
                     rowdict['Tsys_star_L'] = Tsys_star_L
 
                     rowdf = pd.DataFrame([rowdict], columns=cols)
-                    Tsys = pd.concat([Tsys, rowdf], ignore_index=True)
+                    if not rowdf.dropna().empty:
+                        if Tsys.empty:
+                            Tsys = rowdf
+                        else:
+                            Tsys = pd.concat([Tsys, rowdf], ignore_index=True)
 
     Tsys.expt = Tsys.expt.astype(int) # convert expt to integer
 
@@ -430,7 +434,7 @@ def generate_and_save_sefd_data(Tsys_full, dict_dpfu, sourL=sourL, antL=antL0, e
                     condA = (Tsys_full['station']==ant)
                     condE = (Tsys_full['track']==expt2track[expt])
                     condPositive = (Tsys_full['Tsys_star_R']>0)&(Tsys_full['Tsys_star_L']>0)
-                    Tsys_local = Tsys_full.loc[condB&condS&condA&condE&condPositive]
+                    Tsys_local = Tsys_full.loc[condB&condS&condA&condE&condPositive].copy()
                     
                     try:
                         Tsys_local.loc[:,'sefd_L'] = np.sqrt(Tsys_local['Tsys_star_L']/dict_dpfu[(ant,expt2track[expt],band,'L')])
