@@ -1,8 +1,8 @@
 # vex.py
 # a interferometric array vex schedule class
 #
-#    Jan 2025: Adapted from the original version by Iniyan Natarajan
-#    Copyright (C) 2018 Hotaka Shiokawa
+#    Original version, Copyright (C) 2018 Hotaka Shiokawa
+#    Jan 2025: Modifications for eat library by Iniyan Natarajan
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
