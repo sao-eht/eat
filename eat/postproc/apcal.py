@@ -13,6 +13,7 @@ from astropy.time import Time, TimeDelta
 from eat.io import vex
 import scipy.interpolate as si
 from numpy.polynomial import Polynomial
+import logging
 
 AZ2Z = {}
 SMT2Z = {}
@@ -492,68 +493,6 @@ def ad_dummy_values(df,dmjd=0.001):
     #df.iloc[-1]
     return df
 
-# Function to extract degrees, minutes, and seconds from dec
-def extract_dms(dec):
-    """
-    Extracts degrees, minutes, and seconds from a declination string.
-    Parameters
-    ----------
-    dec : str
-        A string representing the declination in the format "±DdMmSs.s".
-    Returns
-    -------
-    tuple or None
-        A tuple containing degrees, minutes, and seconds as floats if the input matches the expected format.
-        Returns None if the input does not match the expected format.
-    Examples
-    --------
-    >>> extract_dms("+12d34'56.7\"")
-    (12.0, 34.0, 56.7)
-    >>> extract_dms("-12d34'56.7\"")
-    (-12.0, 34.0, 56.7)
-    >>> extract_dms("invalid")
-    None
-    """
-
-    match = re.match(r"([+-]?\d+)d(\d+)'(\d+\.\d+)\"", dec)
-    if match:
-        degrees = float(match.group(1))
-        minutes = float(match.group(2))
-        seconds = float(match.group(3))
-        return (degrees, minutes, seconds)
-    return None
-
-# Function to extract hours, minutes, and seconds from ra
-def extract_hms(ra):
-    """
-    Extract hours, minutes, and seconds from a right ascension string.
-    Parameters
-    ----------
-    ra : str
-        A string representing the right ascension in the format "XhYmZs",
-        where X, Y, and Z are numbers.
-    Returns
-    -------
-    tuple of float or None
-        A tuple containing hours, minutes, and seconds as floats if the input
-        string matches the expected format. Returns None if the input string
-        does not match the expected format.
-    Examples
-    --------
-    >>> extract_hms("12h34m56.78s")
-    (12.0, 34.0, 56.78)
-    >>> extract_hms("invalid_string")
-    None
-    """
-
-    match = re.match(r"(\d+)h(\d+)m(\d+\.\d+)s", ra)
-    if match:
-        hours = float(match.group(1))
-        minutes = float(match.group(2))
-        seconds = float(match.group(3))
-        return (hours, minutes, seconds)
-    return None
-
 def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat):
     """
     Generate a list of scans from all the VEX files in a given directory.
@@ -597,10 +536,10 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
         aa = vex.Vex(fi) # read VEX file
 
         # Create dict_ra with 'source' as keys and the 3-tuple (hours, minutes, seconds) as values
-        dict_ra = {d['source']: extract_hms(d['ra']) for d in aa.source}
+        dict_ra = {d['source']: d['ra'] for d in aa.source}
 
         # Create dict_dec with 'source' as keys and the 3-tuple (degrees, minutes, seconds) as values
-        dict_dec = {d['source']: extract_dms(d['dec']) for d in aa.source}
+        dict_dec = {d['source']: d['dec'] for d in aa.source}
 
         # populate dataframe with scan information
         tstart_hr = [aa.sched[x]['start_hr'] for x in range(len(aa.sched))]
@@ -624,7 +563,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
             stations_in_scan = [value['site'] for value in aa.sched[scanind]['scan'].values()]
             stations_in_scan = [SMT2Z[station] for station in stations_in_scan if station in SMT2Z.keys()]
 
-            # compute elevation for each station in the scan and append to elevation list
+            # compute elevation for each station with polynomial gain coeffs (POLY in ANTAB files) in the scan and append to elevation list
             elevloc = {}
             Z2SMT = {v: k for k, v in SMT2Z.items()} # to access the keys of ant_locat easily
             for station in stations_in_scan:

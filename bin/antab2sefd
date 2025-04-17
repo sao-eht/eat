@@ -7,6 +7,7 @@ import ast
 import glob
 import argparse
 from eat.postproc import apcal
+import logging
 
 # metadata files generated in stage 6 -- the naming convention follows the one used by L1 team
 az2z_file = 'cf7_AZ2Z.txt'
@@ -20,6 +21,7 @@ def create_parser():
     p.add_argument("metadir", help="Directory containing calibration metadata (VEX files, ANTAB files)")
     p.add_argument("wrkdir", help="Directory to which SEFD files must be written")
     p.add_argument("-v", "--version", help="Version of the calibration metadata", default='2021')
+    p.add_argument('--loglevel', type=str, default='DEBUG', help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
     
     return p
 
@@ -39,6 +41,14 @@ def read_coordinates(fname):
     return coordinates_dict
 
 def main(args):
+    # Configure logging
+    loglevel = getattr(logging, args.loglevel.upper(), None)
+    if not isinstance(loglevel, int):
+        raise ValueError(f'Invalid log level: {args.loglevel}')
+    logging.basicConfig(level=loglevel,
+                        format='%(asctime)s %(levelname)s:: %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
+    
     print('**************** Computing SEFDs from metadata ****************')
 
     # check if metadata files exist
