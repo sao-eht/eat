@@ -1404,10 +1404,10 @@ def main(args):
                 logging.info(f"Processing root file {rootfilename}...")
                 contents = f.read()                
                 # extract track name and HOPS expt_no from root file
-                pattern = r'def (\w+);.*?exper_num = (\d+);.*?exper_name = \1;'
+                pattern = r'def (\w+);.*?(?:exper_num = (\d+);.*?exper_name = \1;|exper_name = \1;.*?exper_num = (\d+);)'
                 match = re.search(pattern, contents, re.DOTALL)
                 if match and match.group(1) not in track2expt.keys():
-                    track2expt[match.group(1)] = match.group(2)
+                    track2expt[match.group(1)] = match.group(2) or match.group(3)
 
                 # extract station codes from root file
                 pattern = r'def (\w+);.*?site_name = \1;.*?site_ID = (\w+);.*?mk4_site_ID = (\w+);'
