@@ -1454,12 +1454,13 @@ def main(args):
         if not len(bl_uvfits):
             logging.warning(f"No per-baseline uvfits files found! Skipping scan {scandir}.")
             continue
-        datastruct = merge_hops_uvfits(bl_uvfits)
-        outname = os.path.join(scandir, scanuvfits_pattern)
-        save_uvfits(datastruct, outname)
+        else:
+            datastruct = merge_hops_uvfits(bl_uvfits)
+            outname = os.path.join(scandir, scanuvfits_pattern)
+            save_uvfits(datastruct, outname)
 
-        allscans_uvfits[idx] = outname
-        allscans_sources[idx] = datastruct.obs_info.src
+            allscans_uvfits[idx] = outname
+            allscans_sources[idx] = datastruct.obs_info.src
 
         # if requested, remove baseline-specific uvfits files
         if args.discardbluvfits:
