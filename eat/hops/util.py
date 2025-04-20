@@ -190,14 +190,17 @@ def pop206(b=None):
 
 # populate the type_210 visib data into array
 # (nchan)
-def pop210(b=None, pol=None):
+def pop210(b=None, pol=None, polar=False):
     b = getfringefile(b, pol=pol)
     nchan = b.n212
     q = (mk4.polars*nchan).from_address(ctypes.addressof(b.t210.contents.amp_phas))
     data210 = np.frombuffer(q, dtype=np.float32, count=-1).reshape((nchan, 2))
     deg2rad = np.pi / 180.0
-    v = data210[:,0] * np.exp(1j * data210[:,1] * deg2rad)
-    return v
+    if polar:
+        return data210
+    else:
+        v = data210[:,0] * np.exp(1j * data210[:,1] * deg2rad)
+        return v
 
 # populate the type_212 visib data into array
 # (nap, nchan)
