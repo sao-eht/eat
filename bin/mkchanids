@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+
+# create chan_ids control file directive from fringe file
+# 2025-04-19 LLB
+
+from eat.hops import util as hu
+import textwrap
+import sys
+import os
+import datetime
+import pwd
+
+# logging
+statline = '[%s] %s@%s:%s$ %s' % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), pwd.getpwuid(os.getuid())[0], os.uname()[1], os.getcwd(), ' '.join(sys.argv))
+print('* ' + statline)
+
+p = hu.params(sys.argv[1], quiet=True)
+fcenter = (min(p.fedge) + max(p.fedge + p.bw)) / 2.0
+print('\n* ref_freq ' + str(p.ref_freq) + ' * original from fringe file')
+print('ref_freq ' + str(fcenter) + ' * band center')
+print('\nchan_ids ' + ''.join(p.code))
+print(textwrap.indent(textwrap.fill(' '.join(map(str, p.fedge)), width=76), "    "))
