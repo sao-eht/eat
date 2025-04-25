@@ -531,6 +531,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
 
     # extract only those sites that have polynomial coefficients for gains in the ANTAB files
     # convert to set to avoid duplicate sites that show up for different polarizations
+    # note that these stations may not be present in all tracks TODO Make the entire code work for one track and loop through tracks in ehthops
     polygain_stations = list(set([key[0] for key, value in dict_gfit.items() if len(value) > 1]))
 
     # loop over all VEX files in fpath; one VEX file per observing track
@@ -616,11 +617,16 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
         tracks[f'gain{station}'] = [1.]*tracks.shape[0]
         for index, row in tracks.iterrows():
             if station in row.stations:
-                coeffs = dict_gfit[(station, row.track, gfitband, gfitpol)]
-                gainf = Polynomial(coeffs)
-                foo = gainf(tracks.elev[index][station])
-                tracks.loc[index, f'gain{station}'] = float(foo)
-
+                gfitkey = (station, row.track, gfitband, gfitpol)
+                if gfitkey in dict_gfit:
+                    # Get the polynomial coefficients for the gain curve
+                    coeffs = dict_gfit[gfitkey]
+                    gainf = Polynomial(coeffs)
+                    foo = gainf(tracks.elev[index][station])
+                    tracks.loc[index, f'gain{station}'] = float(foo)
+                else:
+                    tracks.loc[index, f'gain{station}'] = np.nan
+                
     return tracks
 
 def match_scans_with_Tsys(Tsys, scans):
