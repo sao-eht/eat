@@ -756,8 +756,8 @@ def match_frames(frame1, frame2, what_is_same, dt = 0, uniquely=True):
     frame2 = frame2[list(map(lambda x: x in frames_common, frame2.all_ind))]
 
     if uniquely:
-        frame1.drop_duplicates(subset=['all_ind'], keep='first', inplace=True)
-        frame2.drop_duplicates(subset=['all_ind'], keep='first', inplace=True)
+        frame1 = frame1.drop_duplicates(subset=['all_ind'], keep='first')
+        frame2 = frame2.drop_duplicates(subset=['all_ind'], keep='first')
 
     frame1 = frame1.sort_values('all_ind').reset_index(drop=True)
     frame2 = frame2.sort_values('all_ind').reset_index(drop=True)
