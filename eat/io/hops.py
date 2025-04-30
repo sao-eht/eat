@@ -11,6 +11,7 @@ import datetime
 import numpy as np
 import os
 import sys
+from . import util
 
 def condense_formats(fmtlist):
     return map(lambda fmt: fmt if fmt.count('%') <= 1 else "%s", fmtlist)
@@ -187,11 +188,12 @@ fsumm_v6_pandasargs = dict(
     comment='*',
     header=None,
     dtype={15:str},
-    parse_dates={'datetime':[10,11]},
+    # -- removing the following due to pandas deprecation --
+    # parse_dates={'datetime':[10,11]},
     # index_col='datetime',
-    keep_date_col=True,
+    # keep_date_col=True,
     # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
-    date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%Y%j-%H%M%S') for (x,y) in zip(years,times)],
+    # date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%Y%j-%H%M%S') for (x,y) in zip(years,times)],
     names=ffields_v6,
 )
 
@@ -214,6 +216,7 @@ def read_alist_v5(filename):
 
 def read_alist_v6(filename):
     table = pd.read_csv(filename, **fsumm_v6_pandasargs)
+    util.add_datetime(table)        # no longer added in read_csv
     table.attrs = {'file':filename} # pandas 1.0+ will preserve attrs dict
     return table
 

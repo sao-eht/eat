@@ -153,6 +153,10 @@ def add_days(df):
     """decimal *days* since beginning of year = (DOY - 1) + hour/24."""
     df['days'] = df.timetag.apply(lambda x: float(x[0:3])-1. + float(x[4:6])/24. + float(x[6:8])/1440. + float(x[8:10])/86400.)
 
+def add_datetime(df):
+    """add *datetime* column from year and timetag"""
+    df['datetime'] = pd.to_datetime([str(x) + y for x, y in zip(df.year, df.timetag)], format='%Y%j-%H%M%S')
+
 def add_gmst(df):
     """add *gmst* column to data frame with *datetime* field using astropy for conversion"""
     from astropy import time
