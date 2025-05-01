@@ -11,6 +11,7 @@ import os,sys,glob
 import numpy as np
 from astropy.time import Time, TimeDelta
 import datetime as datetime
+from eat.io import vex
 
 def get_info(observation='EHT2017',path_vex='VEX/'):
     '''
@@ -129,7 +130,6 @@ def make_scan_list_EHT2017(fpath):
     '''
     generates data frame with information about scans for EHT2017
     '''
-    import ehtim.vex as vex
     nam2lett = {'ALMA':'A','APEX':'X','LMT':'L','PICOVEL':'P','SMTO':'Z','SPT':'T','JCMT':'J','SMAP':'S'}
     track2expt ={'D':3597,'B':3598, 'C':3599,'A':3600,'E':3601}
     list_files = [x.split('/')[-1] for x in glob.glob(fpath+'/*.vex')]
@@ -194,7 +194,6 @@ def make_scan_list_EHT2018(fpath):
     '''
     generates data frame with information about scans for EHT2018
     '''
-    import ehtim.vex as vex
     nam2lett = {'ALMA':'A','APEX':'X','THULE':'G','LMT':'L','PICOVEL':'P','SMTO':'Z','SPT':'Y','JCMT':'J','SMAP':'S'}
     track2expt ={'C21':3644,'E22':3645, 'A24':3646, 'C25':3647,'G27':3648, 'D28':3649}
     list_files = [x.split('/')[-1] for x in glob.glob(fpath+'/*.vex')]
@@ -259,7 +258,6 @@ def make_scan_list_EHT2021(fpath):
     '''
     generates data frame with information about scans for EHT2021
     '''
-    import ehtim.vex as vex
     nam2lett = {'ALMA':'A','APEX':'X','THULE':'G','LMT':'L','PICOVEL':'P','SMTO':'Z','SPT':'Y','JCMT':'J','SMAP':'S','NOEMA':'N','KITTPEAK':'K'}
     track2expt ={'B09':3762,'E13':3763, 'A14':3764, 'D15':3765,'A16':3766, 'A17':3767, 'E18':3768, 'F19':3769}
     list_files = [x.split('/')[-1] for x in glob.glob(fpath+'/*.vex')]
@@ -325,7 +323,6 @@ def make_scan_list_EHT2022(fpath):
     '''
     generates data frame with information about scans for EHT2022
     '''
-    import ehtim.vex as vex
     nam2lett = {'ALMA':'A','APEX':'X','THULE':'G','LMT':'L','PICOVEL':'P','SMTO':'Z','SPT':'Y','JCMT':'J','SMAP':'S','NOEMA':'N','KITTPEAK':'K'}
     track2expt ={'G18':3803,'B19':3804, 'C20':3805, 'E22':3806,'D23':3807, 'A26':3808, 'F27':3809}
     list_files = [x.split('/')[-1] for x in glob.glob(fpath+'/*.vex')]
