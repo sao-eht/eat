@@ -740,6 +740,8 @@ def Koay_inv_snr(A):
 
     return sol
     
+def sigma_fn(x):
+    return np.sqrt(np.sum(x**2)) / len(x)
 
 def match_frames(frame1, frame2, what_is_same, dt = 0, uniquely=True):
 
@@ -827,21 +829,21 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas',debi
     #frame['amp_db']= list( (np.asarray(frame['amp'])**2)*(1.-2./np.asarray(frame['snr'])**2) )
 
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
-    'datetime':min,
+    'datetime': 'min',
     #'amp_db': lambda x: np.sqrt(np.mean(x)),
     'amp': lambda vec: incoh_avg_amp_vector(vec,debias=debias,robust=robust),
     'amp_ndb': lambda vec: incoh_avg_amp_vector(vec,debias=False,robust=robust),
     'phase': circular_mean,
-    'number': len,
+    'number': 'size',
     #'snr': lambda x: np.sqrt(np.sum(x**2))
-    'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x)
+    'sigma': sigma_fn,
     }
 
     if 'u' in frame.columns:
-        aggregating['u'] = np.mean
+        aggregating['u'] = 'mean'
         columns_out0 += ['u']
     if 'v' in frame.columns:
-        aggregating['v'] = np.mean
+        aggregating['v'] = 'mean'
         columns_out0 += ['v']
 
     #ACTUAL AVERAGING
@@ -941,19 +943,19 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     frame['number']=0.
     
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
-    'datetime': min,
+    'datetime': 'min',
     #'vis': np.mean,
     'vis': meanF,
     #'snr': lambda x: np.sqrt(np.sum(x**2)),
     'sigma': meanerrF,
     #'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
-    'number': len}
+    'number': 'size'}
 
     if 'u' in frame.columns:
-        aggregating['u'] = np.mean
+        aggregating['u'] = 'mean'
         columns_out0 += ['u']
     if 'v' in frame.columns:
-        aggregating['v'] = np.mean
+        aggregating['v'] = 'mean'
         columns_out0 += ['v']
 
     if 'rrvis' in frame.columns:
@@ -1005,7 +1007,7 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     else: # average for tcoh seconds
         frame['round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/float(tavg)),frame.datetime))
         grouping = groupingSc+['round_time']
-        frame_avg = frame.groupby(grouping).agg(aggregating)
+        frame_avg = frame.groupby(grouping, observed=False).agg(aggregating)
         #frame.drop('datetime',axis=1,inplace=True)
         frame_avg = frame_avg.reset_index()
         #print(frame_avg.columns)
@@ -1061,34 +1063,34 @@ def incoh_avg_band(frame,singleband='keep',add_same=[],columns_out0=[],phase_typ
     frame=frame.reset_index()
     
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
-    'amp': np.mean,
+    'amp': 'mean',
     'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
     phase_type: circular_mean,
-    'number': np.sum}
-    if 'datetime' not in same: aggregating['datetime'] = min
+    'number': 'sum'}
+    if 'datetime' not in same: aggregating['datetime'] = 'min'
     if 'u' in frame.columns:
-        aggregating['u'] = np.mean
+        aggregating['u'] = 'mean'
         columns_out0 += ['u']
     if 'v' in frame.columns:
-        aggregating['v'] = np.mean
+        aggregating['v'] = 'mean'
         columns_out0 += ['v']
     if 'rrvis' in frame.columns:
         #polrep='circ' stuff
-        aggregating['rrvis'] = np.mean
+        aggregating['rrvis'] = 'mean'
         columns_out0 += ['rrvis']
-        aggregating['llvis'] = np.mean
+        aggregating['llvis'] = 'mean'
         columns_out0 += ['llvis']
-        aggregating['lrvis'] = np.mean
+        aggregating['lrvis'] = 'mean'
         columns_out0 += ['lrvis']
-        aggregating['rlvis'] = np.mean
+        aggregating['rlvis'] = 'mean'
         columns_out0 += ['rlvis']
-        aggregating['rrsigma'] = np.mean
+        aggregating['rrsigma'] = 'mean'
         columns_out0 += ['rrsigma']
-        aggregating['llsigma'] = np.mean
+        aggregating['llsigma'] = 'mean'
         columns_out0 += ['llsigma']
-        aggregating['lrsigma'] = np.mean
+        aggregating['lrsigma'] = 'mean'
         columns_out0 += ['lrsigma']
-        aggregating['rlsigma'] = np.mean
+        aggregating['rlsigma'] = 'mean'
         columns_out0 += ['rlsigma']
     if 'EB_sigma' in frame.columns:
         aggregating['EB_sigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
@@ -1100,17 +1102,17 @@ def incoh_avg_band(frame,singleband='keep',add_same=[],columns_out0=[],phase_typ
 
     if 'std_by_mean' in frame.columns:
         #if it is there, we assume that it's filled with amplitudes
-        aggregating['std_by_mean'] = np.mean
+        aggregating['std_by_mean'] = 'mean'
         columns_out0 += ['std_by_mean']
        
     if 'amp_moments' in frame.columns:
         #if it is there, we assume that it's filled with amplitudes
-        aggregating['amp_moments'] = np.mean
+        aggregating['amp_moments'] = 'mean'
         columns_out0 += ['amp_moments']
      
     if 'sig_moments' in frame.columns:
         #if it is there, we assume that it's filled with amplitudes
-        aggregating['sig_moments'] =  np.mean
+        aggregating['sig_moments'] = 'mean'
         columns_out0 += ['sig_moments']        
     frame_avg = frame.groupby(grouping).agg(aggregating).reset_index()
     frame_avg['snr'] = frame_avg['amp']/frame_avg['sigma']
@@ -1156,15 +1158,15 @@ def avg_Stokes(frame,singlepol=[],add_same=[],columns_out0=[],phase_type='phase'
     frame=frame.reset_index()
     
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
-    'vis': np.mean,
+    'vis': 'mean',
     'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
-    'number': np.sum}
-    if 'datetime' not in same: aggregating['datetime'] = min
+    'number': 'sum'}
+    if 'datetime' not in same: aggregating['datetime'] = 'min'
     if 'u' in frame.columns:
-        aggregating['u'] = np.mean
+        aggregating['u'] = 'mean'
         columns_out0 += ['u']
     if 'v' in frame.columns:
-        aggregating['v'] = np.mean
+        aggregating['v'] = 'mean'
         columns_out0 += ['v']
     if 'EB_sigma' in frame.columns: 
         aggregating['EB_sigma'] = lambda x: np.sqrt(np.sum(x**2))/len(x)
@@ -1176,17 +1178,17 @@ def avg_Stokes(frame,singlepol=[],add_same=[],columns_out0=[],phase_type='phase'
 
     if 'std_by_mean' in frame.columns:
         #if it is there, we assume that it's filled with amplitudes
-        aggregating['std_by_mean'] = np.mean
+        aggregating['std_by_mean'] = 'mean'
         columns_out0 += ['std_by_mean']
        
     if 'amp_moments' in frame.columns:
         #if it is there, we assume that it's filled with amplitudes
-        aggregating['amp_moments'] = np.mean
+        aggregating['amp_moments'] = 'mean'
         columns_out0 += ['amp_moments']
     
     if 'sig_moments' in frame.columns:
         #if it is there, we assume that it's filled with amplitudes
-        aggregating['sig_moments'] =  np.mean
+        aggregating['sig_moments'] = 'mean'
         columns_out0 += ['sig_moments'] 
     frame_avg = frame.groupby(grouping).agg(aggregating).reset_index()
     frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
@@ -1224,11 +1226,11 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
         frame['cphase_fix_amp']=frame['cphase']
     
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
-    'datetime': min,
-    'bsp': np.mean,
+    'datetime': 'min',
+    'bsp': 'mean',
     #'snr': lambda x: np.sqrt(np.sum(x**2)),
     'sigma': lambda x: np.sqrt(np.sum(x**2))/len(x),
-    'number': len,
+    'number': 'size',
     'cphase_fix_amp': circular_mean}
     
     
@@ -1631,6 +1633,8 @@ def snr_threshold_scan_vis(data,vis,snr_cut=5.):
 
     return data
 
+def sigmaCA_fn(x):
+    lambda x: np.sqrt(np.sum(x**2))/len(x)
 
 def avg_camp(frame,tavg='scan',debias='no'):
 
@@ -1653,21 +1657,21 @@ def avg_camp(frame,tavg='scan',debias='no'):
     #frame['amp_db']= list( (np.asarray(frame['amp'])**2)*(1.-2./np.asarray(frame['snr'])**2) )
 
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
-    'datetime':min,
+    'datetime': 'min',
     #'amp_db': lambda x: np.sqrt(np.mean(x)),
-    'camp': np.mean,
-    'number': len,
+    'camp': 'mean',
+    'number': 'size',
     #'snr': lambda x: np.sqrt(np.sum(x**2))
-    'sigmaCA': lambda x: np.sqrt(np.sum(x**2))/len(x)
+    'sigmaCA': sigmaCA_fn
     }
     #if debias==True:
 
 
     if 'u' in frame.columns:
-        aggregating['u'] = np.mean
+        aggregating['u'] = 'mean'
         columns_out0 += ['u']
     if 'v' in frame.columns:
-        aggregating['v'] = np.mean
+        aggregating['v'] = 'mean'
         columns_out0 += ['v']
 
     #ACTUAL AVERAGING
