@@ -92,10 +92,16 @@ sys_fac = 1.0 # systematic factor on thermal delay error
 sys_par = 2e-6 # 2 ps on fringe delay
 sys_cross = 20e-6 # 20 ps on cross hand delay
 
-# restart of backend system
-restarts = {'X':[util.tt2dt(d, year=2017) for d in ['101-003000']],
-            'S':[util.tt2dt(d, year=2018) for d in ['117-050000']],
-            'N':[util.tt2dt(d, year=2022) for d in ['086-031500']]}
+# restart of backend system -- note application is not currently band-specific
+restarts = {'X':[util.tt2dt(d, year=2017) for d in ['101-003000']], # clear R-L delay break in lo+hi band between 101-0013 and 101-0032
+            'S':[util.tt2dt(d, year=2018) for d in ['117-050000']], # clear R-L delay break in b1+b2+b3+b4 band between 117-0446 and 117-0517
+            'P':[util.tt2dt(d, year=2021) for d in ['107-232500']], # probable R-L delay break in b3+b4 band between 108-0436 and 108-0452
+            'X':[util.tt2dt(d, year=2021) for d in ['105-045500']], # clear R-L delay break in b3+b4 band between 105-0448 and 105-0456
+            'N':[util.tt2dt(d, year=2022) for d in ['086-031500']], # should double check NOEMA
+            'P':[util.tt2dt(d, year=2022) for d in ['078-121000']], # probable jump in R-L in b3 between 078-1203 and 078-1211
+            'K':[util.tt2dt(d, year=2022) for d in ['078-062400']], # small R-L jump in b4 between 078-0616 and 078-0625
+            'A':[util.tt2dt(d, year=2022) for d in ['079-180000', '086-080000']]  # X-Y delay jumps in ALMA in mixed-pol (not currently calibrated) b1+b2
+}
 
 def getpolarization(f):
     try:
