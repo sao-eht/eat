@@ -719,14 +719,14 @@ def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0):
 
     return Tsys_matched
 
-def get_sefds_from_antab(antab_path='ANTAB', vex_path='VEX', year='2021', sourL=sourL, antL=antL0, AZ2Z=AZ2Z, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, exptL = exptL0, bandL=bandL0, pathSave = 'SEFD'):
+def get_sefds_from_antab(antab_path='antab', vex_path='vex', year='2021', sourL=sourL, antL=antL0, AZ2Z=AZ2Z, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, exptL = exptL0, bandL=bandL0, pathSave = 'SEFD'):
     """
     Compute SEFD values for all sources and antennas from metadata obtained from previous calibration steps, ANTAB files, and observed VEX files.
 
     Parameters
     ----------
     antab_path : str, optional
-        Path to the directory containing ANTAB files. Default is 'ANTAB/'.
+        Path to the directory containing ANTAB files. Default is 'antab/'.
     vex_path : str, optional
         Path to the directory containing VEX files. Default is 'VEX/'.
     year : str, optional
