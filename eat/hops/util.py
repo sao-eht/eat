@@ -457,14 +457,20 @@ def params(b=None, pol=None, quiet=None, cf=None):
     df_mbd = p.dfvec[120].mean(axis=1)[:,None]
     # note that currently pc_delay (no pol) is not implemented in HOPS and should not exist in cf
     # although mbd is only one value, we use function getcodes to preserve array shape
+    pol0 = p.pol[0].lower()
+    pol1 = p.pol[1].lower()
+    # see https://github.com/difx/difx/blob/c2ac995454fa96de38c651f6eea484b4a5db73ca/applications/hops/postproc/fourfit/parser.c#L333
+    def cf_getpol(cf, base, pol, default):
+        alt = pol.translate(str.maketrans('lrxy', 'xylr'))  # swaps L/X and Y/R to get CF directives
+        return cf.get(f"{base}_{pol}", cf.get(f"{base}_{alt}", default))
     mbd_ref = getcodes(p.cf_ref.get('pc_delay', '0.'), clabel) + \
-        getcodes(p.cf_ref.get('pc_delay_%s' % p.pol[0].lower(), '0.'), clabel)
+              getcodes(cf_getpol(p.cf_ref, 'pc_delay', pol0, '0.'), clabel)
     mbd_rem = getcodes(p.cf_rem.get('pc_delay', '0.'), clabel) + \
-        getcodes(p.cf_rem.get('pc_delay_%s' % p.pol[1].lower(), '0.'), clabel)
+              getcodes(cf_getpol(p.cf_rem, 'pc_delay', pol1, '0.'), clabel)
     pc_ref = getcodes(p.cf_ref.get('pc_phases', default), clabel) + \
-        getcodes(p.cf_ref.get('pc_phases_%s' % p.pol[0].lower(), default), clabel)
+             getcodes(cf_getpol(p.cf_ref, 'pc_phases', pol0, default), clabel)
     pc_rem = getcodes(p.cf_rem.get('pc_phases', default), clabel) + \
-        getcodes(p.cf_rem.get('pc_phases_%s' % p.pol[1].lower(), default), clabel)
+             getcodes(cf_getpol(p.cf_rem, 'pc_phases', pol1, default), clabel)
     # do not understand this sign convention
     sbd_rot = np.exp(1j * 1e-3*(sbd_rem - sbd_ref)[:,None] * df_sbd * 2*np.pi)
     mbd_rot = np.exp(1j * 1e-3*(mbd_rem - mbd_ref)[:,None] * df_mbd * 2*np.pi)
