@@ -721,11 +721,12 @@ def spectrum(bs, ncol=4, delay=None, rate=None, df=1, dt=1, figsize=None, snrthr
             vs = (0 if vs is None else vs) + vrot * (p.snr**2 if snrweight else 1.)
         else:
             # stack in time (will work for different T) and add back axis
-            vs = (0 if vs is None else vs) + vrot.sum(axis=1)[:,None]
+            # mean value won't be as optimal, but will preserve units
+            vs = (0 if vs is None else vs) + vrot.mean(axis=1)[:,None]
     if vs is None: # no files read (snr too low)
         return
     if ret:
-        spec = vs.sum(axis=1) # sum over time
+        spec = vs.mean(axis=1) # mean over time (preserve units)
         # return (p.fedge[:,None] + p.foffset[120], spec)
         return (p, spec)
 
