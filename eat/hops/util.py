@@ -836,7 +836,7 @@ def vecplot(vs, dtvec, dfvec, delay, rate, ref_freq, dt=1, df=1):
     vtot = np.sum(vrot) / len(vrot.ravel())
     plt.plot([0,0], [vtot.real, vtot.imag], 'r.-', lw=2, ms=4, alpha=1.0)
 
-def timeseries(bs, dt=1, pol=None, kind=212, cf=None, delay=None, rate=None, ret=False):
+def timeseries(bs, dt=1, pol=None, kind=212, cf=None, precorrect=True, delay=None, rate=None, ret=False):
     if type(bs) == type('') or not hasattr(bs, '__iter__'):
         bs = [bs,]
     nrow = len(bs)
@@ -849,13 +849,13 @@ def timeseries(bs, dt=1, pol=None, kind=212, cf=None, delay=None, rate=None, ret
             v = pop212(b).mean(axis=1) # stack over channels
         elif kind == 120:
             v = pop120(b)[:,p.startidx:p.stopidx,:]   # visib array (nchan, nap, nspec/2)
-            if cf is not None:
+            if precorrect:
                 v = v * p.pre_rot[:,None,:]
             delay = p.delay if delay is None else delay
             rate = p.rate if rate is None else rate
             trot = np.exp(-1j * rate * p.dtvec * 2*np.pi*p.ref_freq)
             frot = np.exp(-1j * delay * p.dfvec[kind] * 2*np.pi)
-            v = (v * trot[None,:,None] * frot[:,None,:]).sum(axis=(0,2))
+            v = (v * trot[None,:,None] * frot[:,None,:]).mean(axis=(0,2))
         nt = len(v)
         dt = min(dt, nt)
         nt = nt - np.fmod(nt, dt) # fit time segments after decimation
