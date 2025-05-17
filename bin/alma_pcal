@@ -71,7 +71,6 @@ def load(file):
     d_nu = 1e6 * np.diff(np.sort(par.fedge))[0] # par.fedge in MHz
     a['d_nu'] = d_nu
 
-    # TODO: obtain chan_ids from the control files / fringe files / user
     # Access corel (per-channel) visibility
     dflist = []
     for i, f in a.path.items():
@@ -101,7 +100,16 @@ def load(file):
     df = pd.concat(dflist)
     df = df.reset_index(drop=True)
     df = df.sort_index(axis=1)
-    df.columns = list(string.ascii_letters[:df.columns.shape[0]]) # assign ASCII channel codes to frequencies
+
+    # assign chan_ids to frequency columns in df using chan_id information from par.cf and par.fedge
+    par = hu.params(a.iloc[0].path)
+    freqs_refbl = par.fedge
+
+    chanstr_cf = par.cf.actions()['chan_ids']
+    chan_ids = chanstr_cf.split()[0]
+    freqs_cf = [float(f) for f in chanstr_cf.split()[1:]]
+
+    df.columns = [chan_ids[freqs_cf.index(min(freqs_cf, key=lambda x: abs(x - freq)))] for freq in freqs_refbl]
 
     # add metadata from a to df
     extractcols  = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas', 'd_nu'] # metadata cols to extract from DataFrame a
