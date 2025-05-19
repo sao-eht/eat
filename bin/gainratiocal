@@ -1,0 +1,76 @@
+#!/usr/bin/env python
+
+import os,sys
+import argparse
+import logging
+import ehtim as eh
+from eat.postproc import polgains_cal
+from eat.postproc import utils as pputils
+
+def create_parser():
+    p = argparse.ArgumentParser()
+
+    p.add_argument("srcdir", help="Directory corresponding to a track/epoch/expt_no containing UVFITS files to be calibrated")
+    p.add_argument("wrkdir", help="Directory under which to create track/epoch/expt_no directory containing calibrated UVFITS files")
+    p.add_argument("-r", "--reference", type=str, help="Reference antenna for calibration", default='AA')
+    p.add_argument("--padamp", type=float, help="Fractional uncertainty to add to amplitude sigmas in quadrature", default=0.03)
+    p.add_argument("--gaintol", type=float, help="Gain tolerance for regularization", default=0.2)
+    p.add_argument("--solveperscan", action='store_true', help="If True, determine one gain solution per scan (per site)")
+    p.add_argument('--loglevel', type=str, default='DEBUG', help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
+    
+    return p
+
+def main(args):
+    # Configure logging
+    loglevel = getattr(logging, args.loglevel.upper(), None)
+    if not isinstance(loglevel, int):
+        raise ValueError(f'Invalid log level: {args.loglevel}')
+    logging.basicConfig(level=loglevel,
+                        format='%(asctime)s %(levelname)s:: %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
+    
+    logging.info('**************** Performing R/L gain ratio calibration ****************')
+
+    # Check if the source directory exists
+    if not os.path.exists(args.srcdir):
+        logging.error(f"Source directory {args.srcdir} does not exist. Skipping R/L gain ratio calibration.")
+        return 1
+    else:
+        logging.info(f"Source directory {args.srcdir} exists. Proceeding with R/L gain ratio calibration.")
+
+    # Check if the output directory exists, create it if not
+    outdir = os.path.join(args.wrkdir, os.path.basename(args.srcdir))
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    # Get the list of UVFITS files in the source directory
+    uvfits_files = pputils.find_uvfits(args.srcdir)
+    if not uvfits_files:
+        logging.error(f"No UVFITS files found in {args.srcdir}. Skipping R/L gain ratio calibration.")
+        return 1
+    
+    # Loop through each UVFITS file
+    for uvfits_file in uvfits_files:
+        logging.info(f"Processing file: {uvfits_file}")
+        
+        # Load the UVFITS file
+        obs = eh.obsdata.load_uvfits(uvfits_file, polrep='circ')
+        obs.scans = []
+        obs.add_scans()
+
+        # Perform R/L gain ratio calibration
+        obscal = polgains_cal.polgains_cal(obs, reference=args.reference, method='phase', pad_amp=args.padamp, gain_tol=args.gaintol, scan_solutions=args.solveperscan)
+        obscal = polgains_cal.polgains_cal(obscal, reference=args.reference, method='phase', pad_amp=args.padamp, gain_tol=args.gaintol, scan_solutions=args.solveperscan)
+        obscalout = polgains_cal.polgains_cal(obscal, reference=args.reference, method='amp', pad_amp=args.padamp, gain_tol=args.gaintol, scan_solutions=args.solveperscan)
+
+        # Save the calibrated UVFITS file
+        output_file = os.path.join(outdir, os.path.basename(uvfits_file).replace('.uvfits', '.polcal.uvfits'))
+        obscalout.save_uvfits(output_file)
+        logging.info(f"Saved calibrated file to {output_file}")
+
+    return
+
+if __name__=='__main__':
+    args = create_parser().parse_args()
+    ret = main(args)
+    sys.exit(ret)

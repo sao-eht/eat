@@ -46,6 +46,7 @@ setup(
              "bin/fitsidx",
              "bin/fix_lopcal",
              "bin/fplotpdf",
+             "bin/gainratiocal",
              "bin/generate_polcal_table.py",
              "bin/hops2uvfits.py",
              "bin/import_uvfits.py",
