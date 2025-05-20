@@ -90,6 +90,20 @@ def polgains_cal(obs, reference='AA', sites=[], method='phase', minimizer_method
 
     # get scans
     scans = obs.tlist(t_gather=solution_interval, scan_gather=scan_solutions)
+
+    # if there is only one scan, we need to set the dtype manually
+    if scans.ndim == 2 and scans.shape[0] == 1:
+        # get the dtype of the first and only scan
+        scans_dtype = obs.data.dtype
+
+        # get the only element and create a recarray of the correct dtype
+        tuples = scans[0]
+        rec = np.array(list(tuples), dtype=scans_dtype)
+
+        # pack this into a length-1 object array
+        scans = np.empty((1,), dtype=object)
+        scans[0] = rec
+
     scans_cal = copy.copy(scans)
 
     # Make the pool for parallel processing
