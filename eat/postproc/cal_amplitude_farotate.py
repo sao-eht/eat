@@ -712,7 +712,6 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     bllist = []
     for key, group in it.groupby(data[idx], lambda x: set((x['t1'], x['t2'])) ):
         bllist.append(np.array([obs for obs in group]))
-    bllist = np.array(bllist) #, dtype=object) # INI: avoid VisibleDeprecationWarning
 
     # apply the calibration
 
