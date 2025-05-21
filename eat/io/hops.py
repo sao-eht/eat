@@ -195,6 +195,8 @@ fsumm_v6_pandasargs = dict(
     # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
     # date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%Y%j-%H%M%S') for (x,y) in zip(years,times)],
     names=ffields_v6,
+    # do not interpret 'NA' and similar as np.nan
+    keep_default_na=False,
 )
 
 tsumm_pandasargs = dict(
@@ -207,6 +209,8 @@ tsumm_pandasargs = dict(
     keep_date_col=True,
     # note: pandas 0.15.1 cannot use generator for date_parser (unlike 0.18), so changed to a list comprehension
     date_parser=lambda years,times: [datetime.datetime.strptime(x+y, '%Y%j-%H%M%S') for (x,y) in zip(years,times)],
+    # do not interpret 'NA' and similar as np.nan
+    keep_default_na=False,
 )
 
 def read_alist_v5(filename):
