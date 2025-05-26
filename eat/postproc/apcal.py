@@ -285,8 +285,8 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
         ['datetime', 'mjd', 'Tsys_star_R', 'Tsys_star_L', 'band', 'station', 'track', 'expt'].
     Notes
     -----
-    - The function assumes that the ANTAB files are named in a specific format and contain Tsys blocks.
-    - The function handles different formats of Tsys values, including averaging per channel values if necessary (this is the case for ALMA).
+    - The function assumes that the ANTAB files are named in a specific format (*_{band}_*) and contain Tsys blocks.
+    - The function handles different formats of Tsys values, including averaging per-channel Tsys values if necessary (this is the case for ALMA).
     """
 
     list_files = [f for f in os.listdir(antabpath) if f[0] == 'e' and any(f'_{band}_' in f for band in bandL)]
@@ -297,7 +297,10 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
     for f in list_files:
         fname = os.path.join(antabpath, f)
         track, band = os.path.basename(fname).split('_')[:2] # get track and band from the filename
-        expt = track2expt[track] # get expt number from track2expt dict
+        if track not in track2expt:
+            logging.warning(f"Track {track} not found in track2expt. Skipping file {fname}.")
+            continue  # Skip to the next file if track is not in track2expt
+        expt = track2expt[track]  # Get expt number from track2expt dict
         year = f"20{track[1:3]}"
 
         # get Tsys blocks from the file
@@ -537,6 +540,9 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
     # loop over all VEX files in fpath; one VEX file per observing track
     for fi in list_files:
         track_loc = os.path.splitext(os.path.basename(fi))[0] # get track name from vex file name
+        if track_loc not in track2expt:
+            logging.warning(f"Track {track_loc} not found in track2expt. Skipping this VEX file.")
+            continue
 
         aa = vex.Vex(fi) # read VEX file
 
