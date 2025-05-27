@@ -1,6 +1,15 @@
 from typing import Iterator
 import os
 from typing import Dict, Tuple
+import re
+import logging
+import ast
+
+# Configure logging
+loglevel = getattr(logging, 'INFO', None)
+logging.basicConfig(level=loglevel,
+                    format='%(asctime)s %(levelname)s:: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 # alias for “name -> (x, y)”
 Coordinates = Dict[str, Tuple[float, float]]
@@ -48,3 +57,120 @@ def find_uvfits(
 
     # Start scanning from the base path and all paths 
     yield from scan_dir(base_path)
+
+def read_dict_from_file(fpath: str) -> Dict[str, str]:
+    """
+    Reads a dictionary from a file containing its string representation.
+    Parameters
+    ----------
+    fpath : str
+        The file path to read the dictionary from.
+    Returns
+    -------
+    Dict[str, str]
+        A dictionary parsed from the file's contents. If the file does not 
+        exist or is empty, an empty dictionary is returned.
+    Notes
+    -----
+    The file is expected to contain a valid Python dictionary in string 
+    representation. The function uses `ast.literal_eval` to safely evaluate 
+    the string into a dictionary.
+    """
+    if os.path.exists(fpath):
+        with open(fpath, 'r') as f:
+            contents = f.read()
+            if contents:
+                return ast.literal_eval(contents)
+            
+    return {}
+
+def write_dict_to_file(fpath: str, dictionary: Dict[str, str]) -> None:
+    """
+    Writes a dictionary to a file as a string.
+    Parameters
+    ----------
+    fpath : str
+        The file path where the dictionary will be written.
+    dictionary : Dict[str, str]
+        The dictionary to be written to the file.
+    Returns
+    -------
+    None
+    """
+    with open(fpath, 'w') as f:
+        f.write(str(dictionary))
+
+    return
+
+def extract_metadata_from_ovex(
+    scandirs: list,
+    az2z_file: str,
+    smt2z_file: str,
+    track2expt_file: str
+) -> None:
+    """
+    Extract metadata from OVEX (root) files in the given scan directories and write them to text files.
+
+    Parameters
+    ----------
+    scandirs : list
+        List of directories containing scan data.
+    az2z_file : str
+        Path to the file where azimuth-to-Z metadata will be stored.
+    smt2z_file : str
+        Path to the file where station-to-Z metadata will be stored.
+    track2expt_file : str
+        Path to the file where track-to-experiment metadata will be stored.
+
+    Returns
+    -------
+    None
+    """
+    # declare dictionaries for extracting metadata from ovex files
+    az2z = {}
+    smt2z = {}
+    track2expt = {}
+
+    ################### loop over all scan directories and create per-scan uvfits files (two-step process creates per-baseline uvfits first) ###################
+    for scandir in (scandirs):
+        # process scandir to get station codes and expt numbers
+        pattern = r"^[a-zA-Z0-9+-]+\.[a-zA-Z0-9]{6}$"
+        rootfilename = next((entry.name for entry in os.scandir(scandir) if entry.is_file() and re.match(pattern, entry.name)), None)
+        if rootfilename is None:
+            logging.warning(f"No valid root file (ovex) found in scan directory {scandir}. Skipping scan...")
+            continue
+        else:
+            with open(os.path.join(scandir, rootfilename)) as f:
+                logging.info(f"Processing root file {rootfilename}...")
+                contents = f.read()                
+                # extract track name and HOPS expt_no from root file
+                pattern = r'def (\w+);.*?(?:exper_num = (\d+);.*?exper_name = \1;|exper_name = \1;.*?exper_num = (\d+);)'
+                match = re.search(pattern, contents, re.DOTALL)
+                if match and match.group(1) not in track2expt.keys():
+                    track2expt[match.group(1)] = match.group(2) or match.group(3)
+
+                # extract station codes from root file
+                pattern = r'def (\w+);.*?site_name = \1;.*?site_ID = (\w+);.*?mk4_site_ID = (\w+);'
+                matches = re.findall(pattern, contents, re.DOTALL)               
+                if matches:
+                    for m in matches:
+                        if m[0] not in smt2z.keys():
+                            smt2z[m[0]] = m[2]
+                        if m[1] not in az2z.keys():
+                            az2z[m[1]] = m[2]
+
+    # create text files for tracking station metadata information; if they
+    # exist, merge contents while preserving pre-existing key-value pairs.
+    if os.path.exists(az2z_file):
+        az2z = {**az2z, **read_dict_from_file(az2z_file)}
+    az2z = {k.upper(): v.upper() for k, v in az2z.items()}
+    write_dict_to_file(az2z_file, az2z)
+    if os.path.exists(smt2z_file):
+        smt2z = {**smt2z, **read_dict_from_file(smt2z_file)}
+    smt2z = {k.upper(): v.upper() for k, v in smt2z.items()}
+    write_dict_to_file(smt2z_file, smt2z)
+    if os.path.exists(track2expt_file):
+        track2expt = {**track2expt, **read_dict_from_file(track2expt_file)}
+    write_dict_to_file(track2expt_file, track2expt)
+
+    return

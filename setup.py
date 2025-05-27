@@ -43,6 +43,7 @@ setup(
              "bin/cal_polcal_gains_uvfits.py",
              "bin/caluvfits.py",
              "bin/closecf",
+             "bin/extract_metadata.py",
              "bin/fitsidx",
              "bin/fix_lopcal",
              "bin/fplotpdf",

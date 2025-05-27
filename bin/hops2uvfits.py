@@ -55,11 +55,6 @@ srcnamedict['1921-293'] = 'J1924-2914'
 bluvfits_pattern = '_baseline.uvfits' # per-baseline uvfits filename pattern
 scanuvfits_pattern = 'merged_all_baselines.uvfits' # scan uvfits filename pattern
 
-# metadata files to be created from ovex files
-az2z_file = 'cf7_AZ2Z.txt'
-smt2z_file = 'cf7_SMT2Z.txt'
-track2expt_file = 'cf7_track2expt.txt'
-
 #######################################################################
 ##########################  Recompute uv points #######################
 #######################################################################
@@ -1385,11 +1380,6 @@ def main(args):
     allscans_uvfits = np.empty(nscandirs, dtype=object)
     allscans_sources = np.empty(nscandirs, dtype=object)
 
-    # declare dictionaries for extracting metadata from ovex files
-    az2z = {}
-    smt2z = {}
-    track2expt = {}
-
     ################### loop over all scan directories and create per-scan uvfits files (two-step process creates per-baseline uvfits first) ###################
     for idx, scandir in enumerate(tqdm.tqdm(scandirs, desc='Processing scan directories')):
 
@@ -1399,25 +1389,6 @@ def main(args):
         if rootfilename is None:
             logging.warning(f"No valid root file (ovex) found in scan directory {scandir}. Skipping scan...")
             continue
-        else:
-            with open(os.path.join(scandir, rootfilename)) as f:
-                logging.info(f"Processing root file {rootfilename}...")
-                contents = f.read()                
-                # extract track name and HOPS expt_no from root file
-                pattern = r'def (\w+);.*?(?:exper_num = (\d+);.*?exper_name = \1;|exper_name = \1;.*?exper_num = (\d+);)'
-                match = re.search(pattern, contents, re.DOTALL)
-                if match and match.group(1) not in track2expt.keys():
-                    track2expt[match.group(1)] = match.group(2) or match.group(3)
-
-                # extract station codes from root file
-                pattern = r'def (\w+);.*?site_name = \1;.*?site_ID = (\w+);.*?mk4_site_ID = (\w+);'
-                matches = re.findall(pattern, contents, re.DOTALL)               
-                if matches:
-                    for m in matches:
-                        if m[0] not in smt2z.keys():
-                            smt2z[m[0]] = m[2]
-                        if m[1] not in az2z.keys():
-                            az2z[m[1]] = m[2]
 
         # process scandir only if at least one type 2 file (i.e. fringe file) with 3 dots in the filename exists
         contains_fringefiles = False
@@ -1469,20 +1440,6 @@ def main(args):
                 for entry in entries:
                     if entry.is_file() and entry.name.endswith(bluvfits_pattern):
                         os.remove(entry.path)
-
-    # create text files for tracking station metadata information; if they
-    # exist, merge contents while preserving pre-existing key-value pairs.
-    if os.path.exists(az2z_file):
-        az2z = {**az2z, **read_dict_from_file(az2z_file)}
-    az2z = {k.upper(): v.upper() for k, v in az2z.items()}
-    write_dict_to_file(az2z_file, az2z)
-    if os.path.exists(smt2z_file):
-        smt2z = {**smt2z, **read_dict_from_file(smt2z_file)}
-    smt2z = {k.upper(): v.upper() for k, v in smt2z.items()}
-    write_dict_to_file(smt2z_file, smt2z)
-    if os.path.exists(track2expt_file):
-        track2expt = {**track2expt, **read_dict_from_file(track2expt_file)}
-    write_dict_to_file(track2expt_file, track2expt)
 
     ################### merge all per-scan uvfits files for each source ###################
     # remove unassigned values, if any (happens when there are no valid cross-correlation fringe files in a given scandir and autocorrelations are not requested)
