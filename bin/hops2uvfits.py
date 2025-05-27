@@ -520,7 +520,7 @@ def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, re
             if rot_delay:
                 fedge = np.array([ ch.ref_freq_hops for ch in cinfo])
                 flip = np.array([-1 if ch.refsb == 'L' else 1 for ch in cinfo])
-                dfvec = fedge + 0.5*flip*np.array([0.5 * short2int(ch.sample_rate) for ch in cinfo]) - ref_freq_hops
+                dfvec = fedge + 0.5*flip*np.array([0.5 * eat.hops.util.short2int(ch.sample_rate) for ch in cinfo]) - ref_freq_hops
                 delay_mtx = np.matlib.repmat( dfvec.reshape(dfvec.shape[0], 1), 1, nap )
                 shift = shift + (2 * np.pi *  delay * delay_mtx )
 
