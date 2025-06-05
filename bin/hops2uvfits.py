@@ -55,6 +55,9 @@ srcnamedict['1921-293'] = 'J1924-2914'
 bluvfits_pattern = '_baseline.uvfits' # per-baseline uvfits filename pattern
 scanuvfits_pattern = 'merged_all_baselines.uvfits' # scan uvfits filename pattern
 
+# conversion table for re-labelling XY => LR
+polconv_hack_table = str.maketrans('XY', 'LR')
+
 #######################################################################
 ##########################  Recompute uv points #######################
 #######################################################################
@@ -426,8 +429,8 @@ def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, re
                 channel_bw_ant2[count] = 0.5*eat.hops.util.short2int(ch.sample_rate)
 
                 # relabel 'XY' to 'LR' to conform to uvfits standard which does not have the facility to track polarization basis
-                channel_pol_ant1.append(fixstr(ch.refpol).translate(dict(zip('XY', 'LR'))))
-                channel_pol_ant2.append(fixstr(ch.rempol).translate(dict(zip('XY', 'LR'))))
+                channel_pol_ant1.append(fixstr(ch.refpol).translate(polconv_hack_table))
+                channel_pol_ant2.append(fixstr(ch.rempol).translate(polconv_hack_table))
 
                 # the channel id - not used
                 # channel_id_ant1.append(ch.ref_chan_id)
