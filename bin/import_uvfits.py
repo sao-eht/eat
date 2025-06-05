@@ -120,12 +120,16 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
             quad_sc.to_pickle(ftmp)
 
     # save dataframe to h5
-    if outfiletype in ['hdf5', 'both']:
-        print('Saving file: '+outdir+idtag+'.h5')
-        df.to_hdf(outdir+idtag+'.h5', key=idtag, mode='w',format='table')
-    elif outfiletype in ['pickle', 'both']:
-        print('Saving file: '+outdir+idtag+'.pickle')
-        df.to_pickle(outdir+idtag+'.pickle')
+    if outfiletype in ("hdf5", "both"):
+        hdf5_path = os.path.join(outdir, f"{idtag}.h5")
+        print(f"Saving file: {hdf5_path}")
+        df.to_hdf(hdf5_path, key=idtag, mode="w", format="table")
+
+    elif outfiletype in ("pickle", "both"):
+        pickle_path = os.path.join(outdir, f"{idtag}.pickle")
+        print(f"Saving file: {pickle_path}")
+        df.to_pickle(pickle_path)
+
     else:
         return df
 
