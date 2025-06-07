@@ -12,6 +12,13 @@ import os
 import sys
 import glob
 import argparse
+import logging
+
+# Configure logging
+loglevel = getattr(logging, 'INFO', None)
+logging.basicConfig(level=loglevel,
+                    format='%(asctime)s %(levelname)s:: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='scan', only_parallel=False, infileext="uvfits", incoh_avg=False, outfiletype='hdf5',
                       rescale_noise=False, polrep='circ', old_format=True, ehtimpath='', closure='both', tavgclosure='scan', tavgprecoh=0., sigma=0,
@@ -86,12 +93,12 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
 
     # extract and store visibilities
     for filen in path0:
-      print(f'Processing {filen}')
+      logging.info(f'Processing {filen}')
       try:
         df_foo = uvfits.get_df_from_uvfit(filen, observation=observation, path_vex=vexdir, force_singlepol='no', band=band, round_s=0.1,
                                           only_parallel=only_parallel, rescale_noise=rescale_noise, polrep=polrep, path_ehtim=ehtimpath,
                                           fix_sigma=sigma, scale_sigma=sigmascalefactor)
-        print('Found datapoints: ',np.shape(df_foo)[0])
+        logging.info('Found datapoints: ',np.shape(df_foo)[0])
             
         # convert to old format (i.e. separate data record for each polarization)
         if old_format:
@@ -108,19 +115,18 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
         
         # coherently / incoherently average visibilities
         if incoh_avg==False:
-            print('Averaging coherently for ', str(tavg))
+            logging.info('Averaging coherently for ', str(tavg))
             df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
         else:      
             if tavgprecoh > 0:
-                print('Averaging coherently for ', str(tavgprecoh))
+                logging.info(f'Pre-averaging coherently for {str(tavgprecoh)} before incoherently averaging for {str(tavg)}')
                 df_coh = ut.coh_avg_vis(df_foo.copy(),tavg=tavgprecoh,phase_type='phase')
-                print('Averaging incoherently for ', str(tavg))
                 df_scan = ut.incoh_avg_vis(df_coh.copy(),tavg=tavg,phase_type='phase')
             else:
-                print('Averaging incoherently for ', str(tavg))
+                logging.info(f'No coherent pre-averaging. Incoherently averaging for {str(tavg)}')
                 df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
         df = pd.concat([df,df_scan.copy()],ignore_index=True)
-      except: print('Nothing from this file...')
+      except: logging.warning('Nothing from this file...')
 
     try:
         df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
@@ -137,7 +143,7 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
     
     # compute closure phases
     if closure in ['cphase', 'both']:
-        print("Saving scan-averaged closure phases...")
+        logging.info("Saving scan-averaged closure phases...")
         bsp = cl.all_bispectra(df,phase_type='phase')
         bsp.drop('fracpols',axis=1,inplace=True)
         bsp.drop('snrs',axis=1,inplace=True)
@@ -147,16 +153,16 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
 
         if outfiletype in ['hdf5', 'both']:
             ftmp = os.path.join(outdir, f'{idtag_cp}.h5')
-            print(f'Saving file: {ftmp}')
+            logging.info(f'Saving file: {ftmp}')
             bsp_sc.to_hdf(ftmp, key=idtag_cp, mode='w',format='table')
         elif outfiletype in ['pickle', 'both']:
             ftmp = os.path.join(outdir, f'{idtag_cp}.pickle')
-            print(f'Saving file: {ftmp}')
+            logging.info(f'Saving file: {ftmp}')
             bsp_sc.to_pickle(ftmp)
     
     # compute log closure amplitudes
     if closure in ['lcamp', 'both']:
-        print("Saving scan-averaged log closure amplitudes...")
+        logging.info("Saving scan-averaged log closure amplitudes...")
         quad=cl.all_quadruples_new(df,ctype='logcamp',debias='camp')
         quad.drop('snrs',axis=1,inplace=True)
         quad.drop('amps',axis=1,inplace=True)
@@ -166,22 +172,22 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
 
         if outfiletype in ['hdf5', 'both']:
             ftmp = os.path.join(outdir, f'{idtag_lca}.h5')
-            print(f'Saving file: {ftmp}')
+            logging.info(f'Saving file: {ftmp}')
             quad_sc.to_hdf(ftmp, key=idtag_lca, mode='w',format='table')
         elif outfiletype in ['pickle', 'both']:
             ftmp = os.path.join(outdir, f'{idtag_lca}.pickle')
-            print(f'Saving file: {ftmp}')
+            logging.info(f'Saving file: {ftmp}')
             quad_sc.to_pickle(ftmp)
 
     # save dataframe to h5
     if outfiletype in ("hdf5", "both"):
         hdf5_path = os.path.join(outdir, f"{idtag}.h5")
-        print(f"Saving file: {hdf5_path}")
+        logging.info(f"Saving file: {hdf5_path}")
         df.to_hdf(hdf5_path, key=idtag, mode="w", format="table")
 
     elif outfiletype in ("pickle", "both"):
         pickle_path = os.path.join(outdir, f"{idtag}.pickle")
-        print(f"Saving file: {pickle_path}")
+        logging.info(f"Saving file: {pickle_path}")
         df.to_pickle(pickle_path)
 
     else:
@@ -214,8 +220,8 @@ def create_parser():
     return p
 
 def main(args):
-    print('Converting UVFITS files into a single HDF5/pickle file for easy import and inspection in python...')
-    print(f'Arguments passed: {args}')
+    logging.info('Converting UVFITS files into a single HDF5/pickle file for easy import and inspection in python...')
+    logging.info(f'Arguments passed: {args}')
 
     # convert tavg to values expected by functions downstream
     if args.tavg == -1.:

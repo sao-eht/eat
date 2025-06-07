@@ -12,8 +12,15 @@ import numpy as np
 from astropy.time import Time, TimeDelta
 import datetime as datetime
 from eat.io import vex
+import logging
 
-def get_info(observation='EHT2017',path_vex='VEX/'):
+# Configure logging
+loglevel = getattr(logging, 'INFO', None)
+logging.basicConfig(level=loglevel,
+                    format='%(asctime)s %(levelname)s:: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
+def get_info(observation='EHT2017',path_vex='vex/'):
     '''
     gets info about stations, scans, expt for a given observation,
     by default it's EHT2017 campaign
@@ -263,11 +270,11 @@ def make_scan_list_EHT2021(fpath):
     list_files = [x.split('/')[-1] for x in glob.glob(fpath+'/*.vex')]
     #list_files = os.listdir(fpath)
     scans = pd.DataFrame({'source' : []})
-    
+
 
     for fi in list_files:#loop over vex files in folder
         track_loc = fi[3:6].upper()
-        vpath = fpath+fi
+        vpath = os.path.join(fpath, fi)
         aa = vex.Vex(vpath)
         dec = []
         for cou in range(len(aa.source)):
@@ -498,7 +505,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
     """
     if path_ehtim!='':
         sys.path.insert(0,path_ehtim)
-        print('Inserting path ', path_ehtim)
+        logging.info(f'Inserting path {path_ehtim}')
     #if 'ehtim' in list(sys.modules):
     #    print('Ehtim already loaded!')
     #    import ehtim as eh
@@ -508,7 +515,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
     #    #except: pass
     import ehtim as eh
     path_eh = os.path.dirname(eh.__file__)
-    print(f'Using eht-imaging library from {path_eh}')
+    logging.info(f'Using eht-imaging library from {path_eh}')
 
     if force_singlepol=='LL':
         force_singlepol='L'
@@ -516,13 +523,13 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         force_singlepol='R'
 
     if force_singlepol=='no':
-        print(f'Reading data without forcing singlepol and using polrep = {polrep}')
+        logging.info(f'Reading data without forcing singlepol and using polrep = {polrep}')
         filen = os.path.basename(pathf)
         if polrep in ['circ','stokes']:
             obsXX = eh.io.load.load_obs_uvfits(pathf,polrep=polrep)
-            print('Polrep is ', obsXX.polrep)
+            logging.info(f'Polrep is {obsXX.polrep}')
         else: 
-            print("Polrep unspecified. Default ehtim behavior (polrep='stokes') will be used.") 
+            logging.warning("Polrep unspecified. Default ehtim behavior (polrep='stokes') will be used.") 
             obsXX = eh.io.load.load_obs_uvfits(pathf)
         dfXX = obsdata_2_df(obsXX)
         
@@ -544,7 +551,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
             df['lrsigma'] = scale_sigma*df['lrsigma']
         
         if fix_sigma>0:
-            print('Fixing constant sigma: ', fix_sigma)
+            logging.info(f'Fixing constant sigma: {fix_sigma}')
             df['sigma']=fix_sigma
             if 'rrsigma' in df.columns:
                 df['rrsigma'] = fix_sigma
@@ -555,7 +562,7 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
         if rescale_noise==True:
             obsXX10 = obsXX.avg_coherent(10.)
             rsc = obsXX10.estimate_noise_rescale_factor(max_diff_sec=1000.)
-            print('Applying noise rescaling to data, factor is: ', rsc)
+            logging.info(f'Applying noise rescaling to data, factor is: {rsc}')
             df['sigma']=rsc*df['sigma']
             if 'rrsigma' in df.columns:
                 df['rrsigma'] = rsc*df['rrsigma']
@@ -610,9 +617,8 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
             rsc= obs10.estimate_noise_rescale_factor()
             df['sigma']=rsc*df['sigma']
      
-
-    stations_2lett_1lett, jd_2_expt, scans = get_info(observation=observation,path_vex=path_vex)
-
+    stations_2lett_1lett, jd_2_expt, scans = get_info(observation=observation, path_vex=path_vex)
+    logging.info("get_info worked, got stations_2lett_1lett and jd_2_expt")
     
     df['datetime'] = Time(df['mjd'], format='mjd').datetime
     df['datetime'] =list(map(lambda x: round_time(x,round_s=round_s),df['datetime']))
