@@ -16,9 +16,63 @@ import argparse
 def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='scan', only_parallel=False, infileext="uvfits", incoh_avg=False, outfiletype='hdf5',
                       rescale_noise=False, polrep='circ', old_format=True, ehtimpath='', closure='both', tavgclosure='scan', tavgprecoh=0., sigma=0,
                       sigmascalefactor=1.):
-    '''
-    Imports whole dataset of uvfits with HOPS folder structure, or even without structure
-    '''
+    """
+    Import (convert) UVFITS files to HDF5 and or pickle files.
+
+    Parameters
+    ----------
+    datadir : str
+        Directory containing input UVFITS files.
+    vexdir : str
+        Directory containing VEX schedules.
+    outdir : str
+        Directory to which output files will be written.
+    observation : str
+        String denoting which EHT campaign's data are being reduced 
+        (e.g., 'EHT2017', 'EHT2018', 'EHT2021').
+    idtag : str
+        Custom identifier tag for output files.
+    band : str
+        Band name (e.g., 'lo', 'hi' for 2017; 'b1', 'b2', 'b3', 'b4' for 2018+).
+    tavg : str or float, optional
+        Time-averaging resolution ('scan' for entire scan or a float value).
+    only_parallel : bool, optional
+        If True, consider only parallel hand visibilities.
+    infileext : str, optional
+        Input UVFITS file extension (default is 'uvfits').
+    incoh_avg : bool, optional
+        If True, perform incoherent averaging.
+    outfiletype : str, optional
+        Output file format(s) ('hdf5', 'pickle', or 'both').
+    rescale_noise : bool, optional
+        If True, rescale noise.
+    polrep : str, optional
+        Polarimetric representation ('circ' or 'stokes').
+    old_format : bool, optional
+        If True, store data in old format (separate data records by polarization).
+    ehtimpath : str, optional
+        Path to custom eht-imaging directory.
+    closure : str, optional
+        Closure quantities to compute and save ('cphase', 'lcamp', 'both', or '').
+    tavgclosure : str or float, optional
+        Time-averaging resolution for closure quantities ('scan' or a float value).
+    tavgprecoh : float, optional
+        Time-averaging resolution for coherent averaging.
+    sigma : float, optional
+        Fix sigma to this value.
+    sigmascalefactor : float, optional
+        Scale sigma by this value.
+
+    Returns
+    -------
+    None or pandas.DataFrame
+        If `outfiletype` is not specified, returns a DataFrame containing the processed data.
+        Otherwise, saves the processed data to the specified output format(s).
+
+    Notes
+    -----
+    This function skips UVFITS files that are already (time and frequency) averaged i.e., those whose filenames end in '+avg'.
+    """
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -28,7 +82,7 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
     #path0b = glob.glob(datadir+'/*'+infileext)
     #path0 = sorted(path0a+path0b)
 
-    path0 = sorted(glob.glob(f'{datadir}/**/*.{infileext}', recursive=True))
+    path0 = sorted(f for f in glob.glob(f'{datadir}/**/*.{infileext}', recursive=True) if not os.path.splitext(os.path.basename(f))[0].endswith('+avg'))
 
     # extract and store visibilities
     for filen in path0:
