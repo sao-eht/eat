@@ -481,16 +481,6 @@ def obsdata_2_df(obs):
         try: df['sigma'] = df['rrsigma']
         except: pass
     return df
-
-
-def add_vis_df(self,polarization='unknown',band='unknown',round_s=1.):
-    """Adds attribute: visibility data in data frame format
-    Args:
-        round_s: accuracy of datetime object in seconds
-    """
-    df=make_df(self,polarization=polarization,band=band,round_s=round_s)
-    self.vis_df = df
-
     
 def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='no',band='unknown',
     round_s=0.1,only_parallel=False,rescale_noise=False,polrep=None,path_ehtim='',fix_sigma=0,scale_sigma=1.):
