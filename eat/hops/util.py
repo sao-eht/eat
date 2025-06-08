@@ -93,12 +93,12 @@ sys_par = 2e-6 # 2 ps on fringe delay
 sys_cross = 20e-6 # 20 ps on cross hand delay
 
 # restart of backend system -- note application is not currently band-specific
-restarts = {'X':[util.tt2dt(d, year=2017) for d in ['101-003000']], # clear R-L delay break in lo+hi band between 101-0013 and 101-0032
-            'S':[util.tt2dt(d, year=2018) for d in ['117-050000']], # clear R-L delay break in b1+b2+b3+b4 band between 117-0446 and 117-0517
-            'P':[util.tt2dt(d, year=2021) for d in ['107-232500']], # probable R-L delay break in b3+b4 band between 108-0436 and 108-0452
-            'X':[util.tt2dt(d, year=2021) for d in ['105-045500']], # clear R-L delay break in b3+b4 band between 105-0448 and 105-0456
+restarts = {'X':[util.tt2dt(d, year=2017) for d in ['101-003000']]  # clear R-L delay break in lo+hi band between 101-0013 and 101-0032
+              + [util.tt2dt(d, year=2021) for d in ['105-045500']], # clear R-L delay break in b3+b4 band between 105-0448 and 105-0456
+            'S':[util.tt2dt(d, year=2018) for d in ['111-061900', '117-050000']], # intentional R/L flip before 111-0620, clear R-L delay break in b1+b2+b3+b4 band between 117-0446 and 117-0517
+            'P':[util.tt2dt(d, year=2021) for d in ['107-232500']]  # probable R-L delay break in b3+b4 band between 108-0436 and 108-0452
+              + [util.tt2dt(d, year=2022) for d in ['078-121000']], # probable jump in R-L in b3 between 078-1203 and 078-1211
             'N':[util.tt2dt(d, year=2022) for d in ['086-031500']], # should double check NOEMA
-            'P':[util.tt2dt(d, year=2022) for d in ['078-121000']], # probable jump in R-L in b3 between 078-1203 and 078-1211
             'K':[util.tt2dt(d, year=2022) for d in ['078-062400']], # small R-L jump in b4 between 078-0616 and 078-0625
             'A':[util.tt2dt(d, year=2022) for d in ['079-180000', '086-080000']]  # X-Y delay jumps in ALMA in mixed-pol (not currently calibrated) b1+b2
 }
@@ -2047,7 +2047,7 @@ def fixsqrt2(df):
 # allscans: additional data frame of all scans to use for plotting non-detections
 def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, flip=True, col=None,
         ulthreshold=None, cmap=cm.get_cmap('jet', 9), vmin=None, vmax=None, log=True, tag=None,
-        markerleg=True, allscans=None, year=None):
+        markerleg=True, allscans=None, year=None, circ='auto'):
     import pandas as pd
     import seaborn as sns
     from ..plots import util as pu
@@ -2106,18 +2106,20 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
     # draw circles
     ax = plt.gca()
 
-    # circle for 50 uas
-    r = 1 / ((2*np.pi/360) * 50e-6 / 3600) / 1e9
-    cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
-    plt.text(0+.3, r+0.25, '(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
-    plt.gca().add_artist(cir)
+    if circ=='auto':
 
-    # circle for 20 uas
-    if 330e3 < df.ref_freq.iloc[0] < 360e3:
-        r = 1 / ((2*np.pi/360) * 20e-6 / 3600) / 1e9
+        # circle for 50 uas
+        r = 1 / ((2*np.pi/360) * 50e-6 / 3600) / 1e9
         cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
-        plt.text(0+.3, r+0.25, '(20 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
+        plt.text(0+.3, r+0.25, '(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
         plt.gca().add_artist(cir)
+
+        # circle for 20 uas
+        if 330e3 < df.ref_freq.iloc[0] < 360e3:
+            r = 1 / ((2*np.pi/360) * 20e-6 / 3600) / 1e9
+            cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
+            plt.text(0+.3, r+0.25, '(20 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
+            plt.gca().add_artist(cir)
 
     plt.gca().set_aspect(1.0)
 
