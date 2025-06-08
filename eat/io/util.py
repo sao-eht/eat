@@ -68,7 +68,7 @@ def rewrap_mbd(df, mbd_ambiguity=None):
     df['mbdelay'] = np.remainder(df.mbd_unwrap + 0.5*mbd_ambiguity, mbd_ambiguity) - 0.5*mbd_ambiguity
 
 def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_systematic=0.000002,
-                 rate_systematic=0.001, crosspol_systematic=0.000020):
+                 rate_systematic=0.001, crosspol_systematic=0.000020, mixedpol_systematic=0.000008):
     """Add in place error to delay and rate fit from fourfit.
 
     This is re-derived and close in spirit to the code in fourfit/fill_208.c
@@ -81,6 +81,7 @@ def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_system
                    compensates for non-white data
         mbd_systematic, rate_systematic: added in quadrature to statistical error (us, ps/s)
         crosspol_systematic: added in quadrature to delay error for cross polarization products
+        mixedpol_systematic: added in quadrature to delay error for mixed polarization products
 
     Returns:
         additional columns *mbd_err* and *rate_err* added directly to original DataFrame
@@ -94,10 +95,12 @@ def add_delayerr(df, bw=None, bw_factor=1.0, mbd_systematic=0.000002, sbd_system
     df['mbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * bw * bw_factor) # us
     df['sbd_err'] = np.sqrt(12) / (2*np.pi * df.snr * sbw * bw_factor) # us, for nchan measurements
     df['rate_err'] = 1e6 * np.sqrt(12) / (2*np.pi * df.ref_freq * df.snr * df.duration) # us/s -> ps/s
+    iscross = df.polarization.isin({'RL', 'LR', 'XY', 'YX'})
+    ismixed = df.polarization.isin({'XR', 'XL', 'YR', 'YL', 'RX', 'LX', 'RY', 'LY'})
     df['mbd_err'] = np.sqrt(df['mbd_err']**2 + mbd_systematic**2 +
-                            crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
+                            crosspol_systematic**2*iscross + mixedpol_systematic**2*ismixed)
     df['sbd_err'] = np.sqrt(df['sbd_err']**2 + sbd_systematic**2 +
-                            crosspol_systematic**2*df.polarization.apply(lambda p: p[0] != p[1]))
+                            crosspol_systematic**2*iscross + mixedpol_systematic**2*ismixed)
     df['rate_err'] = np.sqrt(df['rate_err']**2 + rate_systematic**2)
 
 def tt2dt(timetag, year=2018):
