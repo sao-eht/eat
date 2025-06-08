@@ -31,7 +31,7 @@ parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic
 parser.add_argument('-sw', '--sigmas_to_window', help='sigmas to window for both delay and rate', type=float, default=0)
 parser.add_argument('-dw', '--delay_window', help='fixed delay window to apply in [us]', type=float, default=0)
 parser.add_argument('-rw', '--rate_window', help='fixed rate window to apply in [ps/s]', type=float, default=0)
-parser.add_argument('-t', '--threshold', help='SNR cutoff threshold for detections', type=float, default=7.0)
+parser.add_argument('-t', '--threshold', help='SNR cutoff threshold for detections', type=float, default=7.5)
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
@@ -50,12 +50,23 @@ util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_
                      crosspol_systematic=args.crosspol_delay_error)
 
 # extra error for JS baseline, possible noise fringes, SR baseline, JR sideband contamination (rate), 1.5ns LMT delayed leakage, AR problem high band
-a['mbd_err'] = np.sqrt(a['mbd_err']**2 + 50e-6**2*(a.baseline.isin({'JS', 'JR', 'SJ', 'RJ'}))
-                       + 1.*(a.baseline.isin({'SR', 'RS'})) + 1.*(a.snr < args.threshold)
-                       + 1.5e-3**2*(a.baseline.str.contains('L') & a.polarization.isin({'RL', 'LR'}))
-                       + 23e-3**2*((a.ref_freq > 228100.) & (a.baseline == 'AR') & (a.polarization == 'RL') & (a.year == '2017')
-                                 & (a.scan_id.isin({'095-0829', '095-0839', '095-0849', '095-0859', '095-0908'}))))
-a['rate_err'] = np.sqrt(a['rate_err']**2 + 0.25*(a.baseline.isin({'SR', 'RS'})) + 4.0*(a.baseline.isin({'JR', 'RJ'})) + 1.*(a.snr < args.threshold))
+iscross = a.polarization.isin({'RL', 'LR', 'XY', 'YX'})
+ismixed = a.polarization.isin({'XR', 'XL', 'YR', 'YL', 'RX', 'LX', 'RY', 'LY'})
+
+a['mbd_err'] = np.sqrt(a['mbd_err']**2
+                       + 1.*(a.baseline.isin({'SR', 'RS'})) + 1.*(a.snr < args.threshold)          # potentially bogus fringes
+                       + 50e-6**2*((a.year == '2017') & a.baseline.isin({'JS', 'JR', 'SJ', 'RJ'})) # 2017 JS sideband contamination
+                       + 1.5e-3**2*((a.year == '2017') & a.baseline.str.contains('L') & iscross)   # 2017 LMT reflected leakage
+                       + 23.e-3**2*((a.year == '2017') & (a.ref_freq > 228100.) & (a.baseline == 'AR') & (a.polarization == 'RL')
+                         & (a.scan_id.isin({'095-0829', '095-0839', '095-0849', '095-0859', '095-0908'}))) # 2017 high band AR outliers
+                       + 8.5e-3**2*((a.year == '2018') & a.baseline.str.contains('X') & iscross)  # 2018 APEX delayed leakage various
+                       + 0.5e-3**2*((a.expt_no == '3649') & a.baseline.str.contains('A') & iscross) # 2018 poor polconvert 3649 (118)
+                       + 8.5e-3**2*((a.expt_no == '3644') & (a.baseline == 'AL') & (a.polarization == 'LR') & (a.scan_id == '111-0359')) 
+                       + 4.5e-3**2*((a.expt_no == '3644') & (a.baseline == 'AZ') & (a.polarization == 'RL') & (a.scan_id == '111-0813'))
+                      )
+
+a['rate_err'] = np.sqrt(a['rate_err']**2
+                        + 0.25*(a.baseline.isin({'SR', 'RS'})) + 4.0*(a.baseline.isin({'JR', 'RJ'})) + 1.*(a.snr < args.threshold))
 
 hu.closefringe(a)
 
