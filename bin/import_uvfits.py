@@ -98,7 +98,7 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
         df_foo = uvfits.get_df_from_uvfit(filen, observation=observation, path_vex=vexdir, force_singlepol='no', band=band, round_s=0.1,
                                           only_parallel=only_parallel, rescale_noise=rescale_noise, polrep=polrep, path_ehtim=ehtimpath,
                                           fix_sigma=sigma, scale_sigma=sigmascalefactor)
-        logging.info('Found datapoints: ',np.shape(df_foo)[0])
+        logging.info(f'Found datapoints: {np.shape(df_foo)[0]}')
             
         # convert to old format (i.e. separate data record for each polarization)
         if old_format:
@@ -115,7 +115,7 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
         
         # coherently / incoherently average visibilities
         if incoh_avg==False:
-            logging.info('Averaging coherently for ', str(tavg))
+            logging.info(f'Averaging coherently for {str(tavg)}')
             df_scan = ut.coh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
         else:      
             if tavgprecoh > 0:
