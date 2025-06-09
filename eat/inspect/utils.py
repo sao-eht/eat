@@ -18,6 +18,7 @@ from sklearn.cluster import KMeans
 from astropy import units as u
 from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
 from astropy.time import Time, TimeDelta
+import logging
 
 #BUNCH OF FUNCTIONS FOR GENERAL DESCRIPTION OF SCAN
 
@@ -585,7 +586,6 @@ def add_mjd(alist):
 
 def add_mjd_smart(df):
     """add *mjd* column to data frame with *datetime* field using astropy for conversion"""
-    from astropy import time
     g = df.groupby('datetime')
     (timestamps, indices) = list(zip(*iter(g.groups.items())))
     times_mjd = Time(timestamps).mjd # vectorized
@@ -850,13 +850,13 @@ def incoh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas',debi
     frame['amp_ndb'] = list(zip(frame['amp'],frame['sigma'])) 
     frame['amp'] = list(zip(frame['amp'],frame['sigma']))   
     if tavg=='scan': #average for entire scan
-        frame_avg = frame.groupby(groupingSc).agg(aggregating)
+        frame_avg = frame.groupby(groupingSc, observed=True).agg(aggregating)
         
     else: # average for 
         date0 = datetime.datetime(2017,4,4)
         frame['round_time'] = list(map(lambda x: np.round((x- date0).total_seconds()/float(tavg)),frame.datetime))
         grouping = groupingSc+['round_time']
-        frame_avg = frame.groupby(grouping).agg(aggregating)
+        frame_avg = frame.groupby(grouping, observed=True).agg(aggregating)
         frame_avg = frame_avg.reset_index()
         frame_avg['datetime'] =  list(map(lambda x: date0 + datetime.timedelta(seconds= int(tavg*x)), frame_avg['round_time']))
     
@@ -941,7 +941,7 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
     if 'vis' not in frame.columns:
         frame['vis']=frame['amp']*np.exp(1j*frame[phase_type]*np.pi/180.)
     frame['number']=0.
-    
+
     aggregating = {#'datetime': lambda x: min(x)+ 0.5*(max(x)-min(x)),
     'datetime': 'min',
     #'vis': np.mean,
@@ -1000,14 +1000,13 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
         aggregating['sig_moments'] =  unbiased_std
         columns_out0 += ['sig_moments']
 
-        
     if tavg=='scan': #average for entire scan
-        frame_avg = frame.groupby(groupingSc).agg(aggregating)
-        
+        frame_avg = frame.groupby(groupingSc, observed=True).agg(aggregating)
+
     else: # average for tcoh seconds
         frame['round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/float(tavg)),frame.datetime))
         grouping = groupingSc+['round_time']
-        frame_avg = frame.groupby(grouping, observed=False).agg(aggregating)
+        frame_avg = frame.groupby(grouping, observed=True).agg(aggregating)
         #frame.drop('datetime',axis=1,inplace=True)
         frame_avg = frame_avg.reset_index()
         #print(frame_avg.columns)
@@ -1016,8 +1015,7 @@ def coh_avg_vis(frame,tavg='scan',columns_out0=[],phase_type='resid_phas'):
         #frame['datetime']= 0
     frame_avg['amp'] = frame_avg['vis'].apply(np.abs)
     frame_avg['phase']=frame_avg['vis'].apply(lambda x: np.angle(x)*180./np.pi)
-    frame['snr'] = frame['amp']/frame['sigma']
-
+    #frame['snr'] = frame['amp']/frame['sigma']
     #frame_avg['sigma']=frame_avg['amp']/frame_avg['snr']
 
     frame_avg = frame_avg.reset_index()
@@ -1279,12 +1277,12 @@ def coh_avg_bsp(frame,tavg='scan',columns_out0=[]):
 
     #AVERAGING-------------------------------    
     if tavg=='scan': #average for entire scan
-        frame_avg = frame.groupby(groupingSc).agg(aggregating)
+        frame_avg = frame.groupby(groupingSc, observed=True).agg(aggregating)
         
     else: # average for 
         frame['round_time'] = list(map(lambda x: np.round((x- datetime.datetime(2017,4,4)).total_seconds()/float(tavg)),frame.datetime))
         grouping = groupingSc+['round_time']
-        frame_avg = frame.groupby(grouping).agg(aggregating)
+        frame_avg = frame.groupby(grouping, observed=True).agg(aggregating)
 
     frame_avg['amp'] = frame_avg['bsp'].apply(np.abs)
     frame_avg['cphase']=frame_avg['bsp'].apply(lambda x: np.angle(x)*180./np.pi) #deg

@@ -618,7 +618,6 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
             df['sigma']=rsc*df['sigma']
      
     stations_2lett_1lett, jd_2_expt, scans = get_info(observation=observation, path_vex=path_vex)
-    logging.info("get_info worked, got stations_2lett_1lett and jd_2_expt")
     
     df['datetime'] = Time(df['mjd'], format='mjd').datetime
     df['datetime'] =list(map(lambda x: round_time(x,round_s=round_s),df['datetime']))
