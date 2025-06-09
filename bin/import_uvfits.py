@@ -21,7 +21,7 @@ logging.basicConfig(level=loglevel,
                     datefmt='%Y-%m-%d %H:%M:%S')
 
 def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='scan', only_parallel=False, infileext="uvfits", incoh_avg=False, outfiletype='hdf5',
-                      rescale_noise=False, polrep='circ', old_format=True, ehtimpath='', closure='both', tavgclosure='scan', tavgprecoh=0., sigma=0,
+                      rescale_noise=False, polrep='circ', old_format=True, ehtimpath='', closure='', tavgclosure='scan', tavgprecoh=0., sigma=0,
                       sigmascalefactor=1.):
     """
     Import (convert) UVFITS files to HDF5 and or pickle files.
@@ -126,20 +126,17 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
                 logging.info(f'No coherent pre-averaging. Incoherently averaging for {str(tavg)}')
                 df_scan = ut.incoh_avg_vis(df_foo.copy(),tavg=tavg,phase_type='phase')
         df = pd.concat([df,df_scan.copy()],ignore_index=True)
-      except: logging.warning('Nothing from this file...')
+      except Exception as e:
+          logging.warning(f'Exception encountered while processing {filen}: {e}')
+          logging.warning('Skipping this file...')
 
     try:
         df.drop(list(df[df.baseline.str.contains('R')].index.values),inplace=True)
-    except:
-        pass
-    try:
         df['source'] = list(map(str,df['source']))
-    except:
-        pass
-    try:
         df.dropna(subset=['snr'],inplace=True)
-    except:
-        pass
+    except Exception as e:
+        logging.warning(f'Exception encountered while cleaning data: {e}')
+        logging.warning('Skipping some cleaning steps...')
     
     # compute closure phases
     if closure in ['cphase', 'both']:
