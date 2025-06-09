@@ -18,7 +18,6 @@ from sklearn.cluster import KMeans
 from astropy import units as u
 from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
 from astropy.time import Time, TimeDelta
-import logging
 
 #BUNCH OF FUNCTIONS FOR GENERAL DESCRIPTION OF SCAN
 
@@ -1675,13 +1674,13 @@ def avg_camp(frame,tavg='scan',debias='no'):
     #ACTUAL AVERAGING
   
     if tavg=='scan': #average for entire scan
-        frame_avg = frame.groupby(groupingSc).agg(aggregating)
+        frame_avg = frame.groupby(groupingSc, observed=True).agg(aggregating)
         
     else: # average for 
         date0 = datetime.datetime(2017,4,4)
         frame['round_time'] = list(map(lambda x: np.round((x- date0).total_seconds()/float(tavg)),frame.datetime))
         grouping = groupingSc+['round_time']
-        frame_avg = frame.groupby(grouping).agg(aggregating)
+        frame_avg = frame.groupby(grouping, observed=True).agg(aggregating)
         frame_avg = frame_avg.reset_index()
         frame_avg['datetime'] =  list(map(lambda x: date0 + datetime.timedelta(seconds= int(tavg*x)), frame_avg['round_time']))
     

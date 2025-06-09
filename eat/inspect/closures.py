@@ -259,7 +259,7 @@ def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_sn
             bsp = tlist.groupby(['expt_no','source','band','scan_id']).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
         'amps': lambda x: tuple(x),'snrs': lambda x: tuple(x),'fracpols': lambda x: tuple(x),'datetime':min})  
         else:
-            bsp = tlist.groupby(['expt_no','source','band','scan_id','datetime']).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
+            bsp = tlist.groupby(['expt_no','source','band','scan_id','datetime'], observed=True).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
         'amps': lambda x: tuple(x),'snrs': lambda x: tuple(x),'fracpols': lambda x: tuple(x)})
         #sigma above is the CLOSURE PHASE ERROR
         #print(bsp.columns)
@@ -456,12 +456,12 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
 
         if match_by_scan:
             grouping =  ['expt_no','band','polarization','source','scan_id']
-            aggregate = {'amps': lambda x: tuple(x),'datetime': min, 'snrs': lambda x: tuple(x), 'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
-        'snr1': np.sum, 'snr2': np.sum,'snr3': np.sum, 'snr4': np.sum}
+            aggregate = {'amps': lambda x: tuple(x),'datetime': 'min', 'snrs': lambda x: tuple(x), 'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
+        'snr1': 'sum', 'snr2': 'sum','snr3': 'sum', 'snr4': 'sum'}
         else:
             grouping =  ['expt_no','band','polarization','source','scan_id','datetime']
             aggregate = {'amps': lambda x: tuple(x), 'snrs': lambda x: tuple(x), 'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
-        'snr1': np.sum, 'snr2': np.sum,'snr3': np.sum, 'snr4': np.sum}
+        'snr1': 'sum', 'snr2': 'sum','snr3': 'sum', 'snr4': 'sum'}
 
         if ctype=='camp':
             tlist['sigmaCA'] = tlist['sigma']/tlist['amp'] # 1/snr
@@ -473,7 +473,7 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
     
         #actual formation of camp
         #print(tlist.columns)
-        quadlist = tlist.groupby(grouping).agg(aggregate)
+        quadlist = tlist.groupby(grouping, observed=True).agg(aggregate)
 
         #if camp we need to multiply sigmaCA by CA
         if ctype=='camp':
