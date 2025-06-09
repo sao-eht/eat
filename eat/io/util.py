@@ -6,15 +6,15 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 # from builtins import zip
-from pkg_resources import parse_version
+# from pkg_resources import parse_version
 import pandas as pd
-try:
-    assert(parse_version(pd.__version__) >= parse_version('0.15.1dev'))
-except:
-    if type(pd).__name__ == "_MockModule":
-        print("processed by autodoc; pandas version comparison failed")
-    else:
-        print("pandas version too old")
+# try:
+#     assert(parse_version(pd.__version__) >= parse_version('0.15.1dev'))
+# except:
+#     if type(pd).__name__ == "_MockModule":
+#         print("processed by autodoc; pandas version comparison failed")
+#     else:
+#         print("pandas version too old")
 import datetime
 import numpy as np
 import os
