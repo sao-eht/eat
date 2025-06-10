@@ -321,7 +321,7 @@ def all_bispectra_polar(
 
     bsp_out = []
 
-    for Tri, origTri, signat in zip(tri_baseL, triL, sgnL):
+    for Tri, strTri, signat in zip(tri_baseL, triL, sgnL):
         # Select rows for this triangle
         cond = df['baseline'].isin(Tri)
         cols = ['expt_no', 'scan_id', 'source', 'datetime', 'baseline', phase_type, 'amp', 'snr', 'gmst', 'band', 'amps', 'snrs', 'fracpols']
@@ -372,8 +372,7 @@ def all_bispectra_polar(
         bsp.loc[:, 'sigma'] = bsp['amp'] * bsp['sigma'] # sigma of bispectrum
 
         # constant columns broadcasted to every row
-        logging.info(f"origTri is {origTri} with type {type(origTri)}")
-        bsp['triangle'] = [origTri] * np.shape(bsp)[0]
+        bsp['triangle'] = [strTri] * np.shape(bsp)[0]
         bsp['polarization'] = [polar] * np.shape(bsp)[0]
 
         # closure phase and amplitude
