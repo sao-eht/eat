@@ -158,7 +158,7 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
                 ftmp = os.path.join(outdir, f'{idtag_cp}.h5')
                 logging.info(f'Saving file: {ftmp}')
                 bsp_sc.to_hdf(ftmp, key=idtag_cp, mode='w',format='table')
-            elif outfiletype in ['pickle', 'both']:
+            if outfiletype in ['pickle', 'both']:
                 ftmp = os.path.join(outdir, f'{idtag_cp}.pickle')
                 logging.info(f'Saving file: {ftmp}')
                 bsp_sc.to_pickle(ftmp)
@@ -182,7 +182,7 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
                 ftmp = os.path.join(outdir, f'{idtag_lca}.h5')
                 logging.info(f'Saving file: {ftmp}')
                 quad_sc.to_hdf(ftmp, key=idtag_lca, mode='w',format='table')
-            elif outfiletype in ['pickle', 'both']:
+            if outfiletype in ['pickle', 'both']:
                 ftmp = os.path.join(outdir, f'{idtag_lca}.pickle')
                 logging.info(f'Saving file: {ftmp}')
                 quad_sc.to_pickle(ftmp)
@@ -193,13 +193,17 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
         logging.info(f"Saving file: {hdf5_path}")
         df.to_hdf(hdf5_path, key=idtag, mode="w", format="table")
 
-    elif outfiletype in ("pickle", "both"):
+    if outfiletype in ("pickle", "both"):
         pickle_path = os.path.join(outdir, f"{idtag}.pickle")
         logging.info(f"Saving file: {pickle_path}")
         df.to_pickle(pickle_path)
 
-    else:
-        return df
+    # Account for wrong outfiletype argument
+    valid_outfiletypes = {'hdf5', 'pickle', 'both'}
+    if outfiletype not in valid_outfiletypes:
+        logging.warning(f"Invalid outfiletype '{outfiletype}' specified. Supported types are {repr(valid_outfiletypes)}. Returning DataFrame without saving.")
+
+    return df
 
 def create_parser():
     p = argparse.ArgumentParser()
