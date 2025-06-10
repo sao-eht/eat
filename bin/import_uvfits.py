@@ -89,6 +89,7 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
     #path0b = glob.glob(datadir+'/*'+infileext)
     #path0 = sorted(path0a+path0b)
 
+    # Match all files with the specified extension in datadir and its subdirectories
     path0 = sorted(f for f in glob.glob(f'{datadir}/**/*.{infileext}', recursive=True) if not os.path.splitext(os.path.basename(f))[0].endswith('+avg'))
 
     # extract and store visibilities
@@ -140,13 +141,13 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
     
     # compute closure phases
     if closure in ['cphase', 'both']:
-        logging.info("Saving scan-averaged closure phases...")
+        logging.info("Saving closure phases...")
         bsp = cl.all_bispectra(df,phase_type='phase')
         bsp.drop('fracpols',axis=1,inplace=True)
         bsp.drop('snrs',axis=1,inplace=True)
         bsp.drop('amps',axis=1,inplace=True)
         bsp_sc = ut.coh_avg_bsp(bsp,tavg=tavgclosure)
-        idtag_cp = 'cp_sc_'+idtag
+        idtag_cp = 'cp_'+idtag
 
         if outfiletype in ['hdf5', 'both']:
             ftmp = os.path.join(outdir, f'{idtag_cp}.h5')
@@ -159,22 +160,26 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
     
     # compute log closure amplitudes
     if closure in ['lcamp', 'both']:
-        logging.info("Saving scan-averaged log closure amplitudes...")
+        logging.info("Saving log closure amplitudes...")
         quad=cl.all_quadruples_new(df,ctype='logcamp',debias='camp')
-        quad.drop('snrs',axis=1,inplace=True)
-        quad.drop('amps',axis=1,inplace=True)
-        quad_sc=ut.avg_camp(quad,tavg=tavgclosure)
-        idtag_lca= 'lca_sc_'+idtag
-        quad_sc['scan_id'] = list(map(np.int64,quad_sc.scan_id))
 
-        if outfiletype in ['hdf5', 'both']:
-            ftmp = os.path.join(outdir, f'{idtag_lca}.h5')
-            logging.info(f'Saving file: {ftmp}')
-            quad_sc.to_hdf(ftmp, key=idtag_lca, mode='w',format='table')
-        elif outfiletype in ['pickle', 'both']:
-            ftmp = os.path.join(outdir, f'{idtag_lca}.pickle')
-            logging.info(f'Saving file: {ftmp}')
-            quad_sc.to_pickle(ftmp)
+        if quad.empty:
+            logging.warning("No valid quadrangles found for any source or epoch! Nothing to save.")
+        else:
+            quad.drop('snrs',axis=1,inplace=True)
+            quad.drop('amps',axis=1,inplace=True)
+            quad_sc=ut.avg_camp(quad,tavg=tavgclosure)
+            idtag_lca= 'lca_'+idtag
+            quad_sc['scan_id'] = list(map(np.int64,quad_sc.scan_id))
+
+            if outfiletype in ['hdf5', 'both']:
+                ftmp = os.path.join(outdir, f'{idtag_lca}.h5')
+                logging.info(f'Saving file: {ftmp}')
+                quad_sc.to_hdf(ftmp, key=idtag_lca, mode='w',format='table')
+            elif outfiletype in ['pickle', 'both']:
+                ftmp = os.path.join(outdir, f'{idtag_lca}.pickle')
+                logging.info(f'Saving file: {ftmp}')
+                quad_sc.to_pickle(ftmp)
 
     # save dataframe to h5
     if outfiletype in ("hdf5", "both"):

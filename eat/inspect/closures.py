@@ -9,6 +9,13 @@ from eat.io import hops, util
 from eat.hops import util as hu
 from eat.aips import aips2alist as a2a
 from eat.inspect import utils as ut
+import logging
+
+# Configure logging
+loglevel = getattr(logging, 'INFO', None)
+logging.basicConfig(level=loglevel,
+                    format='%(asctime)s %(levelname)s:: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 hrs = [0,24.,48.]
 
@@ -413,9 +420,12 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
         alist.loc[:,'scan_id'] = alist.loc[:,'scan_no_tot']
     if 'sigma' not in alist.columns:
         alist['sigma'] = alist['amp']/alist['snr']
+
     quaL = list_all_quadrangles(alist)
     quad_baseL = sorted(quadrangles2baselines(quaL,alist))
-    quad_out = pd.DataFrame({})
+
+    quad_out = []
+
     alist['amps'] = alist['amp']
     if debias=='camp':
         alist['snr'] = get_snr(alist['snr'])
@@ -427,7 +437,6 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
 
     if debias=='amp':
         alist['amp'] = np.sqrt(np.maximum(0, alist['amp']**2 - alist['sigma']**2))
-
     #select quadrangle
     for cou in range(len(quad_baseL)):
         Quad = quad_baseL[cou]
@@ -443,6 +452,11 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
             tlist = alist_Quad.groupby(['polarization','band','scan_id']).filter(lambda x: len(x) == 4)
         else:
             tlist = alist_Quad.groupby(['polarization','band','datetime']).filter(lambda x: len(x) == 4)
+
+        if tlist.empty:
+            logging.warning(f'Skipping {Quad} since no full quadrangle {Quad} found in the data!')
+            continue
+
         tlist['snr1'] = tlist['snr1']*(tlist['baseline']==Quad[0])
         tlist['snr2'] = tlist['snr2']*(tlist['baseline']==Quad[1])
         tlist['snr3'] = tlist['snr3']*(tlist['baseline']==Quad[2])
@@ -490,10 +504,13 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
         #print(quadlist.columns)
         quadlist = quadlist.reset_index()
         quadlist['quadrangle'] = quadrangle2str(Quad)
-        quad_out = pd.concat([quad_out, quadlist],ignore_index=True)
+        quad_out.append(quadlist)
 
-    quad_out = quad_out.reset_index(drop=True)
-    return quad_out
+    if not quad_out:
+        print('Empty lca DataFrame list! Nothing to concatenate. Returning empty DataFrame for consistency.')
+        return pd.DataFrame()
+
+    return pd.concat(quad_out, ignore_index=True)
 
 def all_quadruples_polar_log(alist,polar):
     alist = alist[alist['polarization']==polar]
