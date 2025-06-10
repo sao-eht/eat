@@ -390,7 +390,6 @@ def all_bispectra_polar(
 
     result = pd.concat(bsp_out, ignore_index=False).reset_index()
     result.loc[:, 'rel_err'] = result['cphase'] / result['sigmaCP']
-    logging.info(result.columns)
 
     return result
 
