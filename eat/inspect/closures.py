@@ -173,127 +173,227 @@ def baselines2triangles(basel):
     tri = [''.join(sorted(list(set(''.join(x))))) for x in basel]
     return tri
 
-def all_bispectra(alist,phase_type='resid_phas',debias_snr=False,match_by_scan=False,verbose=False):
-    polars=[]
-    if phase_type in alist.columns:
-        try:
-            bsp_LL = all_bispectra_polar(alist,'LL',phase_type,debias_snr=debias_snr,match_by_scan=match_by_scan,verbose=verbose)
-            polars=polars+['LL']
-        except: pass
-        try:
-            bsp_RR = all_bispectra_polar(alist,'RR',phase_type,debias_snr=debias_snr,match_by_scan=match_by_scan,verbose=verbose)
-            polars=polars+['RR']
-        except: pass
-        if verbose: print('polarz', polars)
-        if len(polars)==2:
-            bsp = pd.concat([bsp_LL,bsp_RR],ignore_index=True)
-        elif polars[0]=='LL':
-            bsp=bsp_LL
-        else: bsp = bsp_RR
-        return bsp
+def all_bispectra(
+    alist: pd.DataFrame,
+    phase_type: str = 'resid_phas',
+    debias_snr: bool = False,
+    match_by_scan: bool = False,
+    verbose: bool = False,
+) -> pd.DataFrame:
+    """
+    Compute closure phases (bispectra) for each polarization.
+
+    Parameters
+    ----------
+    alist : pd.DataFrame
+        Input visibility DataFrame containing visibility data.
+    phase_type : str
+        Column name holding the phase data to be used for computation.
+    debias_snr : bool
+        If True, apply SNR debiasing to the data.
+    match_by_scan : bool
+        If True, group data by scan_id rather than datetime. Useful for scan-averaged data.
+    verbose : bool
+        If True, emit logging information during computation.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing concatenated bispectrum data, or an empty DataFrame if no data is available.
+    """
+
+    polars = []
+
+    if phase_type not in alist.columns:
+        raise ValueError(f"Phase type '{phase_type}' not found in alist columns.")
+    
+    bsp_LL = pd.DataFrame()
+    bsp_RR = pd.DataFrame()
+
+    try:
+        bsp_LL = all_bispectra_polar(alist, 'LL', phase_type, debias_snr=debias_snr, match_by_scan=match_by_scan, verbose=verbose)
+        if not bsp_LL.empty:
+            polars.append('LL')
+    except Exception as e:
+        logging.warning(f"Failed to compute LL bispectrum: {e}")
+
+    try:
+        bsp_RR = all_bispectra_polar(alist, 'RR', phase_type, debias_snr=debias_snr, match_by_scan=match_by_scan, verbose=verbose)
+        if not bsp_RR.empty:
+            polars.append('RR')
+    except Exception as e:
+        logging.warning(f"Failed to compute RR bispectrum: {e}")
+
+    if not polars:
+        logging.warning("No valid polarizations found for bispectrum computation. Returning empty DataFrame.")
+        return pd.DataFrame()
+
+    poldfs = []
+
+    if 'LL' in polars:
+        poldfs.append(bsp_LL.reset_index(drop=True))
+    if 'RR' in polars:
+        poldfs.append(bsp_RR.reset_index(drop=True))
+
+    if len(poldfs) == 1:
+        return poldfs[0]
     else:
-        print('Wrong name for the phase column!')
+        return pd.concat(poldfs, ignore_index=True)
 
-def all_bispectra_polar(alist,polar,phase_type='resid_phas',snr_cut=0.,debias_snr=False,match_by_scan=False,verbose=False):
-    '''
-    match_by_scan: option to only use scan_id rather than timestamp to find triplets of phases to form closure phases
-    should only be used for scan-averaged data
-    '''
+def all_bispectra_polar(
+    alist: pd.DataFrame,
+    polar: str,
+    phase_type: str = 'resid_phas',
+    snr_cut: float = 0.0,
+    debias_snr: bool = False,
+    match_by_scan: bool = False,
+    verbose: bool = False,
+) -> pd.DataFrame:
+    """
+    Compute closure phases for a single polarization.
+
+    Parameters
+    ----------
+    alist : pd.DataFrame
+        Input visibility DataFrame containing visibility data.
+    polar : str
+        Polarization to select ('LL' or 'RR').
+    phase_type : str
+        Column name holding the phase data to be used for computation.
+    snr_cut : float
+        Minimum SNR threshold for filtering data.
+    debias_snr : bool
+        If True, apply SNR debiasing to the data.
+    match_by_scan : bool
+        If True, group data by scan_id rather than datetime. Useful for scan-averaged data.
+    verbose : bool
+        If True, emit logging information during computation.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing bispectrum (closure phase) results, or an empty DataFrame if no data is available.
+    """
+
+    # Make a copy of alist to avoid modifying the original DataFrame
+    df = alist.copy()
+
+    # Optional scan‐averaging
     if match_by_scan:
-        alist=ut.coh_avg_vis(alist,tavg='scan',phase_type=phase_type)
-    if 'snr' not in alist.columns:
-        alist.loc[:,'snr'] = alist.loc[:,'amp']/alist.loc[:,'sigma']
-    if debias_snr==True:
-        foo = np.maximum(np.asarray(alist['snr'])**2 - 1,0)
-        alist['snr'] = np.sqrt(foo)
-    alist.drop(list(alist[alist.snr<snr_cut].index.values),inplace=True)
-    #print(alist)
-    alist = alist[alist['polarization']==polar]
-    alist = alist.loc[:,~alist.columns.duplicated()]
-    
-    if 'scan_id' not in alist.columns:
-        alist.loc[:,'scan_id'] = alist.loc[:,'scan_no_tot']
-    if 'band' not in alist.columns:
-        alist.loc[:,'band'] = np.nan
-    
-    alist['amps']=alist['amp']
-    alist['snrs']=alist['snr']
-    
-    if 'fracpol' in alist.columns:
-        #print(alist.columns)
-        alist['fracpols']=alist['fracpol']
-    else: alist['fracpols'] = 0
-    triL = list_all_triangles(alist)
-    #print(triL)
-    tri_baseL, sgnL = triangles2baselines(triL,alist)
-    #this is done twice to remove some non-present triangles
-    #print(triL, tri_baseL)
-    triL = baselines2triangles(tri_baseL)
-    tri_baseL, sgnL = triangles2baselines(triL,alist)
-    #print(tri_baseL)
-    #print(sgnL)
-    bsp_out = pd.DataFrame({})
-    #print('wtf?',triL, tri_baseL)
-    #triL=sorted(triL)
-    for cou in range(len(triL)):
-        
-        Tri = tri_baseL[cou]
-        if verbose: print(Tri)
-        signat = sgnL[cou]
-        #print(Tri)
-        condB1 = (alist['baseline']==Tri[0])
-        condB2 = (alist['baseline']==Tri[1])
-        condB3 = (alist['baseline']==Tri[2])
-        condB = condB1|condB2|condB3
-        alist_Tri = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline',phase_type,'amp','snr','gmst','band','amps','snrs','fracpols']]
-        #print(alist_Tri)
-        #print(alist_Tri)
-        #print(np.shape(alist_Tri))
-        #throw away times without full triangle
-        if match_by_scan:
-            tlist = alist_Tri.groupby(['band','scan_id']).filter(lambda x: len(x) == 3)
-        else:
-            tlist = alist_Tri.groupby(['band','datetime']).filter(lambda x: len(x) == 3)
-        tlist.loc[:,'sigma'] = (tlist.loc[:,'amp']/(tlist.loc[:,'snr']))
-        #print(tlist.loc[:,phaseType])
-        #print(tlist)
-        
-        for cou2 in range(3):
-            tlist.loc[(tlist.loc[:,'baseline']==Tri[cou2]),phase_type] *= signat[cou2]*np.pi/180.
-        tlist.loc[:,'sigma'] = 1./tlist.loc[:,'snr']**2 #put 1/snr**2 in the sigma column to aggregate
-        #print(tlist.columns)
-        if match_by_scan:
-            bsp = tlist.groupby(['expt_no','source','band','scan_id']).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
-        'amps': lambda x: tuple(x),'snrs': lambda x: tuple(x),'fracpols': lambda x: tuple(x),'datetime':min})  
-        else:
-            bsp = tlist.groupby(['expt_no','source','band','scan_id','datetime'], observed=True).agg({phase_type: lambda x: np.sum(x),'amp': lambda x: np.prod(x), 'sigma': lambda x: np.sqrt(np.sum(x)),
-        'amps': lambda x: tuple(x),'snrs': lambda x: tuple(x),'fracpols': lambda x: tuple(x)})
-        #sigma above is the CLOSURE PHASE ERROR
-        #print(bsp.columns)
-        
-        bsp.loc[:,'bsp'] = bsp.loc[:,'amp']*np.exp(1j*bsp.loc[:,phase_type])
-        bsp.loc[:,'snr'] = 1./bsp.loc[:,'sigma']
-        bsp.loc[:,'sigma'] = bsp.loc[:,'amp']*bsp.loc[:,'sigma'] #sigma of bispectrum
-        bsp.loc[:,'triangle'] = [triL[cou]]*np.shape(bsp)[0]
-        bsp.loc[:,'polarization'] = [polar]*np.shape(bsp)[0]
-        #bsp.loc[:,'signature'] = [signat]*np.shape(bsp)[0]
-        bsp.loc[:,'cphase'] = np.angle(bsp.loc[:,'bsp'])*180./np.pi
-        bsp.loc[:,'amp'] = np.abs(bsp.loc[:,'bsp'])
-        #bsp.loc[:,'snr'] = bsp.loc[:,'amp']/bsp.loc[:,'sigma']
-        bsp.loc[:,'sigmaCP'] = 1./bsp.loc[:,'snr']*180./np.pi #deg
-        bsp_out = pd.concat([bsp_out, bsp])
-        if verbose: print(triL[cou]+': '+str(np.shape(bsp)[0])+' closure phases')
-    #print(bsp_out.columns)
-    bsp_out = bsp_out.reset_index()
-    #print(bsp_out.columns)
-    #try:
-    #    bsp_out = bsp_out[['datetime','source','triangle','polarization','cphase','sigmaCP','amp','sigma','snr','scan_id','expt_no','band','amps','snrs','fracpols']] 
-    #except KeyError:
-    #   pass
-    
-    bsp_out['rel_err'] = np.asarray(bsp_out['cphase'])/np.asarray(bsp_out['sigmaCP'])
-    return bsp_out
+        df = ut.coh_avg_vis(df, tavg='scan', phase_type=phase_type)
 
+    # SNR column
+    if 'snr' not in df.columns:
+        df['snr'] = df['amp'] / df['sigma']
+    if debias_snr:
+        foo: np.ndarray = np.maximum(df['snr'].to_numpy()**2 - 1, 0)
+        df['snr'] = np.sqrt(foo)
+
+    # Filter by SNR and polarization
+    df = df[df['snr'] >= snr_cut]
+    df = df[df['polarization'] == polar].loc[:, ~df.columns.duplicated()]
+
+    # Ensure required columns exist
+    if 'scan_id' not in df.columns:
+        df.loc[:, 'scan_id'] = df['scan_no_tot']
+    if 'band' not in df.columns:
+        df.loc[:, 'band'] = np.nan
+
+    df.loc[:, 'amps'] = df['amp']
+    df.loc[:, 'snrs'] = df['snr']
+    
+    if 'fracpol' in df.columns:
+        df.loc[:, 'fracpols'] = df['fracpol']
+    else:
+        df.loc[:, 'fracpols'] = 0
+    
+    # Build triangle list
+    triL = list_all_triangles(df)
+    if not triL:
+        logging.warning(f"No valid triangles found. Returning empty DataFrame.")
+        return pd.DataFrame()
+
+    tri_baseL, sgnL = triangles2baselines(triL, df)
+
+    # Filter out absent triangles
+    triL = baselines2triangles(tri_baseL)
+    tri_baseL, sgnL = triangles2baselines(triL, df)
+
+    bsp_out = []
+
+    for Tri, origTri, signat in zip(tri_baseL, triL, sgnL):
+        # Select rows for this triangle
+        cond = df['baseline'].isin(Tri)
+        cols = ['expt_no', 'scan_id', 'source', 'datetime', 'baseline', phase_type, 'amp', 'snr', 'gmst', 'band', 'amps', 'snrs', 'fracpols']
+        df_Tri = df.loc[cond, cols]
+
+        # Keep only full triangles
+        if match_by_scan:
+            tlist = df_Tri.groupby(['band','scan_id'], observed=True).filter(lambda x: len(x) == 3)
+        else:
+            tlist = df_Tri.groupby(['band','datetime'], observed=True).filter(lambda x: len(x) == 3)
+
+        if tlist.empty:
+            logging.warning(f'Skipping {repr(Tri)} since no full triangle found in the data!')
+            continue
+
+        # Compute per‐baseline adjustments
+        for idx, b in enumerate(Tri):
+            mask = tlist['baseline'] == b
+            tlist.loc[mask, phase_type] *= signat[idx] * np.pi / 180.0
+
+        # Compute sigma
+        tlist.loc[:, 'sigma'] = 1.0 / tlist['snr']**2
+
+        # Group & aggregate
+        group_keys = ['expt_no','source','band','scan_id']
+        if not match_by_scan:
+            group_keys.append('datetime')
+
+        agg_funcs = {
+            phase_type : lambda x: x.sum(),
+            'amp'       : lambda x: x.prod(),
+            'sigma'     : lambda x: np.sqrt(x.sum()),
+            'amps'      : lambda x: tuple(x),
+            'snrs'      : lambda x: tuple(x),
+            'fracpols'  : lambda x: tuple(x),
+        }
+        if match_by_scan:
+            agg_funcs['datetime'] = 'min'
+
+        bsp = tlist.groupby(group_keys, observed=True).agg(agg_funcs)
+
+        # Add more fields to the bispectrum DataFrame
+        # complex bispectrum
+        bsp.loc[:, 'bsp'] = bsp['amp'] * np.exp(1j * bsp[phase_type])
+
+        # recompute SNR and sigma
+        bsp.loc[:, 'snr'] = 1.0 / bsp['sigma']
+        bsp.loc[:, 'sigma'] = bsp['amp'] * bsp['sigma'] # sigma of bispectrum
+
+        # constant columns broadcasted to every row
+        logging.info(f"origTri is {origTri} with type {type(origTri)}")
+        bsp['triangle'] = [origTri] * np.shape(bsp)[0]
+        bsp['polarization'] = [polar] * np.shape(bsp)[0]
+
+        # closure phase and amplitude
+        bsp['cphase'] = np.angle(bsp['bsp']) * 180.0/np.pi
+        bsp['amp'] = np.abs(bsp['bsp'])
+
+        # closure‐phase error in degrees
+        bsp['sigmaCP'] = (1.0 / bsp['snr']) * 180.0/np.pi
+
+        bsp_out.append(bsp)
+
+    if not bsp_out:
+        logging.warning(f"No bispectra DataFrames in list. Returning empty DataFrame.")
+        return pd.DataFrame()
+
+    result = pd.concat(bsp_out, ignore_index=False).reset_index()
+    result.loc[:, 'rel_err'] = result['cphase'] / result['sigmaCP']
+    logging.info(result.columns)
+
+    return result
 
 def all_bispectra_polar_scan_MC(alist,polar,phaseType='resid_phas'):
     alist = alist[alist['polarization']==polar]
@@ -454,7 +554,7 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
             tlist = alist_Quad.groupby(['polarization','band','datetime']).filter(lambda x: len(x) == 4)
 
         if tlist.empty:
-            logging.warning(f'Skipping {Quad} since no full quadrangle {Quad} found in the data!')
+            logging.warning(f'Skipping {repr(Quad)} since no full quadrangle found in the data!')
             continue
 
         tlist['snr1'] = tlist['snr1']*(tlist['baseline']==Quad[0])

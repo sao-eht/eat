@@ -142,25 +142,31 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
     # compute closure phases
     if closure in ['cphase', 'both']:
         logging.info("Saving closure phases...")
-        bsp = cl.all_bispectra(df,phase_type='phase')
-        bsp.drop('fracpols',axis=1,inplace=True)
-        bsp.drop('snrs',axis=1,inplace=True)
-        bsp.drop('amps',axis=1,inplace=True)
-        bsp_sc = ut.coh_avg_bsp(bsp,tavg=tavgclosure)
-        idtag_cp = 'cp_'+idtag
 
-        if outfiletype in ['hdf5', 'both']:
-            ftmp = os.path.join(outdir, f'{idtag_cp}.h5')
-            logging.info(f'Saving file: {ftmp}')
-            bsp_sc.to_hdf(ftmp, key=idtag_cp, mode='w',format='table')
-        elif outfiletype in ['pickle', 'both']:
-            ftmp = os.path.join(outdir, f'{idtag_cp}.pickle')
-            logging.info(f'Saving file: {ftmp}')
-            bsp_sc.to_pickle(ftmp)
+        bsp = cl.all_bispectra(df,phase_type='phase')
+
+        if bsp.empty:
+            logging.warning("No valid bispectra found for any source or epoch! Nothing to save.")
+        else:
+            bsp.drop('fracpols',axis=1,inplace=True)
+            bsp.drop('snrs',axis=1,inplace=True)
+            bsp.drop('amps',axis=1,inplace=True)
+            bsp_sc = ut.coh_avg_bsp(bsp,tavg=tavgclosure)
+            idtag_cp = 'cp_'+idtag
+
+            if outfiletype in ['hdf5', 'both']:
+                ftmp = os.path.join(outdir, f'{idtag_cp}.h5')
+                logging.info(f'Saving file: {ftmp}')
+                bsp_sc.to_hdf(ftmp, key=idtag_cp, mode='w',format='table')
+            elif outfiletype in ['pickle', 'both']:
+                ftmp = os.path.join(outdir, f'{idtag_cp}.pickle')
+                logging.info(f'Saving file: {ftmp}')
+                bsp_sc.to_pickle(ftmp)
     
     # compute log closure amplitudes
     if closure in ['lcamp', 'both']:
         logging.info("Saving log closure amplitudes...")
+
         quad=cl.all_quadruples_new(df,ctype='logcamp',debias='camp')
 
         if quad.empty:
