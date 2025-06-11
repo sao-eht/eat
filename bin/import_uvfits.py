@@ -167,7 +167,7 @@ def import_uvfits_set(datadir, vexdir, outdir, observation, idtag, band, tavg='s
     if closure in ['lcamp', 'both']:
         logging.info("Saving log closure amplitudes...")
 
-        quad=cl.all_quadruples_new(df,ctype='logcamp',debias='camp')
+        quad=cl.all_quadruples(df,ctype='logcamp',debias='camp')
 
         if quad.empty:
             logging.warning("No valid quadrangles found for any source or epoch! Nothing to save.")

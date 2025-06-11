@@ -494,98 +494,140 @@ def debias_A_sig(A,sigma):
 
 #def all_quads(alist,tavg='scan',debias=True):
 
+def all_quadruples(
+    alist: pd.DataFrame,
+    ctype: str = 'camp',
+    debias: str = 'no',
+    debias_snr: bool = False,
+    match_by_scan: bool = False,
+    verbose: bool = False,
+) -> pd.DataFrame:
+    """
+    Compute closure amplitudes or logarithmic closure amplitudes for all quadrangles.
 
-def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_scan=False,verbose=False):
-    '''
-    This one used!
-    ctype = 'camp' or 'logcamp'
-    debias = 'no'/whatever , 'amp', 'camp'
-    '''
+    Parameters
+    ----------
+    alist : pandas.DataFrame
+        Input visibility DataFrame. Must contain at least the columns
+        ['baseline', 'amp', 'snr', 'sigma', 'polarization', 'scan_no_tot',
+         'expt_no', 'source', 'datetime', 'gmst'].
+    ctype : {'camp', 'logcamp'}, default 'camp'
+        Type of closure amplitude to compute:
+        - 'camp': direct closure amplitude product
+        - 'logcamp': logarithmic closure amplitude (sum of logs)
+    debias : {'no', 'amp', 'camp'}, default 'no'
+        Debiasing method:
+        - 'no': no debiasing
+        - 'amp': debias per‐baseline amplitudes before forming closures
+        - 'camp': debias closure amplitudes after formation
+    debias_snr : bool, default False
+        If True, apply SNR debiasing per‐baseline: snr -> sqrt(max(snr²–1, 0)).
+    match_by_scan : bool, default False
+        If True, group data by 'scan_id' instead of 'datetime'.
+    verbose : bool, default False
+        If True, emit diagnostic logging.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame of closure amplitudes for all valid quadrangles.
+        Columns include grouping keys plus:
+        ['amps', 'snrs', 'snr1', 'snr2', 'snr3', 'snr4',
+         'sigmaCA', 'camp', 'quadrangle'] and any post‐debias fields.
+        If no valid quadrangles are found, returns an empty DataFrame.
+    """
+
+    # Make a copy of alist to avoid modifying the original DataFrame
+    df = alist.copy()
+
+    # Optional scan-averaging
     if match_by_scan:
-        if 'phase' in alist.columns:
-            alist=ut.coh_avg_vis(alist,tavg='scan',phase_type='phase')
-        elif 'resid_phas' in alist.columns:
-             alist=ut.coh_avg_vis(alist,tavg='scan',phase_type='resid_phas')
-        else: pass
+        phase_col = 'phase' if 'phase' in df.columns else 'resid_phas'
+        df = ut.coh_avg_vis(df, tavg='scan', phase_type=phase_col)
 
-    alist = alist[(alist['polarization']=='LL')|(alist['polarization']=='RR')|(alist['polarization']=='I')]
-    if debias_snr==True:
-        foo = np.maximum(np.asarray(alist['snr'])**2 - 1,0)
-        alist['snr'] = np.sqrt(foo)
+    # Filter by polarization
+    df = df[df['polarization'].isin(['LL', 'RR', 'I'])].copy()
+
+    # Optional SNR debiasing
+    if debias_snr:
+        df['snr'] = np.sqrt(np.maximum(df['snr'].to_numpy()**2 - 1, 0))
+
+    # Ensure required columns exist
     if 'band' not in alist.columns:
-        alist.loc[:,'band'] = 'unknown'
+        df.loc[:, 'band'] = 'unknown'
     if 'scan_id' not in alist.columns:
-        alist.loc[:,'scan_id'] = alist.loc[:,'scan_no_tot']
-    if 'sigma' not in alist.columns:
-        alist['sigma'] = alist['amp']/alist['snr']
+        df.loc[:, 'scan_id'] = df['scan_no_tot']
+    if 'sigma' not in df.columns:
+        df.loc[:, 'sigma'] = df['amp']/df['snr']
 
+    # List all quadrangles
     quaL = list_all_quadrangles(alist)
     quad_baseL = sorted(quadrangles2baselines(quaL,alist))
 
-    quad_out = []
-
-    alist['amps'] = alist['amp']
+    df.loc[:, 'amps'] = df['amp']
     if debias=='camp':
-        alist['snr'] = get_snr(alist['snr'])
-    alist['snrs'] = alist['snr']
-    alist['snr1'] = alist['snr']
-    alist['snr2'] = alist['snr']
-    alist['snr3'] = alist['snr']
-    alist['snr4'] = alist['snr']
+        df.loc[:, 'snr'] = get_snr(df['snr'])
+    df.loc[:, 'snrs'] = df['snr']
+    df.loc[:, 'snr1'] = df['snr']
+    df.loc[:, 'snr2'] = df['snr']
+    df.loc[:, 'snr3'] = df['snr']
+    df.loc[:, 'snr4'] = df['snr']
 
-    if debias=='amp':
-        alist['amp'] = np.sqrt(np.maximum(0, alist['amp']**2 - alist['sigma']**2))
-    #select quadrangle
-    for cou in range(len(quad_baseL)):
-        Quad = quad_baseL[cou]
-        condB0 = (alist['baseline']==Quad[0])
-        condB1 = (alist['baseline']==Quad[1])
-        condB2 = (alist['baseline']==Quad[2])
-        condB3 = (alist['baseline']==Quad[3])
-        condB = condB0|condB1|condB2|condB3
-        alist_Quad = alist.loc[condB,['expt_no','scan_id','source','datetime','baseline','polarization','amp','snr','gmst','band','amps','snrs','snr1','snr2','snr3','snr4','sigma']]
-        if verbose: print(Quad, np.shape(alist_Quad)[0])
-        #throw away times without full quadrangle
+    if debias == 'amp':
+        df['amp'] = np.sqrt(np.maximum(0, df['amp']**2 - df['sigma']**2))
+
+    quad_out = []
+    power = [1, 1, -1, -1] # for use within the loop, to compute closure amplitude factors
+
+    # Loop over each quadrangle
+    for quad in quad_baseL:
+        # Select the four baselines
+        cols = ['expt_no','scan_id','source','datetime','baseline','polarization','amp','snr','gmst','band','amps','snrs','snr1','snr2','snr3','snr4','sigma']
+        df_quad = df.loc[df['baseline'].isin(quad), cols].copy()
+        
+        # Keep only times/scans with all four baselines
         if match_by_scan:
-            tlist = alist_Quad.groupby(['polarization','band','scan_id']).filter(lambda x: len(x) == 4)
+            tlist = df_quad.groupby(['polarization', 'band', 'scan_id'], observed=True).filter(lambda g: len(g) == 4)
         else:
-            tlist = alist_Quad.groupby(['polarization','band','datetime']).filter(lambda x: len(x) == 4)
+            tlist = df_quad.groupby(['polarization', 'band', 'datetime'], observed=True).filter(lambda g: len(g) == 4)
 
         if tlist.empty:
-            logging.warning(f'Skipping {repr(Quad)} since no full quadrangle found in the data!')
+            logging.warning(f"Skipping {repr(quad)} since no full quadrangle found in the data!")
             continue
 
-        tlist['snr1'] = tlist['snr1']*(tlist['baseline']==Quad[0])
-        tlist['snr2'] = tlist['snr2']*(tlist['baseline']==Quad[1])
-        tlist['snr3'] = tlist['snr3']*(tlist['baseline']==Quad[2])
-        tlist['snr4'] = tlist['snr4']*(tlist['baseline']==Quad[3])
-    
-        # prepare amplitudes (last two go into denominator)
-        tlist['camp'] = 0
-        power=[1,1,-1,-1]
-        for cou2 in range(4):
-            tlist.loc[(tlist.loc[:,'baseline']==Quad[cou2]),'camp'] = (tlist.loc[(tlist.loc[:,'baseline']==Quad[cou2]),'amp'])**power[cou2]
+        # Zero out per‐baseline SNR contributions
+        for i, b in enumerate(quad, start=1):
+            tlist[f'snr{i}'] = tlist['snr'] * (tlist['baseline'] == b).astype(float)
 
+        # Prepare closure‐amplitude factors
+        tlist['camp'] = 1.0
+        for i, b in enumerate(quad):
+            mask = tlist['baseline'] == b
+            tlist.loc[mask, 'camp'] = tlist.loc[mask, 'amp'] ** power[i]
+
+        tlist.loc[:, 'sigmaCA'] = tlist['sigma'] / tlist['amp'] # 1/snr
+
+        # Build grouping and aggregation specs
+        group_keys = ['expt_no', 'band', 'polarization', 'source', 'scan_id']
+        if not match_by_scan:
+            group_keys.append('datetime')
+
+        agg_funcs = {
+            'amps':   lambda x: tuple(x),
+            'snrs':   lambda x: tuple(x),
+            'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
+            'snr1':   'sum',
+            'snr2':   'sum',
+            'snr3':   'sum',
+            'snr4':   'sum',
+            'camp':   (np.prod if ctype == 'camp' else (lambda x: np.sum(np.log(x))))
+        }
         if match_by_scan:
-            grouping =  ['expt_no','band','polarization','source','scan_id']
-            aggregate = {'amps': lambda x: tuple(x),'datetime': 'min', 'snrs': lambda x: tuple(x), 'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
-        'snr1': 'sum', 'snr2': 'sum','snr3': 'sum', 'snr4': 'sum'}
-        else:
-            grouping =  ['expt_no','band','polarization','source','scan_id','datetime']
-            aggregate = {'amps': lambda x: tuple(x), 'snrs': lambda x: tuple(x), 'sigmaCA': lambda x: np.sqrt(np.sum(x**2)),
-        'snr1': 'sum', 'snr2': 'sum','snr3': 'sum', 'snr4': 'sum'}
+            agg_funcs['datetime'] = 'min'
 
-        if ctype=='camp':
-            tlist['sigmaCA'] = tlist['sigma']/tlist['amp'] # 1/snr
-            aggregate['camp'] = np.prod
-            
-        elif ctype=='logcamp':
-            tlist['sigmaCA'] = tlist['sigma']/tlist['amp'] # 1/snr
-            aggregate['camp'] = lambda x: np.sum(np.log(x))
-    
-        #actual formation of camp
-        #print(tlist.columns)
-        quadlist = tlist.groupby(grouping, observed=True).agg(aggregate)
+        # Per‐baseline error for closure amplitude: 1/SNR
+        tlist.loc[:, 'sigma'] = tlist['sigma'] / tlist['amp']  # = 1/snr
+        quadlist = tlist.groupby(group_keys, observed=True).agg(agg_funcs)
 
         #if camp we need to multiply sigmaCA by CA
         if ctype=='camp':
@@ -593,19 +635,17 @@ def all_quadruples_new(alist,ctype='camp',debias='no',debias_snr=False,match_by_
 
         # debiasing in logcamp
         if debias=='camp':
-           
             if ctype=='camp':
-                quadlist['camp'] = quadlist['camp']*np.exp( - log_debias(quadlist['snr1']) - log_debias(quadlist['snr2']) + log_debias(quadlist['snr3']) + log_debias(quadlist['snr4']) )
+                quadlist['camp'] = quadlist['camp'] * np.exp(-log_debias(quadlist['snr1']) - log_debias(quadlist['snr2']) + log_debias(quadlist['snr3']) + log_debias(quadlist['snr4']))
             elif ctype=='logcamp':
                 quadlist['camp'] = quadlist['camp'] - log_debias(quadlist['snr1']) - log_debias(quadlist['snr2']) + log_debias(quadlist['snr3']) + log_debias(quadlist['snr4'])
-        
-        #print(quadlist.columns)
+
         quadlist = quadlist.reset_index()
-        quadlist['quadrangle'] = quadrangle2str(Quad)
+        quadlist['quadrangle'] = quadrangle2str(quad)
         quad_out.append(quadlist)
 
     if not quad_out:
-        print('Empty lca DataFrame list! Nothing to concatenate. Returning empty DataFrame for consistency.')
+        logging.info("Empty camp DataFrame list! Nothing to concatenate. Returning empty DataFrame.")
         return pd.DataFrame()
 
     return pd.concat(quad_out, ignore_index=True)
