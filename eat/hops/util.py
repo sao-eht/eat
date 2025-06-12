@@ -1299,14 +1299,14 @@ class ControlFile(object):
     def open(self, cf):
         # action keyword match -- needs to match only beginning of keyword but be careful not to match anything else
         action_kw = "adhoc_file adhoc_phase chan_ids dc_block delay_offs dr_ freqs est_pc gen_cf_record mb_ mbd_ notches optimize_closure pc_ ref_ sb_ skip start stop weak_channel".split()
-        pat_act = '\s*(.+?)\s*(\w*' + '|\w*'.join((kw[::-1] for kw in action_kw)) + ')'
-        pat_blk = '(.*?)\s*(' + '.*|'.join(action_kw) + '.*|$)' # allow empty block
+        pat_act = r'\s*(.+?)\s*(\w*' + r'|\w*'.join((kw[::-1] for kw in action_kw)) + ')'
+        pat_blk = r'(.*?)\s*(' + '.*|'.join(action_kw) + '.*|$)' # allow empty block
         if os.path.exists(cf):
             cf = open(cf).read()
-        cf = re.sub('\*.*', '', cf) # strip comments, assume DOTALL is not set
-        cf = re.sub('\s+', ' ', cf).strip() # simplify whitespace
-        cf = re.sub('^if\s+', '', cf) # remove any leading if statement for first block
-        blocks = re.split('\s+if\s+', cf) # isolate if statement blocks
+        cf = re.sub(r'\*.*', '', cf) # strip comments, assume DOTALL is not set
+        cf = re.sub(r'\s+', ' ', cf).strip() # simplify whitespace
+        cf = re.sub(r'^if\s+', '', cf) # remove any leading if statement for first block
+        blocks = re.split(r'\s+if\s+', cf) # isolate if statement blocks
 
         # separate out actions using reverse findall search
         def splitactions(actions):
@@ -2111,14 +2111,14 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
         # circle for 50 uas
         r = 1 / ((2*np.pi/360) * 50e-6 / 3600) / 1e9
         cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
-        plt.text(0+.3, r+0.25, '(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
+        plt.text(0+.3, r+0.25, r'(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
         plt.gca().add_artist(cir)
 
         # circle for 20 uas
         if 330e3 < df.ref_freq.iloc[0] < 360e3:
             r = 1 / ((2*np.pi/360) * 20e-6 / 3600) / 1e9
             cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
-            plt.text(0+.3, r+0.25, '(20 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
+            plt.text(0+.3, r+0.25, r'(20 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
             plt.gca().add_artist(cir)
 
     plt.gca().set_aspect(1.0)
@@ -2139,8 +2139,8 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
 
     plt.plot(0, 0, 'k.')
     plt.title('EHT %s %s coverage' % (year, source))
-    plt.xlabel('u [G$\lambda$]')
-    plt.ylabel('v [G$\lambda$]')
+    plt.xlabel(r'u [G$\lambda$]')
+    plt.ylabel(r'v [G$\lambda$]')
     lines = []
     lines.append(plt.Line2D([0], [0], color='k', ls='none', marker='o', mew=1, alpha=1, label='detection'))
     lines.append(plt.Line2D([0], [0], color='k', ls='none', marker='.', mew=1.5, mfc='white', alpha=1, label='upper limit'))
