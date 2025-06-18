@@ -131,7 +131,7 @@ def extract_dpfu_gfit_from_all_antab(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
 
     for f in list_files:
         fpath = os.path.join(folder_path, f)
-        logging.debug(f"Processing ANTAB file: {fpath}")
+        logging.debug(f"Extracting DPFU and GFIT coeffs from {fpath}")
         dict_dpfu_loc, dict_gfit_loc = extract_dpfu_gfit_from_antab(fpath, AZ2Z)
         dict_dpfu = {**dict_dpfu, **dict_dpfu_loc}
         dict_gfit = {**dict_gfit, **dict_gfit_loc}
@@ -304,6 +304,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
             continue  # Skip to the next file if track is not in track2expt
         expt = track2expt[track]  # Get expt number from track2expt dict
         year = f"20{track[1:3]}"
+        logging.debug(f"Extracting TSYS from {fname}")
 
         # get Tsys blocks from the file
         blocks = group_tsys_blocks(fname)
@@ -316,6 +317,10 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
             first_slash_encountered = False
             for line in block:
+                # Skip empty lines
+                if not line.strip():
+                    continue
+
                 if line.startswith('TSYS'):
                     parts = line.split()
                     # check if the line contains a valid station code
