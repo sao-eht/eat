@@ -52,11 +52,11 @@ def main(args):
                         format='%(asctime)s %(levelname)s:: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
     
-    print('**************** Computing SEFDs from metadata ****************')
+    logging.info('**************** Computing SEFDs from metadata ****************')
 
     # check if metadata files exist
     if not all(os.path.exists(os.path.join(args.wrkdir, file)) for file in [az2z_file, smt2z_file, track2expt_file]):
-        print("One or more of metadata files AZ2Z/SMT2Z/track2expt generated in the previous stage missing in {args.wrkdir}. Exiting without generating SEFDs.")
+        logging.warning("One or more of metadata files AZ2Z/SMT2Z/track2expt generated in the previous stage missing in {args.wrkdir}. Exiting without generating SEFDs.")
         return
 
     # get list of sources from metadata
@@ -72,28 +72,28 @@ def main(args):
                 source_names.add(source_name)
 
     sourL = list(sorted(source_names))
-    print(f'List of sources: {sourL}')
+    logging.info(f'List of sources: {sourL}')
 
     # get list of stations from metadata
     with open(os.path.join(args.wrkdir, az2z_file), 'r') as f:
         az2z = ast.literal_eval(f.read())
     # extract only the single letter station codes
     antL = list(sorted(az2z.values()))
-    print(f'Dict of 2-letter station codes: {az2z}')
-    print(f'List of mk4 station codes: {antL}')
+    logging.info(f'Dict of 2-letter station codes: {az2z}')
+    logging.info(f'List of mk4 station codes: {antL}')
 
     # get list of stations from metadata
     with open(os.path.join(args.wrkdir, smt2z_file), 'r') as f:
         smt2z = ast.literal_eval(f.read())
-    print(f'Dict of station names: {smt2z}')
+    logging.info(f'Dict of station names: {smt2z}')
 
     # get list of HOPS expt numbers (denoting epochs) from metadata
     with open(os.path.join(args.wrkdir, track2expt_file), 'r') as f:
         track2expt = ast.literal_eval(f.read())
     # extract only the expt numbers
     exptL = list(sorted(track2expt.values()))
-    print(f'Dict of expt numbers: {track2expt}')
-    print(f'List of epochs: {exptL}')
+    logging.info(f'Dict of expt numbers: {track2expt}')
+    logging.info(f'List of epochs: {exptL}')
 
     # get list of bands -- this will be just the current band for now
     # Use regular expression to extract 'b1' from 'hops-b1'
@@ -102,12 +102,12 @@ def main(args):
     if matches:
         bandL = [matches[-1]]
     else:
-        print('Band not found. Exiting without generating SEFDs!')
+        logging.warning('Band not found. Exiting without generating SEFDs!')
 
     # handle the special case of 2017
     if args.version == '2017':
         bandL[0] = band_mapping_2017.get(bandL[0], bandL[0])
-    print(f'List of bands: {bandL}')
+    logging.info(f'List of bands: {bandL}')
 
     # read antenna locations from ehtim format arrays.txt file from args.metadir
     text_files = glob.glob(os.path.join(args.metadir, '*.txt'))
