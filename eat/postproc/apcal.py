@@ -619,7 +619,6 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
     # Compute gain curves and add to dataframe
     # Get the current band from dict_gfit and set pol to 'R' for accessing gfit coeffs.
     # This works because all keys pertain to the same band and both polarizations.
-    logging.debug("dict_gfit: {dict_gfit}")
     gfitband = list(dict_gfit.keys())[0][2]
     gfitpol = 'R'
     for station in polygain_stations:
