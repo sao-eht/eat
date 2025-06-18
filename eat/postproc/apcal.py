@@ -75,8 +75,9 @@ def extract_dpfu_gfit_from_antab(filename, az2z):
     pol = ['R', 'L']    # Polarizations
 
     # Regular expressions to match DPFU and POLY values
-    dpfu_pattern = re.compile(r'DPFU\s*=\s*([\d\.\-eE]+(?:,\s*[\d\.\-eE]+)*)')
-    poly_pattern = re.compile(r'POLY\s*=\s*([\d\.\-eE]+(?:,\s*[\d\.\-eE]+)*)')
+    float_re = r'[+\-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+\-]?\d+)?'
+    dpfu_pattern = re.compile(rf'DPFU\s*=\s*({float_re}(?:\s*,\s*{float_re})*)')
+    poly_pattern = re.compile(rf'POLY\s*=\s*({float_re}(?:\s*,\s*{float_re})*)')
 
     dict_dpfu = {}
     dict_gfit = {}
@@ -130,6 +131,7 @@ def extract_dpfu_gfit_from_all_antab(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
 
     for f in list_files:
         fpath = os.path.join(folder_path, f)
+        logging.debug(f"Processing ANTAB file: {fpath}")
         dict_dpfu_loc, dict_gfit_loc = extract_dpfu_gfit_from_antab(fpath, AZ2Z)
         dict_dpfu = {**dict_dpfu, **dict_dpfu_loc}
         dict_gfit = {**dict_gfit, **dict_gfit_loc}
@@ -584,7 +586,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
 
             # append list of stations in the scan to stations list
             if year == '2017' and 'S' in stations_in_scan:
-                stations_in_scan = stations_in_scan | {'R'}
+                stations_in_scan = list(set(stations_in_scan) | {'R'})
             stations.append(stations_in_scan)
 
             # append scan durations to duration list
@@ -617,6 +619,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
     # Compute gain curves and add to dataframe
     # Get the current band from dict_gfit and set pol to 'R' for accessing gfit coeffs.
     # This works because all keys pertain to the same band and both polarizations.
+    logging.debug("dict_gfit: {dict_gfit}")
     gfitband = list(dict_gfit.keys())[0][2]
     gfitpol = 'R'
     for station in polygain_stations:
@@ -762,6 +765,8 @@ def get_sefds_from_antab(antab_path='antab', vex_path='vex', year='2021', sourL=
     """
     print('Obtaining calibration data from ANTAB files...')
     dict_dpfu, dict_gfit = extract_dpfu_gfit_from_all_antab(antab_path, AZ2Z, bandL)
+    logging.debug(f"dict_dpfu: {dict_dpfu}")
+    logging.debug(f"dict_gfit: {dict_gfit}")
 
     # get all Tsys data from ANTAB files
     Tsys_full = extract_Tsys_from_antab(antab_path, AZ2Z, track2expt, bandL)
