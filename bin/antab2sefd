@@ -106,7 +106,7 @@ def main(args):
 
     # handle the special case of 2017
     if args.version == '2017':
-        band_mapping_2017.get(key=bandL[0], default=bandL[0])
+        bandL[0] = band_mapping_2017.get(bandL[0], bandL[0])
     print(f'List of bands: {bandL}')
 
     # read antenna locations from ehtim format arrays.txt file from args.metadir
