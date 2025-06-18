@@ -131,7 +131,7 @@ def extract_dpfu_gfit_from_all_antab(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
 
     for f in list_files:
         fpath = os.path.join(folder_path, f)
-        logging.debug(f"Extracting DPFU and GFIT coeffs from {fpath}")
+        logging.info(f"Extracting DPFU and GFIT coeffs from {fpath}")
         dict_dpfu_loc, dict_gfit_loc = extract_dpfu_gfit_from_antab(fpath, AZ2Z)
         dict_dpfu = {**dict_dpfu, **dict_dpfu_loc}
         dict_gfit = {**dict_gfit, **dict_gfit_loc}
@@ -304,7 +304,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
             continue  # Skip to the next file if track is not in track2expt
         expt = track2expt[track]  # Get expt number from track2expt dict
         year = f"20{track[1:3]}"
-        logging.debug(f"Extracting TSYS from {fname}")
+        logging.info(f"Extracting TSYS from {fname}")
 
         # get Tsys blocks from the file
         blocks = group_tsys_blocks(fname)
@@ -769,8 +769,6 @@ def get_sefds_from_antab(antab_path='antab', vex_path='vex', year='2021', sourL=
     """
     print('Obtaining calibration data from ANTAB files...')
     dict_dpfu, dict_gfit = extract_dpfu_gfit_from_all_antab(antab_path, AZ2Z, bandL)
-    logging.debug(f"dict_dpfu: {dict_dpfu}")
-    logging.debug(f"dict_gfit: {dict_gfit}")
 
     # get all Tsys data from ANTAB files
     Tsys_full = extract_Tsys_from_antab(antab_path, AZ2Z, track2expt, bandL)
