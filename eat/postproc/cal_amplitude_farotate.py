@@ -327,7 +327,7 @@ def save_uvfits(datastruct, fname):
     #Antenna Table entries
     col1 = fits.Column(name='ANNAME', format='8A', array=antnames)
     col2 = fits.Column(name='STABXYZ', format='3D', unit='METERS', array=xyz)
-    col3= fits.Column(name='ORBPARM', format='0D', array=np.zeros(0))
+    col3= fits.Column(name='ORBPARM', format='D', array=np.zeros(0))
     col4 = fits.Column(name='NOSTA', format='1J', array=antnums)
 
     #TODO get the actual information for these parameters for each station
