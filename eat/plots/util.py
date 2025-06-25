@@ -65,7 +65,7 @@ def rmgaps2(dbreak=2.):
 def tag(tagstr, **kwargs):
     from matplotlib.legend import Legend
     ax = plt.gca()
-    h, = ax.plot(np.NaN, np.NaN, '-', color='none') # empty line for legend
+    h, = ax.plot(np.nan, np.nan, '-', color='none') # empty line for legend
     leg = Legend(ax, (h,), (tagstr,), handlelength=0, handletextpad=0, **kwargs)
     if hasattr(leg, 'legendHandles'): # matplotlib < 3.6.0
         for item in leg.legendHandles:
