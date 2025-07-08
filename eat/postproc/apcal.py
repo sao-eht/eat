@@ -310,6 +310,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
         blocks = group_tsys_blocks(fname)
 
         for block in blocks:
+            skip_block = False # to skip the current block if this station does not exist in the input auxiliary metadata (az2z)
             rowdict = {}
             rowdict['track'] = track
             rowdict['band'] = band
@@ -325,7 +326,9 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
                     parts = line.split()
                     # check if the line contains a valid station code
                     if parts[1] not in AZ2Z:
-                        continue
+                        logging.warning(f"Station {parts[1]} not found in {AZ2Z}. Skipping SEFD generation for {parts[1]}.")
+                        skip_block = True
+                        break
                     rowdict['station'] = AZ2Z[parts[1]] # get station code
                     print(rowdict['station'])
 
@@ -388,6 +391,9 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
                             Tsys = rowdf
                         else:
                             Tsys = pd.concat([Tsys, rowdf], ignore_index=True)
+
+            if skip_block:
+                continue
 
     Tsys.expt = Tsys.expt.astype(int) # convert expt to integer
 
