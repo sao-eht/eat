@@ -10,6 +10,7 @@ import scipy.interpolate
 import itertools as it
 from astropy.time import Time
 from astropy.io import fits
+import logging
 #from hops2uvfits import *
 #import mk4 # part of recent HOPS install, need HOPS ENV variables
 #import ctypes
@@ -18,6 +19,12 @@ from astropy.io import fits
 #import sys
 #import numpy.matlib
 #import pandas as pd
+
+# Configure logging
+loglevel = getattr(logging, 'INFO', None)
+logging.basicConfig(level=loglevel,
+                    format='%(asctime)s %(levelname)s:: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 #conversion factors and data types
 '''stationdict = {'ALMA':'AA', 'A':'AA','AA':'AA',

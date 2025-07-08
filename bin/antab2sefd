@@ -56,7 +56,7 @@ def main(args):
 
     # check if metadata files exist
     if not all(os.path.exists(os.path.join(args.wrkdir, file)) for file in [az2z_file, smt2z_file, track2expt_file]):
-        logging.warning("One or more of metadata files AZ2Z/SMT2Z/track2expt generated in the previous stage missing in {args.wrkdir}. Exiting without generating SEFDs.")
+        logging.warning(f"One or more of metadata files AZ2Z/SMT2Z/track2expt generated in the previous stage missing in {args.wrkdir}. Exiting without generating SEFDs.")
         return
 
     # get list of sources from metadata
