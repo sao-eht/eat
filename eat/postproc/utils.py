@@ -4,6 +4,7 @@ from typing import Dict, Tuple
 import re
 import logging
 import ast
+from numpy import deg2rad
 
 # Configure logging
 loglevel = getattr(logging, 'INFO', None)
@@ -174,3 +175,61 @@ def extract_metadata_from_ovex(
     write_dict_to_file(track2expt_file, track2expt)
 
     return
+
+def read_station_mounts(
+    array_file: str,
+    az2zfile: str,
+    smt2zfile: str
+) -> Dict[str, str]:
+    """
+    Read station mount information from an EHTIM-style array.txt file.
+
+    Parameters
+    ----------
+    array_file : str
+        Path to the array.txt file.
+    az2zfile : str
+        Path to the az2z dictionary file.
+    smt2zfile : str
+        Path to the smt2z dictionary file.
+
+    Returns
+    -------
+    Dict[str, str]
+        Dictionary mapping station names to their mount types.
+    """
+    station_frot = {}
+
+    # Check if all the input files exist
+    if not os.path.exists(array_file):
+        logging.warning(f"Array file {array_file} does not exist. Returning empty station_frot dictionary.")
+        return station_frot
+    if not os.path.exists(az2zfile):
+        logging.warning(f"AZ2Z file {az2zfile} does not exist. Returning empty station_frot dictionary.")
+        return station_frot
+    if not os.path.exists(smt2zfile):
+        logging.warning(f"SMT2Z file {smt2zfile} does not exist. Returning empty station_frot dictionary.")
+        return station_frot
+    
+    az2z = read_dict_from_file(az2zfile)
+    smt2z = read_dict_from_file(smt2zfile)
+
+    # Build a new mapping from full names to 2-letter codes
+    smt2az = {smt: az for smt, z in smt2z.items() for az, z2 in az2z.items() if z == z2}
+
+    # Read the array file and extract station mount types
+    with open(array_file) as fh:
+        for row in fh:
+            row = row.strip()
+            if not row or row.startswith("#"):
+                continue
+            cols = row.split()
+            site = cols[0]
+            fr_par = float(cols[6]) # FR_PAR
+            fr_el  = float(cols[7]) # FR_EL
+            fr_off = deg2rad(float(cols[8])) # FR_OFF in radians
+
+            if site in smt2z:
+                station_frot[smt2az[site]] = (fr_par, fr_el, fr_off)
+            
+    return station_frot

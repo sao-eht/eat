@@ -6,6 +6,7 @@ import glob
 import argparse
 from hops2uvfits import convert_uvfits_to_datastruct
 from eat.postproc import cal_amplitude_farotate as caf
+from eat.postproc.utils import read_station_mounts
 import logging
 
 # Configure logging
@@ -14,12 +15,21 @@ logging.basicConfig(level=loglevel,
                     format='%(asctime)s %(levelname)s:: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
+# metadata files generated in stage 6 -- the naming convention follows the one used by L1 team
+ARRAY_FILE = 'array.txt'
+AZ2Z_FILE = 'cf7_AZ2Z.txt'
+SMT2Z_FILE = 'cf7_SMT2Z.txt'
+
 def create_parser():
     p = argparse.ArgumentParser()
 
     p.add_argument("datadir", help="Directory containing input UVFITS files")
     p.add_argument("caldir", help="Directory containing input calibration tables")
     p.add_argument("outdir", help="Directory to which calibrated UVFITS files must be written")
+    p.add_argument("metadir", help="Directory containing calibration metadata (EHTIM-style array.txt file)")
+    p.add_argument("--arrayfile", type=str, default=ARRAY_FILE, help="EHTIM-style array.txt file containing station mount types and feed offsets")
+    p.add_argument('--az2zfile', type=str, default=AZ2Z_FILE, help="File containing az2z dict")
+    p.add_argument('--smt2zfile', type=str, default=SMT2Z_FILE, help="File containing smt2z dict")
     p.add_argument('--identifier', type=str, default='', help="Identifier tag to suffix uvfits filenames with (apart from the automatic identifiers introduced by this script)")
     p.add_argument('--interpkind', type=str, default='linear', help="Kind of interpolation to perform (scipy-compatible)")
     p.add_argument('--extrapolate', action='store_true', help='Toggle whether to extrapolate gain tables')
@@ -39,6 +49,11 @@ def main(args):
     logging.info('**************** A priori amplitude calibration and field angle rotation correction ****************')
     logging.info(f"Applying calibration tables (SEFDs) from {args.caldir}\nto uvfits files in {args.datadir}\nand writing results to {args.outdir}")
 
+    # Read in station mount types from input ehtim-style array.txt file
+    station_frot = read_station_mounts(os.path.join(args.metadir, args.arrayfile), 
+                                       os.path.join(args.metadir, args.az2zfile), 
+                                       os.path.join(args.metadir, args.smt2zfile))
+    
     if args.skipfluxcal: logging.warning(f'Will skip a priori flux calibration since skipfluxcal={args.skipfluxcal}.')
     else: logging.info(f'Will perform a priori flux calibration.')
 
@@ -88,7 +103,7 @@ def main(args):
         caf.apply_caltable_uvfits(caltable, datastruct_ehtim, outname, interp=args.interpkind, extrapolate=args.extrapolate, \
                                   frotcal=not(args.skipfrotcorr), elev_function=args.elevmodule, interp_dt=args.interpolatedt, \
                                   elev_interp_kind=args.elevinterpkind, err_scale=args.errorscale, skip_fluxcal=args.skipfluxcal, \
-                                  keep_absolute_phase=args.keepllabsphase)
+                                  keep_absolute_phase=args.keepllabsphase, station_frot=station_frot)
 
         logging.info(f'Saved {outname}.')
     

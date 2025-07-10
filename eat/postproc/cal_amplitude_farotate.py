@@ -49,7 +49,7 @@ station_frot_old = {'PV':(1,-1,0),'AZ':(1,1,0),'SM':(1,-1,np.pi/4.),'LM': (1,-1,
                 'GB':(1,0,0),'FD':(1,0,0),'PT':(1,0,0),'LA':(1,0,0),'KP':(1,0,0),
                 'MK':(1,0,0),'BR':(1,0,0),'NL':(1,0,0),'OV':(1,0,0),'YS':(1,0,0),'EB':(1,0,0)}'''
 
-station_frot = {'PV':(1,-1,0),'MG':(1,1,0),'SW':(1,-1,np.pi/4.),'LM': (1,-1,0),
+STATION_FROT = {'PV':(1,-1,0),'MG':(1,1,0),'SW':(1,-1,np.pi/4.),'LM': (1,-1,0),
                 'AA':(1,0,0),'SZ':(1,0,0),'AX':(1,1,0),'MM':(1,0,0),'GL': (1,0,0),
                 'NN':(1,0,0),'KT':(1,0,0),'SR':(1,-1,np.pi/4.),
                 'GB':(1,0,0),'FD':(1,0,0),'PT':(1,0,0),'LA':(1,0,0),'KP':(1,0,0),
@@ -602,7 +602,7 @@ def xyz_2_latlong(obsvecs):
     return out
 
 def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True, frotcal=True, elev_function='astropy', interp_dt=1., \
-        elev_interp_kind='cubic', err_scale=1., skip_fluxcal=False, keep_absolute_phase=True):
+        elev_interp_kind='cubic', err_scale=1., skip_fluxcal=False, keep_absolute_phase=True, station_frot=station_frot):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
@@ -643,6 +643,9 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     elevfit={}
     gmst_function= lambda time_mjd: Time(time_mjd, format='mjd').sidereal_time('mean','greenwich').hour*2.*np.pi/24.
 
+    if not station_frot:
+        logging.warning("Using default values for station mount information.")
+        station_frot = STATION_FROT
 
     #FIND MAX RANGE OF MJD TIMES FOR INTERPOLATION
     if (frotcal==True)&(interp_dt>0):
