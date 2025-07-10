@@ -602,7 +602,7 @@ def xyz_2_latlong(obsvecs):
     return out
 
 def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True, frotcal=True, elev_function='astropy', interp_dt=1., \
-        elev_interp_kind='cubic', err_scale=1., skip_fluxcal=False, keep_absolute_phase=True, station_frot=station_frot):
+        elev_interp_kind='cubic', err_scale=1., skip_fluxcal=False, keep_absolute_phase=True, station_frot=STATION_FROT):
     """apply a calibration table to a uvfits file
        Args:
         caltable (Caltable) : a caltable object
