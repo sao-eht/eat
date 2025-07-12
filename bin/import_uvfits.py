@@ -211,7 +211,7 @@ def create_parser():
     p.add_argument("datadir", help="Directory containing input UVFITS files")
     p.add_argument("vexdir", help="Directory containing VEX schedules")
     p.add_argument("outdir", help="Directory to which HDF5 files must be written")
-    p.add_argument('--observation', type=str, default='EHT2021', choices=['EHT2017','EHT2018','EHT2021'], help="string denoting which eht campaign's data are being reduced")
+    p.add_argument('--observation', type=str, default='EHT2021', choices=['EHT2017','EHT2018','EHT2021','EHT2022','EHT2017_Dan_Mel','GMVA'], help="string denoting which EHT campaign's data are being reduced")
     p.add_argument('--idtag', type=str, default='hops', help="custom identifier tag for HDF5 files")
     p.add_argument('--band', type=str, required=True, choices=['b1', 'b2', 'b3', 'b4', 'lo', 'hi'], help="band name (lo/hi for 2017; b1/b2/b3/b4 for 2018+)")
     p.add_argument('--tavg', type=float, default=-1.0, help="Time-averaging resolution (-1 to average over entire scan)")
