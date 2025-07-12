@@ -24,6 +24,7 @@ def create_parser():
     p = argparse.ArgumentParser()
 
     p.add_argument("datadir", help="Directory containing input UVFITS files")
+    p.add_argument("wrkdir", help="Current working directory")
     p.add_argument("caldir", help="Directory containing input calibration tables")
     p.add_argument("outdir", help="Directory to which calibrated UVFITS files must be written")
     p.add_argument("metadir", help="Directory containing calibration metadata (EHTIM-style array.txt file)")
@@ -51,8 +52,8 @@ def main(args):
 
     # Read in station mount types from input ehtim-style array.txt file
     station_frot = read_station_mounts(os.path.join(args.metadir, args.arrayfile), 
-                                       os.path.join(args.metadir, args.az2zfile), 
-                                       os.path.join(args.metadir, args.smt2zfile))
+                                       os.path.join(args.wrkdir, args.az2zfile), 
+                                       os.path.join(args.wrkdir, args.smt2zfile))
     
     if args.skipfluxcal: logging.warning(f'Will skip a priori flux calibration since skipfluxcal={args.skipfluxcal}.')
     else: logging.info(f'Will perform a priori flux calibration.')
