@@ -53,20 +53,24 @@ def main(args):
     for uvfits_file in uvfits_files:
         logging.info(f"Processing file: {uvfits_file}")
         
-        # Load the UVFITS file
-        obs = eh.obsdata.load_uvfits(uvfits_file, polrep='circ')
-        obs.scans = []
-        obs.add_scans()
+        try:
+            # Load the UVFITS file
+            obs = eh.obsdata.load_uvfits(uvfits_file, polrep='circ')
+            obs.scans = []
+            obs.add_scans()
 
-        # Perform R/L gain ratio calibration
-        obscal = polgains_cal.polgains_cal(obs, reference=args.reference, method='phase', pad_amp=args.padamp, gain_tol=args.gaintol, scan_solutions=args.solveperscan)
-        obscal = polgains_cal.polgains_cal(obscal, reference=args.reference, method='phase', pad_amp=args.padamp, gain_tol=args.gaintol, scan_solutions=args.solveperscan)
-        obscalout = polgains_cal.polgains_cal(obscal, reference=args.reference, method='amp', pad_amp=args.padamp, gain_tol=args.gaintol, scan_solutions=args.solveperscan)
+            # Perform R/L gain ratio calibration
+            obscal = polgains_cal.polgains_cal(obs, reference=args.reference, method='phase', pad_amp=args.padamp, gain_tol=args.gaintol, scan_solutions=args.solveperscan)
+            obscal = polgains_cal.polgains_cal(obscal, reference=args.reference, method='phase', pad_amp=args.padamp, gain_tol=args.gaintol, scan_solutions=args.solveperscan)
+            obscalout = polgains_cal.polgains_cal(obscal, reference=args.reference, method='amp', pad_amp=args.padamp, gain_tol=args.gaintol, scan_solutions=args.solveperscan)
 
-        # Save the calibrated UVFITS file
-        output_file = os.path.join(outdir, os.path.basename(uvfits_file).replace('.uvfits', '.polcal.uvfits'))
-        obscalout.save_uvfits(output_file)
-        logging.info(f"Saved calibrated file to {output_file}")
+            # Save the calibrated UVFITS file
+            output_file = os.path.join(outdir, os.path.basename(uvfits_file).replace('.uvfits', '.polcal.uvfits'))
+            obscalout.save_uvfits(output_file)
+            logging.info(f"Saved calibrated file to {output_file}")
+        except Exception:
+            logging.exception(f"Unexpected error while processing '{uvfits_file}'")
+            continue  # skip to next file
 
     return
 
