@@ -49,8 +49,8 @@ def get_info(observation='EHT2017',path_vex='vex/'):
         else: scans = {}
         
     if observation=='EHT2022':
-        stations_2lett_1lett = {'MG':'Z', 'GL':'G', 'PV':'P', 'SW':'S', 'MM':'J', 'AA':'A', 'AX':'X', 'LM':'L','SZ':'Y','NN':'N','KT':'K'}
-        jd_expt = jd2expt2021
+        stations_2lett_1lett = {'NN': 'N', 'AX': 'X', 'PV': 'P', 'GL': 'G', 'AA': 'A', 'LM': 'L', 'KT': 'K', 'MG': 'Z', 'MM': 'J', 'SW': 'S', 'SZ': 'Y'}
+        jd_expt = jd2expt2022
         if path_vex!='':
             scans = make_scan_list_EHT2022(path_vex)
         else: scans = {}
@@ -130,6 +130,27 @@ def jd2expt2021(jd):
         return 3768
     elif (jd > 2459323.541)&(jd < 2459323.792):
         return 3769
+    else:
+        return None
+
+def jd2expt2022(jd):
+    '''
+    Function translating from jd to expt for April 2022 EHT
+    '''
+    if (jd > 2459656.436)&(jd < 2459657.028):
+        return 3803
+    elif (jd > 2459657.635)&(jd < 2459658.301):
+        return 3804
+    elif (jd > 2459658.733)&(jd < 2459659.398):
+        return 3805
+    elif (jd > 2459660.395)&(jd < 2459661.164):
+        return 3806
+    elif (jd > 2459661.609)&(jd < 2459661.609):
+        return 3807
+    elif (jd > 2459664.399)&(jd < 2459664.985):
+        return 3808
+    elif (jd > 2459665.390)&(jd < 2459666.012):
+        return 3809
     else:
         return None
 
