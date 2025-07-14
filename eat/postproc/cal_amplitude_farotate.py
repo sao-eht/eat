@@ -644,7 +644,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     gmst_function= lambda time_mjd: Time(time_mjd, format='mjd').sidereal_time('mean','greenwich').hour*2.*np.pi/24.
 
     if not station_frot:
-        logging.warning("Using default values for station mount information.")
+        logging.warning("Empty dict passed for station mount information! Using default values...")
         station_frot = STATION_FROT
 
     #FIND MAX RANGE OF MJD TIMES FOR INTERPOLATION

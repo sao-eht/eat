@@ -9,6 +9,12 @@ import argparse
 from eat.postproc import apcal
 import logging
 
+# Configure logging
+loglevel = getattr(logging, 'INFO', None)
+logging.basicConfig(level=loglevel,
+                    format='%(asctime)s %(levelname)s:: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
 # metadata files generated in stage 6 -- the naming convention follows the one used by L1 team
 az2z_file = 'cf7_AZ2Z.txt'
 smt2z_file = 'cf7_SMT2Z.txt'
@@ -102,7 +108,7 @@ def main(args):
     if matches:
         bandL = [matches[-1]]
     else:
-        logging.warning('Band not found. Exiting without generating SEFDs!')
+        raise RuntimeError("Band not found in parent dirname pattern ('hops-bx'). Exiting without generating SEFDs.")
 
     # handle the special case of 2017
     if args.version == '2017':

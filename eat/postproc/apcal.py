@@ -15,6 +15,12 @@ import scipy.interpolate as si
 from numpy.polynomial import Polynomial
 import logging
 
+# Configure logging
+loglevel = getattr(logging, 'INFO', None)
+logging.basicConfig(level=loglevel,
+                    format='%(asctime)s %(levelname)s:: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
 AZ2Z = {}
 SMT2Z = {}
 track2expt = {}
@@ -773,21 +779,21 @@ def get_sefds_from_antab(antab_path='antab', vex_path='vex', year='2021', sourL=
     -------
     None
     """
-    print('Obtaining calibration data from ANTAB files...')
+    logging.info('Extracting DPFU, gain coeffs, and Tsys values from ANTAB files...')
     dict_dpfu, dict_gfit = extract_dpfu_gfit_from_all_antab(antab_path, AZ2Z, bandL)
 
     # get all Tsys data from ANTAB files
     Tsys_full = extract_Tsys_from_antab(antab_path, AZ2Z, track2expt, bandL)
 
-    print('Obtaining scans from VEX files...')
+    logging.info('Extracting scan information from VEX files...')
     #TABLE of SCANS from VEX files, using elevation gain info
     scans = extract_scans_from_all_vex(vex_path, dict_gfit, year=year, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat)
 
-    print('Matching calibration information to scans...')
+    logging.info('Matching ANTAB-derived information to scans...')
     #MATCH CALIBRATION with SCANS to determine the source and 
     Tsys_matched = global_match_scans_with_Tsys(Tsys_full, scans, antL=antL)
 
-    print('Saving SEFD files...')
+    logging.info('Computing and saving SEFD files...')
     #produce a priori calibration data
     expt2track = {value: key for key, value in track2expt.items()}
     Z2AZ = {value: key for key, value in AZ2Z.items()}
