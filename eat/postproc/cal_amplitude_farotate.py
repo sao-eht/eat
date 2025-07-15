@@ -237,7 +237,7 @@ def save_uvfits(datastruct, fname):
     header['BSCALE'] = 1.0
     header['BZERO'] = 0.0
     header['BUNIT'] = 'JY'
-    header['EQUINOX'] = 'J2000'
+    header['EQUINOX'] = 2000
     header['ALTRPIX'] = 1.e0
     header['ALTRVAL'] = 0.e0
 
