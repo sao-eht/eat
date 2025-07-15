@@ -315,6 +315,9 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
         # get Tsys blocks from the file
         blocks = group_tsys_blocks(fname)
 
+        # collect stations in a single ANTAB file; only tabulate the first occurrence of each station
+        stations_in_current_antab = set()
+
         for block in blocks:
             skip_block = False # to skip the current block if this station does not exist in the input auxiliary metadata (az2z)
             rowdict = {}
@@ -330,13 +333,22 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
                 if line.startswith('TSYS'):
                     parts = line.split()
+
                     # check if the line contains a valid station code
                     if parts[1] not in AZ2Z:
                         logging.warning(f"Station {parts[1]} not found in {AZ2Z}. Skipping SEFD generation for {parts[1]}.")
                         skip_block = True
                         break
+
+                    # If this station has already been processed in the current ANTAB file, skip this block
+                    if parts[1] in stations_in_current_antab:
+                        logging.warning(f"Skipping recurring Tsys block for station {parts[1]} ({AZ2Z[parts[1]]}), which has already been processed for this ANTAB file.")
+                        skip_block = True
+                        break
+                    stations_in_current_antab.add(parts[1])
+
                     rowdict['station'] = AZ2Z[parts[1]] # get station code
-                    print(rowdict['station'])
+                    logging.info(f"Tsys found for station {rowdict['station']}")
 
                     match = re.search(r'timeoff=\s*([\d.]+)', line)
                     if match:
@@ -405,12 +417,12 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
     return Tsys
 
-def generate_and_save_sefd_data(Tsys_full, dict_dpfu, sourL=sourL, antL=antL0, exptL=exptL0, bandL=bandL0, expt2track={}, Z2AZ={}, pathSave='SEFD'):
+def generate_and_save_sefd_data(Tsys_matched, dict_dpfu, sourL=sourL, antL=antL0, exptL=exptL0, bandL=bandL0, expt2track={}, Z2AZ={}, pathSave='SEFD'):
     """
     Generate and save SEFD (System Equivalent Flux Density) data.
     Parameters
     ----------
-    Tsys_full : pandas.DataFrame
+    Tsys_matched : pandas.DataFrame
         DataFrame containing Tsys data with columns 'band', 'source', 'antena', 'track', 'Tsys_star_R', 'Tsys_star_L', 'gainP', 'gainZ', 'gainX'.
     dict_dpfu : dict
         Dictionary containing DPFU (Degrees per Flux Unit) values for different antenna, track, band, and polarization.
@@ -448,57 +460,56 @@ def generate_and_save_sefd_data(Tsys_full, dict_dpfu, sourL=sourL, antL=antL0, e
             
             # loop by station
             for ant in antL:
-                print('no ad hoc fix')
+                
+                # loop by source
                 for sour in sourL:
+                    logging.info(f"Generating SEFDs for band {band}, expt {expt}, station {ant}, source {sour}")
 
-                    condB = (Tsys_full['band']==band)
-                    condS = (Tsys_full['source']==sour)
-                    condA = (Tsys_full['station']==ant)
-                    condE = (Tsys_full['track']==expt2track[expt])
-                    condPositive = (Tsys_full['Tsys_star_R']>0)&(Tsys_full['Tsys_star_L']>0)
-                    Tsys_local = Tsys_full.loc[condB&condS&condA&condE&condPositive].copy()
+                    # filter Tsys data for the current band, source, antenna, and experiment, as well as positive Tsys values
+                    condB = (Tsys_matched['band']==band)
+                    condS = (Tsys_matched['source']==sour)
+                    condA = (Tsys_matched['station']==ant)
+                    condE = (Tsys_matched['track']==expt2track[expt])
+                    condPositive = (Tsys_matched['Tsys_star_R']>0)&(Tsys_matched['Tsys_star_L']>0)
+                    Tsys_local = Tsys_matched.loc[condB&condS&condA&condE&condPositive].copy()
                     
                     try:
                         Tsys_local.loc[:,'sefd_L'] = np.sqrt(Tsys_local['Tsys_star_L']/dict_dpfu[(ant,expt2track[expt],band,'L')])
                         Tsys_local.loc[:,'sefd_R'] = np.sqrt(Tsys_local['Tsys_star_R']/dict_dpfu[(ant,expt2track[expt],band,'R')])
-                        if ant=='P':
-                            Tsys_local.loc[:,'sefd_L'] = Tsys_local['sefd_L']/np.sqrt(Tsys_local['gainP'])
-                            Tsys_local.loc[:,'sefd_R'] = Tsys_local['sefd_R']/np.sqrt(Tsys_local['gainP'])
-                        elif ant=='Z':
-                            Tsys_local.loc[:,'sefd_lo_L'] = Tsys_local['sefd_L']/np.sqrt(Tsys_local['gainZ'])
-                            Tsys_local.loc[:,'sefd_lo_R'] = Tsys_local['sefd_R']/np.sqrt(Tsys_local['gainZ'])
-                        elif ant=='X':
-                            Tsys_local.loc[:,'sefd_lo_L'] = Tsys_local['sefd_L']/np.sqrt(Tsys_local['gainX'])
-                            Tsys_local.loc[:,'sefd_lo_R'] = Tsys_local['sefd_R']/np.sqrt(Tsys_local['gainX'])
+
+                        gaincol = f'gain{ant}'
+                        if gaincol in Tsys_local.columns:
+                            logging.info(f"Applying additional gain correction to SEFD for antenna {ant}...")
+                            Tsys_local.loc[:,'sefd_L'] = Tsys_local['sefd_L']/np.sqrt(Tsys_local[gaincol])
+                            Tsys_local.loc[:,'sefd_R'] = Tsys_local['sefd_R']/np.sqrt(Tsys_local[gaincol])
                      
-                       
-                        
                         try:
                             Tsys_local.loc[:,'foo_Imag_1'] = 0.*Tsys_local['sefd_R']
                             Tsys_local.loc[:,'foo_Imag_2'] = 0.*Tsys_local['sefd_R']
                             SEFDS = Tsys_local.loc[:,['mjd','sefd_R','foo_Imag_1','sefd_L','foo_Imag_2']]
                             SEFDS = SEFDS.sort_values('mjd')
-                            ######
-                            #RENAME '1921-293' to 'J1924-2914'
-                            if sour=='1921-293': sour='J1924-2914'
-                            #####################################
-                        
-                            NameF = exptdir+'/'+sour+'_'+Z2AZ[ant]+'.txt'
-                            ###APPLY AD HOC FIXES
 
                             SEFDS = ad_dummy_values(SEFDS)
-                            #SEFDS = ad_hoc_fixes(SEFDS,ant,sour)
-                            #CUT out too low SEFDs
+
+                            # filter out SEFDs with values less than 1
                             SEFDS = SEFDS[(SEFDS['sefd_R']>1.)|(SEFDS['sefd_L']>1.)]
-                            #####################
-                            if SEFDS.shape[0]>0:
-                                SEFDS.to_csv(NameF,sep=' ',index=False, header=False)
-                            print(sour+'_'+Z2AZ[ant]+'_'+str(int(expt))+'_'+band+' ok')
-                        except ValueError:
-                            print(sour+'_'+Z2AZ[ant]+'_'+str(int(expt))+'_'+band+' crap, not ok')
-                    
-                    except KeyError:
-                        print(sour+'_'+Z2AZ[ant]+'_'+str(int(expt))+'_'+band+' not available')
+
+                            # rename '1921-293' to 'J1924-2914'
+                            if sour=='1921-293':
+                                sour='J1924-2914'
+                            
+                            fname = f"{exptdir}/{sour}_{Z2AZ[ant]}.txt"
+                            if SEFDS.shape[0] > 0:
+                                SEFDS.to_csv(fname, sep=' ', index=False, header=False)
+                                logging.info(f"{os.path.basename(fname)} generated for band {band} and expt {expt}")
+                            else:
+                                logging.warning(f"No valid SEFD data for {sour}_{Z2AZ[ant]} in band {band}, expt {expt}. File not created.")
+
+                        except Exception as e:
+                            logging.warning(f"Error while generating SEFDs for source {sour}, antenna {ant}, band {band}, expt {expt}: {e}")
+
+                    except Exception as e:
+                        logging.warning(f"Error while generating SEFDs for source {sour}, antenna {ant}, band {band}, expt {expt}: {e}")
                             
 def ad_hoc_fixes(df,ant,sour):
     fix_T = [[57854.5,57854.6],[57850.0,57856.2]]
@@ -510,7 +521,7 @@ def ad_hoc_fixes(df,ant,sour):
     return df
 
 def ad_dummy_values(df,dmjd=0.001):
-    print('Adding dummy boundary points to SEFDs')
+    logging.info('Adding dummy boundary points to SEFDs...')
     first = df.head(1).copy()
     last = df.tail(1).copy()
     first['mjd'] = list(map(lambda x: x-dmjd,first['mjd']))
@@ -654,7 +665,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
                 
     return tracks
 
-def match_scans_with_Tsys(Tsys, scans):
+def match_scans_with_Tsys(Tsys, scans, pad_seconds=0.0):
     """
     Match system temperature (Tsys) data with scans.
     Parameters
@@ -663,6 +674,8 @@ def match_scans_with_Tsys(Tsys, scans):
         DataFrame containing Tsys data with a 'datetime' column.
     scans : pandas.DataFrame
         DataFrame containing scan data with 'scan_no_tot', 'time_min', 'time_max', and 'source' columns.
+    pad_seconds : float, optional
+        Number of seconds to pad the scan start and end times. Default is 0.0 seconds.
     Returns
     -------
     pandas.DataFrame
@@ -681,8 +694,8 @@ def match_scans_with_Tsys(Tsys, scans):
         first_scanno=10000
     bins_labels = [-first_scanno] + bins_labels
 
-    dtmin = datetime.timedelta(seconds=0.) 
-    dtmax = datetime.timedelta(seconds=0.) 
+    dtmin = datetime.timedelta(seconds=pad_seconds) 
+    dtmax = datetime.timedelta(seconds=pad_seconds) 
     binsT = [None] * (2*scans.shape[0])
     binsT[::2] = [x - dtmin for x in scans.time_min]
     binsT[1::2] = [x + dtmax for x in scans.time_max]
@@ -725,7 +738,7 @@ def match_scans_with_Tsys(Tsys, scans):
     
     return Tsys
 
-def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0):
+def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0, pad_seconds=0.0):
 
     Tsys_matched = pd.DataFrame({'source' : []})
 
@@ -735,7 +748,7 @@ def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0):
             Tsys_loc = Tsys_full.loc[(Tsys_full['station']==ant) & (Tsys_full['expt']==expt)].sort_values('datetime').reset_index(drop=True)
             scans_loc = scans[(scans.expt == expt) & scans.stations.apply(lambda x: ant in x)].sort_values('time_min').reset_index(drop=True)
             if(np.shape(Tsys_loc)[0]>0 and np.shape(scans_loc)[0]>0):
-                Tsys_matched_loc = match_scans_with_Tsys(Tsys_loc, scans_loc)
+                Tsys_matched_loc = match_scans_with_Tsys(Tsys_loc, scans_loc, pad_seconds=pad_seconds)
                 Tsys_matched= pd.concat([Tsys_matched, Tsys_matched_loc], ignore_index=True)
             else:
                 continue
@@ -744,7 +757,9 @@ def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0):
 
     return Tsys_matched
 
-def get_sefds_from_antab(antab_path='antab', vex_path='vex', year='2021', sourL=sourL, antL=antL0, AZ2Z=AZ2Z, SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, exptL = exptL0, bandL=bandL0, pathSave = 'SEFD'):
+def get_sefds_from_antab(antab_path='antab', vex_path='vex', year='2021', sourL=sourL, antL=antL0, AZ2Z=AZ2Z, \
+                         SMT2Z=SMT2Z, track2expt=track2expt, ant_locat=ant_locat, exptL = exptL0, bandL=bandL0, 
+                         pad_seconds=0.0, pathSave = 'SEFD'):
     """
     Compute SEFD values for all sources and antennas from metadata obtained from previous calibration steps, ANTAB files, and observed VEX files.
 
@@ -772,6 +787,8 @@ def get_sefds_from_antab(antab_path='antab', vex_path='vex', year='2021', sourL=
         List of experiments.
     bandL : list
         List of bands.
+    pad_seconds : float, optional
+        Number of seconds to pad the scan start and end times. Default is 0.0 seconds.
     pathSave : str, optional
         Path to save the SEFD data. Default is 'SEFD'.
 
@@ -791,7 +808,7 @@ def get_sefds_from_antab(antab_path='antab', vex_path='vex', year='2021', sourL=
 
     logging.info('Matching ANTAB-derived information to scans...')
     #MATCH CALIBRATION with SCANS to determine the source and 
-    Tsys_matched = global_match_scans_with_Tsys(Tsys_full, scans, antL=antL)
+    Tsys_matched = global_match_scans_with_Tsys(Tsys_full, scans, antL=antL, pad_seconds=pad_seconds)
 
     logging.info('Computing and saving SEFD files...')
     #produce a priori calibration data

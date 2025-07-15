@@ -30,6 +30,7 @@ def create_parser():
     p.add_argument("metadir", help="Directory containing calibration metadata (VEX files, ANTAB files)")
     p.add_argument("wrkdir", help="Directory to which SEFD files must be written")
     p.add_argument("-v", "--version", help="Version of the calibration metadata", default='2021')
+    p.add_argument("-dt", "--pad_seconds", type=float, default=0.0, help="Number of seconds to pad the scan start and end times (default: 0.0 seconds)")
     p.add_argument('--loglevel', type=str, default='DEBUG', help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
     
     return p
@@ -128,7 +129,8 @@ def main(args):
     sefdpath = os.path.join(args.wrkdir, 'SEFD') # create SEFD dir under args.wrkdir
 
     # compute SEFDs for this band and all epochs for all stations
-    apcal.get_sefds_from_antab(antab_path=antabpath, vex_path=vexpath, year=args.version, sourL=sourL, antL=antL, AZ2Z=az2z, SMT2Z=smt2z, track2expt=track2expt, ant_locat=ant_locat, exptL=exptL, bandL=bandL, pathSave=sefdpath)
+    apcal.get_sefds_from_antab(antab_path=antabpath, vex_path=vexpath, year=args.version, sourL=sourL, antL=antL, AZ2Z=az2z, SMT2Z=smt2z, track2expt=track2expt, \
+                               ant_locat=ant_locat, exptL=exptL, bandL=bandL, pad_seconds=args.pad_seconds, pathSave=sefdpath)
     
     return 0
 
