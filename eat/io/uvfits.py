@@ -3,6 +3,7 @@ Imports uvfits using ehtim library
 and remodels them into pandas dataframes
 Maciek Wielgus 06/07/2018
 maciek.wielgus@gmail.com
+Iniyan Natarajan 17/07/2025: Add save_uvfits method to save Uvfits_data object to UVFITS format.
 '''
 from __future__ import print_function
 from __future__ import division
@@ -10,6 +11,7 @@ import pandas as pd
 import os,sys,glob
 import numpy as np
 from astropy.time import Time, TimeDelta
+from astropy.io import fits
 import datetime as datetime
 from eat.io import vex
 import logging
@@ -19,6 +21,10 @@ loglevel = getattr(logging, 'INFO', None)
 logging.basicConfig(level=loglevel,
                     format='%(asctime)s %(levelname)s:: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
+
+MJD_0 = 2400000.5
+RDATE_DEGPERDY = 360.98564497330 # TODO: def. from AIPS; get the actual value?
+ROUND_SCAN_INT = 20 # decimal precision for the scan start & stop times (fractional day)
 
 def get_info(observation='EHT2017',path_vex='vex/'):
     '''
@@ -660,3 +666,337 @@ def get_df_from_uvfit(pathf,observation='EHT2017',path_vex='',force_singlepol='n
     if path_vex!='': 
         df = match_scans_bysource(scans,df)   
     return df
+
+def save_uvfits(datastruct, fname):
+    """
+    Save information in UVFITS format to a UVFITS file.
+    Parameters
+    ----------
+    datastruct : Datastruct
+        A datastruct object with type 'UVFITS' containing the data and metadata to be saved.
+    fname : str
+        Filename (including path) to save the UVFITS file to.
+    Raises
+    ------
+    Exception
+        If `datastruct.dtype` is not 'UVFITS'.
+        If the shapes of u, v, bls, jds, tints, and outdat are not consistent.
+    Notes
+    -----
+    - The function writes the UVFITS file using astropy.io.fits, including the primary data, antenna table (AIPS AN),
+      frequency table (AIPS FQ), and scan table (AIPS NX).
+    - Some header fields and table columns are set to default or placeholder values and may require further customization
+      for specific instruments or datasets.
+    - The function assumes that the input datastruct contains all necessary fields and arrays in the correct format.
+    Returns
+    -------
+    int
+        Returns 0 upon successful completion.
+    """
+
+    # unpack data
+    if datastruct.dtype != 'UVFITS':
+        raise Exception("datastruct.dtype != 'UVFITS' in save_uvfits()!")
+
+    src = datastruct.obs_info.src
+    ra = datastruct.obs_info.ra
+    dec = datastruct.obs_info.dec
+    ref_freq = datastruct.obs_info.ref_freq
+    ch_bw = datastruct.obs_info.ch_bw
+    ch_spacing = datastruct.obs_info.ch_spacing
+    ch1_freq = datastruct.obs_info.ch_1
+    nchan = datastruct.obs_info.nchan
+    scan_arr = datastruct.obs_info.scans
+    bw = nchan*ch_bw
+
+    antnames = datastruct.antenna_info.antnames
+    antnums = datastruct.antenna_info.antnums
+    xyz = datastruct.antenna_info.xyz
+    nsta = len(antnames)
+
+    u = datastruct.data.u
+    v = datastruct.data.v
+    bls = datastruct.data.bls
+    jds = datastruct.data.jds
+    tints = datastruct.data.tints
+    outdat = datastruct.data.datatable
+
+    if (len(u) != len(v) != len(bls) != len(jds) != len(tints) != len(outdat)):
+        raise Exception("rg parameter shapes and data shape not consistent!")
+
+    ndat = len(u)
+    mjd = int(np.min(jds) - MJD_0)
+    jd_start = (MJD_0 + mjd)
+    fractimes = (jds - jd_start)
+    jds_only = np.ones(ndat) * jd_start
+
+    #print "timedur uvfits " , (np.max(jds) - np.min(jds)) * 3600 * 24, (np.max(fractimes) - np.min(fractimes)) * 3600 * 24
+    nsubchan = 1
+    nstokes = 4
+
+    # Create new HDU
+    hdulist = fits.HDUList()
+    hdulist.append(fits.GroupsHDU())
+
+    ##################### DATA TABLE ##################################################################################################
+    # Data header
+    header = hdulist['PRIMARY'].header
+
+    #mandatory
+    header['OBJECT'] = src
+    header['TELESCOP'] = 'VLBA' # TODO Can we change this field?
+    header['INSTRUME'] = 'VLBA'
+    header['OBSERVER'] = 'EHT'
+    header['BSCALE'] = 1.0
+    header['BZERO'] = 0.0
+    header['BUNIT'] = 'JY'
+    header['EQUINOX'] = 2000
+    header['ALTRPIX'] = 1.e0
+    header['ALTRVAL'] = 0.e0
+
+    #optional
+    header['OBSRA'] = ra * 180./12.
+    header['OBSDEC'] = dec
+    header['MJD'] = float(mjd)
+    # new astropy broke this subfmt for jd for some reason
+    # header['DATE-OBS'] = Time(mjd + MJD_0, format='jd', scale='utc', out_subfmt='date').iso
+    header['DATE-OBS'] = Time(mjd + MJD_0, format='jd', scale='utc').iso[:10]
+    #header['DATE-MAP'] = ??
+    #header['VELREF'] = 3
+
+    # DATA AXES #
+    header['NAXIS'] = 7
+    header['NAXIS1'] = 0
+
+    # real, imag, weight
+    header['CTYPE2'] = 'COMPLEX'
+    header['NAXIS2'] = 3
+    header['CRVAL2'] = 1.e0
+    header['CDELT2'] = 1.e0
+    header['CRPIX2'] = 1.e0
+    header['CROTA2'] = 0.e0
+    # RR, LL, RL, LR
+    header['CTYPE3'] = 'STOKES'
+    header['NAXIS3'] = nstokes
+    header['CRVAL3'] = -1.e0 #corresponds to RR LL RL LR
+    header['CDELT3'] = -1.e0
+    header['CRPIX3'] = 1.e0
+    header['CROTA3'] = 0.e0
+    # frequencies
+    header['CTYPE4'] = 'FREQ'
+    header['NAXIS4'] = nsubchan
+    header['CRPIX4'] = 1.e0
+    # header['CRVAL4'] = ch1_freq # is this the right ref freq? in Hz
+    header['CRVAL4'] = ref_freq # is this the right ref freq? in Hz
+    header['CDELT4'] = ch_bw
+    header['CROTA4'] = 0.e0
+    # frequencies
+    header['CTYPE5'] = 'IF'
+    header['NAXIS5'] = nchan
+    header['CRPIX5'] = 1.e0
+    header['CRVAL5'] = 1.e0
+    header['CDELT5'] = 1.e0
+    header['CROTA5'] = 0.e0
+    # RA
+    header['CTYPE6'] = 'RA'
+    header['NAXIS6'] = 1.e0
+    header['CRPIX6'] = 1.e0
+    header['CRVAL6'] = header['OBSRA']
+    header['CDELT6'] = 1.e0
+    header['CROTA6'] = 0.e0
+    # DEC
+    header['CTYPE7'] = 'DEC'
+    header['NAXIS7'] = 1.e0
+    header['CRPIX7'] = 1.e0
+    header['CRVAL7'] = header['OBSDEC']
+    header['CDELT7'] = 1.e0
+    header['CROTA7'] = 0.e0
+
+    ##RANDOM PARAMS##
+    header['PTYPE1'] = 'UU---SIN'
+    header['PSCAL1'] = 1/ref_freq
+    header['PZERO1'] = 0.e0
+    header['PTYPE2'] = 'VV---SIN'
+    header['PSCAL2'] = 1.e0/ref_freq
+    header['PZERO2'] = 0.e0
+    header['PTYPE3'] = 'WW---SIN'
+    header['PSCAL3'] = 1.e0/ref_freq
+    header['PZERO3'] = 0.e0
+    header['PTYPE4'] = 'BASELINE'
+    header['PSCAL4'] = 1.e0
+    header['PZERO4'] = 0.e0
+    header['PTYPE5'] = 'DATE'
+    header['PSCAL5'] = 1.e0
+    header['PZERO5'] = 0.e0
+    header['PTYPE6'] = 'DATE'
+    header['PSCAL6'] = 1.e0
+    header['PZERO6'] = 0.0
+    header['PTYPE7'] = 'INTTIM'
+    header['PSCAL7'] = 1.e0
+    header['PZERO7'] = 0.e0
+    header['history'] = "AIPS SORT ORDER='TB'"
+
+    # Save data
+    pars = ['UU---SIN', 'VV---SIN', 'WW---SIN', 'BASELINE', 'DATE', 'DATE', 'INTTIM']
+    x = fits.GroupData(outdat, parnames=pars, pardata=[u, v, np.zeros(ndat), np.array(bls).reshape(-1), jds_only, fractimes, tints], bitpix=-32)
+
+    hdulist['PRIMARY'].data = x
+    hdulist['PRIMARY'].header = header
+
+    ####################### AIPS AN TABLE ###############################################################################################
+    #Antenna Table entries
+    col1 = fits.Column(name='ANNAME', format='8A', array=antnames)
+    col2 = fits.Column(name='STABXYZ', format='3D', unit='METERS', array=xyz)
+    col3= fits.Column(name='ORBPARM', format='D', array=np.zeros(0))
+    col4 = fits.Column(name='NOSTA', format='1J', array=antnums)
+
+    #TODO get the actual information for these parameters for each station
+    col5 = fits.Column(name='MNTSTA', format='1J', array=np.zeros(nsta)) #zero = alt-az
+    col6 = fits.Column(name='STAXOF', format='1E', unit='METERS', array=np.zeros(nsta)) #zero = no axis  offset
+    col7 = fits.Column(name='POLTYA', format='1A', array=np.array(['R' for i in range(nsta)], dtype='|S1')) #RCP
+    col8 = fits.Column(name='POLAA', format='1E', unit='DEGREES', array=np.zeros(nsta)) #feed orientation A
+    col9 = fits.Column(name='POLCALA', format='2E', array=np.zeros((nsta,2))) #zero = no pol cal info TODO should have extra dim for nif
+    col10 = fits.Column(name='POLTYB', format='1A', array=np.array(['L' for i in range(nsta)], dtype='|S1')) #LCP
+    col11 = fits.Column(name='POLAB', format='1E', unit='DEGREES', array=90*np.ones(nsta)) #feed orientation A
+    col12 = fits.Column(name='POLCALB', format='2E', array=np.zeros((nsta,2))) #zero = no pol cal info
+
+    # create table
+    tbhdu = fits.BinTableHDU.from_columns(fits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12]), name='AIPS AN')
+    hdulist.append(tbhdu)
+
+    # header information
+    head = hdulist['AIPS AN'].header
+    head['EXTVER'] = 1
+    head['ARRAYX'] = 0.e0
+    head['ARRAYY'] = 0.e0
+    head['ARRAYZ'] = 0.e0
+
+    # TODO change the reference date
+    #rdate_out = RDATE
+    #rdate_gstiao_out = RDATE_GSTIA0
+    #rdate_offset_out = RDATE_OFFSET
+
+    # new astropy broke this subfmt, it should be a day boundary hopefully
+    # rdate_tt_new = Time(mjd + MJD_0, format='jd', scale='utc', out_subfmt='date')
+    rdate_tt_new = Time(mjd + MJD_0, format='jd', scale='utc')
+    rdate_out = rdate_tt_new.iso[:10]
+    rdate_jd_out = rdate_tt_new.jd
+    rdate_gstiao_out = rdate_tt_new.sidereal_time('apparent','greenwich').degree
+    rdate_offset_out = (rdate_tt_new.ut1.datetime.second - rdate_tt_new.utc.datetime.second)
+    rdate_offset_out += 1.e-6*(rdate_tt_new.ut1.datetime.microsecond - rdate_tt_new.utc.datetime.microsecond)
+
+    head['RDATE'] = rdate_out
+    head['GSTIA0'] = rdate_gstiao_out
+    head['DEGPDY'] = RDATE_DEGPERDY
+    head['UT1UTC'] = rdate_offset_out   #difference between UT1 and UTC ?
+    head['DATUTC'] = 0.e0
+    head['TIMESYS'] = 'UTC'
+
+    head['FREQ']= ref_freq
+    head['POLARX'] = 0.e0
+    head['POLARY'] = 0.e0
+
+    head['ARRNAM'] = 'VLBA'  # TODO must be recognized by aips/casa
+    head['XYZHAND'] = 'RIGHT'
+    head['FRAME'] = '????'
+    head['NUMORB'] = 0
+    head['NO_IF'] = nchan
+    head['NOPCAL'] = 0  #TODO add pol cal information
+    head['POLTYPE'] = 'VLBI'
+    head['FREQID'] = 1
+
+    hdulist['AIPS AN'].header = head
+
+    ##################### AIPS FQ TABLE #####################################################################################################
+    # Convert types & columns
+    freqid = np.array([1])
+    bandfreq = np.array([ch1_freq + ch_spacing*i - ref_freq for i in range(nchan)]).reshape([1,nchan])
+    chwidth = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])
+    totbw = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])
+    sideband = np.array([1 for i in range(nchan)]).reshape([1,nchan])
+
+    freqid = fits.Column(name="FRQSEL", format="1J", array=freqid)
+    bandfreq = fits.Column(name="IF FREQ", format="%dD"%(nchan), array=bandfreq, unit='HZ')
+    chwidth = fits.Column(name="CH WIDTH",format="%dE"%(nchan), array=chwidth, unit='HZ')
+    totbw = fits.Column(name="TOTAL BANDWIDTH",format="%dE"%(nchan),array=totbw, unit='HZ')
+    sideband = fits.Column(name="SIDEBAND",format="%dJ"%(nchan),array=sideband)
+    cols = fits.ColDefs([freqid, bandfreq, chwidth, totbw, sideband])
+
+    # create table
+    tbhdu = fits.BinTableHDU.from_columns(cols)
+
+    # header information
+    tbhdu.header.append(("NO_IF", nchan, "Number IFs"))
+    tbhdu.header.append(("EXTNAME","AIPS FQ"))
+    tbhdu.header.append(("EXTVER",1))
+    hdulist.append(tbhdu)
+
+    ##################### AIPS NX TABLE #####################################################################################################
+
+    scan_times = []
+    scan_time_ints = []
+    start_vis = []
+    stop_vis = []
+
+    #TODO make sure jds AND scan_info MUST be time sorted!!
+    jj = 0
+    #print scan_info
+
+    comp_fac = 3600*24*100 # compare to 100th of a second
+
+    for scan in  scan_arr:
+        scan_start = round(scan[0], ROUND_SCAN_INT)
+        scan_stop = round(scan[1], ROUND_SCAN_INT)
+        scan_dur = (scan_stop - scan_start)
+
+        if jj>=len(jds):
+            #print start_vis, stop_vis
+            break
+
+        # print "%.12f %.12f %.12f" %( jds[jj], scan_start, scan_stop)
+        jd = round(jds[jj], ROUND_SCAN_INT)*comp_fac # ANDREW TODO precision??
+
+        if (np.floor(jd) >= np.floor(scan_start*comp_fac)) and (np.ceil(jd) <= np.ceil(comp_fac*scan_stop)):
+            start_vis.append(jj)
+            # TODO AIPS MEMO 117 says scan_times should be midpoint!, but AIPS data looks likes it's at the start?
+            #scan_times.append(scan_start  - rdate_jd_out)
+            scan_times.append(scan_start + 0.5*scan_dur - rdate_jd_out)
+            scan_time_ints.append(scan_dur)
+            while (jj < len(jds) and np.floor(round(jds[jj],ROUND_SCAN_INT)*comp_fac) <= np.ceil(comp_fac*scan_stop)):
+                jj += 1
+            stop_vis.append(jj-1)
+        else:
+            continue
+
+    if jj < len(jds):
+        if len(scan_arr) == 0:
+            print("len(scan_arr) == 0")
+        else:
+            print(scan_arr[-1])
+            print(round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT))
+        print(jj, len(jds), round(jds[jj], ROUND_SCAN_INT))
+        print("WARNING!!!: in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
+        #raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
+
+    time_nx = fits.Column(name="TIME", format="1D", unit='DAYS', array=np.array(scan_times))
+    timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", unit='DAYS', array=np.array(scan_time_ints))
+    sourceid_nx = fits.Column(name="SOURCE ID",format="1J", unit='', array=np.ones(len(scan_times)))
+    subarr_nx = fits.Column(name="SUBARRAY",format="1J", unit='', array=np.ones(len(scan_times)))
+    freqid_nx = fits.Column(name="FREQ ID",format="1J", unit='', array=np.ones(len(scan_times)))
+    startvis_nx = fits.Column(name="START VIS",format="1J", unit='', array=np.array(start_vis)+1)
+    endvis_nx = fits.Column(name="END VIS",format="1J", unit='', array=np.array(stop_vis)+1)
+    cols = fits.ColDefs([time_nx, timeint_nx, sourceid_nx, subarr_nx, freqid_nx, startvis_nx, endvis_nx])
+
+    tbhdu = fits.BinTableHDU.from_columns(cols)
+
+    # header information
+    tbhdu.header.append(("EXTNAME","AIPS NX"))
+    tbhdu.header.append(("EXTVER",1))
+
+    hdulist.append(tbhdu)
+
+    # Write final HDUList to file
+    #hdulist.writeto(fname, clobber=True)#this is deprecated and changed to overwrite
+    hdulist.writeto(fname, overwrite=True)
+
+    return 0

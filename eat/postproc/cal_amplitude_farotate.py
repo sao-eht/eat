@@ -3,22 +3,15 @@
 
 import numpy as np
 import datetime
-from argparse import Namespace
 import glob
 import os
 import scipy.interpolate
 import itertools as it
 from astropy.time import Time
-from astropy.io import fits
 import logging
-#from hops2uvfits import *
-#import mk4 # part of recent HOPS install, need HOPS ENV variables
-#import ctypes
-#import astropy.io.fits as fits
-#import astropy.time as at
-#import sys
-#import numpy.matlib
-#import pandas as pd
+from eat.io.datastructures import Caltable, Uvfits_data, Antenna_info, Datastruct
+from eat.io.uvfits import save_uvfits
+import eat.postproc.constants as const
 
 # Configure logging
 loglevel = getattr(logging, 'INFO', None)
@@ -26,467 +19,7 @@ logging.basicConfig(level=loglevel,
                     format='%(asctime)s %(levelname)s:: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
-#conversion factors and data types
-'''stationdict = {'ALMA':'AA', 'A':'AA','AA':'AA',
-            'APEX':'AX', 'X':'AX','AP': 'AX',
-            'LMT':'LM','L':'LM','LM':'LM',
-            'PICOVEL':'PV','P':'PV','IRAM30': 'PV','PV':'PV',
-            'SMTO':'MG','Z': 'MG','SMT':'MG','AZ':'MG',
-            'SPT':'SZ','Y':'SZ','SP':'SZ',
-            'JCMT':'MM','J':'MM','JC':'MM',
-            'SMAP':'SW','S':'SW','SMAR':'SW','SMA':'SW','SM':'SW',
-            'GLT':'GL','G':'GL','THULE':'GL','GL':'GL',
-            'NOEMA':'NN','N':'NN','NN':'NN',
-            'KITTPEAK':'KT','K':'KT','KT':'KT',   
-            'SMAR':'SR','R':'SR','SMR':'SR','SR':'SR',
-            'GBT': 'GB','FD': 'FD','PT':'PT','LA':'LA', 
-            'KP':'KP', 'MK':'MK', 'BR':'BR', 'NL':'NL',
-            'OV':'OV','YS':'YS','EB':'EB'
-            }
 
-station_frot_old = {'PV':(1,-1,0),'AZ':(1,1,0),'SM':(1,-1,np.pi/4.),'LM': (1,-1,0),
-                'AA':(1,0,0),'SP':(1,0,0),'AP':(1,1,0),'JC':(1,0,0),'SR':(1,-1,np.pi/4.),
-                'GB':(1,0,0),'FD':(1,0,0),'PT':(1,0,0),'LA':(1,0,0),'KP':(1,0,0),
-                'MK':(1,0,0),'BR':(1,0,0),'NL':(1,0,0),'OV':(1,0,0),'YS':(1,0,0),'EB':(1,0,0)}'''
-
-STATION_FROT = {'PV':(1,-1,0),'MG':(1,1,0),'SW':(1,-1,np.pi/4.),'LM': (1,-1,0),
-                'AA':(1,0,0),'SZ':(1,0,0),'AX':(1,1,0),'MM':(1,0,0),'GL': (1,0,0),
-                'NN':(1,0,0),'KT':(1,0,0),'SR':(1,-1,np.pi/4.),
-                'GB':(1,0,0),'FD':(1,0,0),'PT':(1,0,0),'LA':(1,0,0),'KP':(1,0,0),
-                'MK':(1,0,0),'BR':(1,0,0),'NL':(1,0,0),'OV':(1,0,0),'YS':(1,0,0),'EB':(1,0,0),
-                'AP':(1,1,0),'AZ':(1,1,0),'JC':(1,0,0),'SM':(1,-1,np.pi/4.),'SP':(1,0,0),'SR':(1,-1,np.pi/4.)
-                }
-
-BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
-DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
-DTCAL = [('time','f8'), ('rscale','c16'), ('lscale','c16')]
-DTPOL = [('time','f8'),('freq','f8'),('tint','f8'),
-            ('t1','a32'),('t2','a32'),
-            ('u','f8'),('v','f8'),
-            ('rr','c16'),('ll','c16'),('rl','c16'),('lr','c16'),
-            ('rrweight','f8'),('llweight','f8'),('rlweight','f8'),('lrweight','f8')]
-EP = 1.e-5
-CORRCOEFF = 10000.0
-DEGREE = np.pi/180.0
-HOUR = 15.0*DEGREE
-C = 299792458.0
-MHZ2HZ = 1e6
-MJD_0 = 2400000.5
-RADPERARCSEC = (np.pi / 180.) / 3600.
-
-# INI: copied from hops2uvfits.py
-# TODO these constants should go into ___init__.py or util.py
-#reference date
-RDATE = '2017-04-04'
-rdate_tt = Time(RDATE, format='isot', scale='utc')
-RDATE_JD = rdate_tt.jd
-RDATE_GSTIA0 = rdate_tt.sidereal_time('apparent','greenwich').degree
-RDATE_DEGPERDY = 360.98564497330 # TODO from AIPS, get the actual value?
-RDATE_OFFSET = rdate_tt.ut1.datetime.second - rdate_tt.utc.datetime.second
-RDATE_OFFSET += 1.e-6*(rdate_tt.ut1.datetime.microsecond - rdate_tt.utc.datetime.microsecond)
-
-# decimal precision for the scan start & stop times (fractional day)
-ROUND_SCAN_INT = 20
-
-##################################################################################################
-# Caltable object
-##################################################################################################
-# ANDREW TODO copied from caltable.py in ehtim
-# load directly instead?
-class Caltable(object):
-    """
-       Attributes:
-    """
-
-    def __init__(self, ra, dec, rf, bw, datatables, tarr, source='NONE', mjd=0, timetype='UTC'):
-        """A polarimetric VLBI observation of visibility amplitudes and phases (in Jy).
-
-           Args:
-
-           Returns:
-               caltable (Caltable): an Caltable object
-        """
-
-        if len(datatables) == 0:
-            raise Exception("No data in input table!")
-
-        # Set the various parameters
-        self.source = str(source)
-        self.ra = float(ra)
-        self.dec = float(dec)
-        self.rf = float(rf)
-        self.bw = float(bw)
-        self.mjd = int(mjd)
-
-        if timetype not in ['GMST', 'UTC']:
-            raise Exception("timetype must by 'GMST' or 'UTC'")
-        self.timetype = timetype
-        self.tarr = tarr
-
-        # Dictionary of array indices for site names
-        self.tkey = {self.tarr[i]['site']: i for i in range(len(self.tarr))}
-
-        # Save the data
-        self.data = datatables
-
-    def copy(self):
-        """Copy the caltable object.
-
-           Args:
-
-           Returns:
-               (Caltable): a copy of the Caltable object.
-        """
-        new_caltable = Caltable(self.ra, self.dec, self.rf, self.bw, self.data, self.tarr, source=self.source, mjd=self.mjd, timetype=self.timetype)
-        return new_caltable
-
-# INI: classes copied from hops2uvfits.py to make this module self-sufficient;
-# TODO These class definitions should probably be moved to a common "util.py" / "__init__.py" in this dir
-class Uvfits_data(object):
-    """data table and random group parameter arrays to save to uvfits"""
-    def __init__(self, u, v, bls, jds, tints, datatable):
-        self.u = u
-        self.v = v
-        self.bls = bls
-        self.jds = jds
-        self.tints = tints
-        self.datatable = datatable
-
-class Antenna_info(object):
-    """antenna metadata """
-    def __init__(self, antnames, antnums, xyz):
-        self.antnames =  antnames
-        self.antnums = antnums
-        self.xyz = xyz
-
-class Datastruct(object):
-    """Data and metadata to save to uvfits, in uvfits format
-       dtype tells you if the data table is in uvfits or ehtim format
-       in ehtim format antenna_info and data are tables,
-       in uvfits format they are Antenna_info and Uvfits_data objects
-    """
-
-    def __init__(self, obs_info, antenna_info, data, dtype='UVFITS'):
-        self.dtype = dtype
-        self.obs_info = obs_info
-        self.antenna_info = antenna_info
-        self.data = data
-
-# INI: function copied from hops2uvfits.py
-# TODO these should really be in the io submodule!
-def save_uvfits(datastruct, fname):
-    """save information already in uvfits format to uvfits file
-       Args:
-        datastruct (Datastruct) : a datastruct object with type 'UVFITS' for saving
-        fname (str) : filename to save to
-    """
-
-    # unpack data
-    if datastruct.dtype != 'UVFITS':
-        raise Exception("datastruct.dtype != 'UVFITS' in save_uvfits()!")
-
-    src = datastruct.obs_info.src
-    ra = datastruct.obs_info.ra
-    dec = datastruct.obs_info.dec
-    ref_freq = datastruct.obs_info.ref_freq
-    ch_bw = datastruct.obs_info.ch_bw
-    ch_spacing = datastruct.obs_info.ch_spacing
-    ch1_freq = datastruct.obs_info.ch_1
-    nchan = datastruct.obs_info.nchan
-    scan_arr = datastruct.obs_info.scans
-    bw = nchan*ch_bw
-
-    antnames = datastruct.antenna_info.antnames
-    antnums = datastruct.antenna_info.antnums
-    xyz = datastruct.antenna_info.xyz
-    nsta = len(antnames)
-
-    u = datastruct.data.u
-    v = datastruct.data.v
-    bls = datastruct.data.bls
-    jds = datastruct.data.jds
-    tints = datastruct.data.tints
-    outdat = datastruct.data.datatable
-
-    if (len(u) != len(v) != len(bls) != len(jds) != len(tints) != len(outdat)):
-        raise Exception("rg parameter shapes and data shape not consistent!")
-
-    ndat = len(u)
-    mjd = int(np.min(jds) - MJD_0)
-    jd_start = (MJD_0 + mjd)
-    fractimes = (jds - jd_start)
-    jds_only = np.ones(ndat) * jd_start
-
-    #print "timedur uvfits " , (np.max(jds) - np.min(jds)) * 3600 * 24, (np.max(fractimes) - np.min(fractimes)) * 3600 * 24
-    nsubchan = 1
-    nstokes = 4
-
-    # Create new HDU
-    hdulist = fits.HDUList()
-    hdulist.append(fits.GroupsHDU())
-
-    ##################### DATA TABLE ##################################################################################################
-    # Data header
-    header = hdulist['PRIMARY'].header
-
-    #mandatory
-    header['OBJECT'] = src
-    header['TELESCOP'] = 'VLBA' # TODO Can we change this field?
-    header['INSTRUME'] = 'VLBA'
-    header['OBSERVER'] = 'EHT'
-    header['BSCALE'] = 1.0
-    header['BZERO'] = 0.0
-    header['BUNIT'] = 'JY'
-    header['EQUINOX'] = 2000
-    header['ALTRPIX'] = 1.e0
-    header['ALTRVAL'] = 0.e0
-
-    #optional
-    header['OBSRA'] = ra * 180./12.
-    header['OBSDEC'] = dec
-    header['MJD'] = float(mjd)
-    # new astropy broke this subfmt for jd for some reason
-    # header['DATE-OBS'] = Time(mjd + MJD_0, format='jd', scale='utc', out_subfmt='date').iso
-    header['DATE-OBS'] = Time(mjd + MJD_0, format='jd', scale='utc').iso[:10]
-    #header['DATE-MAP'] = ??
-    #header['VELREF'] = 3
-
-    # DATA AXES #
-    header['NAXIS'] = 7
-    header['NAXIS1'] = 0
-
-    # real, imag, weight
-    header['CTYPE2'] = 'COMPLEX'
-    header['NAXIS2'] = 3
-    header['CRVAL2'] = 1.e0
-    header['CDELT2'] = 1.e0
-    header['CRPIX2'] = 1.e0
-    header['CROTA2'] = 0.e0
-    # RR, LL, RL, LR
-    header['CTYPE3'] = 'STOKES'
-    header['NAXIS3'] = nstokes
-    header['CRVAL3'] = -1.e0 #corresponds to RR LL RL LR
-    header['CDELT3'] = -1.e0
-    header['CRPIX3'] = 1.e0
-    header['CROTA3'] = 0.e0
-    # frequencies
-    header['CTYPE4'] = 'FREQ'
-    header['NAXIS4'] = nsubchan
-    header['CRPIX4'] = 1.e0
-    # header['CRVAL4'] = ch1_freq # is this the right ref freq? in Hz
-    header['CRVAL4'] = ref_freq # is this the right ref freq? in Hz
-    header['CDELT4'] = ch_bw
-    header['CROTA4'] = 0.e0
-    # frequencies
-    header['CTYPE5'] = 'IF'
-    header['NAXIS5'] = nchan
-    header['CRPIX5'] = 1.e0
-    header['CRVAL5'] = 1.e0
-    header['CDELT5'] = 1.e0
-    header['CROTA5'] = 0.e0
-    # RA
-    header['CTYPE6'] = 'RA'
-    header['NAXIS6'] = 1.e0
-    header['CRPIX6'] = 1.e0
-    header['CRVAL6'] = header['OBSRA']
-    header['CDELT6'] = 1.e0
-    header['CROTA6'] = 0.e0
-    # DEC
-    header['CTYPE7'] = 'DEC'
-    header['NAXIS7'] = 1.e0
-    header['CRPIX7'] = 1.e0
-    header['CRVAL7'] = header['OBSDEC']
-    header['CDELT7'] = 1.e0
-    header['CROTA7'] = 0.e0
-
-    ##RANDOM PARAMS##
-    header['PTYPE1'] = 'UU---SIN'
-    header['PSCAL1'] = 1/ref_freq
-    header['PZERO1'] = 0.e0
-    header['PTYPE2'] = 'VV---SIN'
-    header['PSCAL2'] = 1.e0/ref_freq
-    header['PZERO2'] = 0.e0
-    header['PTYPE3'] = 'WW---SIN'
-    header['PSCAL3'] = 1.e0/ref_freq
-    header['PZERO3'] = 0.e0
-    header['PTYPE4'] = 'BASELINE'
-    header['PSCAL4'] = 1.e0
-    header['PZERO4'] = 0.e0
-    header['PTYPE5'] = 'DATE'
-    header['PSCAL5'] = 1.e0
-    header['PZERO5'] = 0.e0
-    header['PTYPE6'] = 'DATE'
-    header['PSCAL6'] = 1.e0
-    header['PZERO6'] = 0.0
-    header['PTYPE7'] = 'INTTIM'
-    header['PSCAL7'] = 1.e0
-    header['PZERO7'] = 0.e0
-    header['history'] = "AIPS SORT ORDER='TB'"
-
-    # Save data
-    pars = ['UU---SIN', 'VV---SIN', 'WW---SIN', 'BASELINE', 'DATE', 'DATE', 'INTTIM']
-    x = fits.GroupData(outdat, parnames=pars, pardata=[u, v, np.zeros(ndat), np.array(bls).reshape(-1), jds_only, fractimes, tints], bitpix=-32)
-
-    hdulist['PRIMARY'].data = x
-    hdulist['PRIMARY'].header = header
-
-    ####################### AIPS AN TABLE ###############################################################################################
-    #Antenna Table entries
-    col1 = fits.Column(name='ANNAME', format='8A', array=antnames)
-    col2 = fits.Column(name='STABXYZ', format='3D', unit='METERS', array=xyz)
-    col3= fits.Column(name='ORBPARM', format='D', array=np.zeros(0))
-    col4 = fits.Column(name='NOSTA', format='1J', array=antnums)
-
-    #TODO get the actual information for these parameters for each station
-    col5 = fits.Column(name='MNTSTA', format='1J', array=np.zeros(nsta)) #zero = alt-az
-    col6 = fits.Column(name='STAXOF', format='1E', unit='METERS', array=np.zeros(nsta)) #zero = no axis  offset
-    col7 = fits.Column(name='POLTYA', format='1A', array=np.array(['R' for i in range(nsta)], dtype='|S1')) #RCP
-    col8 = fits.Column(name='POLAA', format='1E', unit='DEGREES', array=np.zeros(nsta)) #feed orientation A
-    col9 = fits.Column(name='POLCALA', format='2E', array=np.zeros((nsta,2))) #zero = no pol cal info TODO should have extra dim for nif
-    col10 = fits.Column(name='POLTYB', format='1A', array=np.array(['L' for i in range(nsta)], dtype='|S1')) #LCP
-    col11 = fits.Column(name='POLAB', format='1E', unit='DEGREES', array=90*np.ones(nsta)) #feed orientation A
-    col12 = fits.Column(name='POLCALB', format='2E', array=np.zeros((nsta,2))) #zero = no pol cal info
-
-    # create table
-    tbhdu = fits.BinTableHDU.from_columns(fits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12]), name='AIPS AN')
-    hdulist.append(tbhdu)
-
-    # header information
-    head = hdulist['AIPS AN'].header
-    head['EXTVER'] = 1
-    head['ARRAYX'] = 0.e0
-    head['ARRAYY'] = 0.e0
-    head['ARRAYZ'] = 0.e0
-
-    # TODO change the reference date
-    #rdate_out = RDATE
-    #rdate_gstiao_out = RDATE_GSTIA0
-    #rdate_offset_out = RDATE_OFFSET
-
-    # new astropy broke this subfmt, it should be a day boundary hopefully
-    # rdate_tt_new = Time(mjd + MJD_0, format='jd', scale='utc', out_subfmt='date')
-    rdate_tt_new = Time(mjd + MJD_0, format='jd', scale='utc')
-    rdate_out = rdate_tt_new.iso[:10]
-    rdate_jd_out = rdate_tt_new.jd
-    rdate_gstiao_out = rdate_tt_new.sidereal_time('apparent','greenwich').degree
-    rdate_offset_out = (rdate_tt_new.ut1.datetime.second - rdate_tt_new.utc.datetime.second)
-    rdate_offset_out += 1.e-6*(rdate_tt_new.ut1.datetime.microsecond - rdate_tt_new.utc.datetime.microsecond)
-
-    head['RDATE'] = rdate_out
-    head['GSTIA0'] = rdate_gstiao_out
-    head['DEGPDY'] = RDATE_DEGPERDY
-    head['UT1UTC'] = rdate_offset_out   #difference between UT1 and UTC ?
-    head['DATUTC'] = 0.e0
-    head['TIMESYS'] = 'UTC'
-
-    head['FREQ']= ref_freq
-    head['POLARX'] = 0.e0
-    head['POLARY'] = 0.e0
-
-    head['ARRNAM'] = 'VLBA'  # TODO must be recognized by aips/casa
-    head['XYZHAND'] = 'RIGHT'
-    head['FRAME'] = '????'
-    head['NUMORB'] = 0
-    head['NO_IF'] = nchan
-    head['NOPCAL'] = 0  #TODO add pol cal information
-    head['POLTYPE'] = 'VLBI'
-    head['FREQID'] = 1
-
-    hdulist['AIPS AN'].header = head
-
-    ##################### AIPS FQ TABLE #####################################################################################################
-    # Convert types & columns
-    freqid = np.array([1])
-    bandfreq = np.array([ch1_freq + ch_spacing*i - ref_freq for i in range(nchan)]).reshape([1,nchan])
-    chwidth = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])
-    totbw = np.array([ch_bw for i in range(nchan)]).reshape([1,nchan])
-    sideband = np.array([1 for i in range(nchan)]).reshape([1,nchan])
-
-    freqid = fits.Column(name="FRQSEL", format="1J", array=freqid)
-    bandfreq = fits.Column(name="IF FREQ", format="%dD"%(nchan), array=bandfreq, unit='HZ')
-    chwidth = fits.Column(name="CH WIDTH",format="%dE"%(nchan), array=chwidth, unit='HZ')
-    totbw = fits.Column(name="TOTAL BANDWIDTH",format="%dE"%(nchan),array=totbw, unit='HZ')
-    sideband = fits.Column(name="SIDEBAND",format="%dJ"%(nchan),array=sideband)
-    cols = fits.ColDefs([freqid, bandfreq, chwidth, totbw, sideband])
-
-    # create table
-    tbhdu = fits.BinTableHDU.from_columns(cols)
-
-    # header information
-    tbhdu.header.append(("NO_IF", nchan, "Number IFs"))
-    tbhdu.header.append(("EXTNAME","AIPS FQ"))
-    tbhdu.header.append(("EXTVER",1))
-    hdulist.append(tbhdu)
-
-    ##################### AIPS NX TABLE #####################################################################################################
-
-    scan_times = []
-    scan_time_ints = []
-    start_vis = []
-    stop_vis = []
-
-    #TODO make sure jds AND scan_info MUST be time sorted!!
-    jj = 0
-    #print scan_info
-
-    comp_fac = 3600*24*100 # compare to 100th of a second
-
-    for scan in  scan_arr:
-        scan_start = round(scan[0], ROUND_SCAN_INT)
-        scan_stop = round(scan[1], ROUND_SCAN_INT)
-        scan_dur = (scan_stop - scan_start)
-
-        if jj>=len(jds):
-            #print start_vis, stop_vis
-            break
-
-        # print "%.12f %.12f %.12f" %( jds[jj], scan_start, scan_stop)
-        jd = round(jds[jj], ROUND_SCAN_INT)*comp_fac # ANDREW TODO precision??
-
-        if (np.floor(jd) >= np.floor(scan_start*comp_fac)) and (np.ceil(jd) <= np.ceil(comp_fac*scan_stop)):
-            start_vis.append(jj)
-            # TODO AIPS MEMO 117 says scan_times should be midpoint!, but AIPS data looks likes it's at the start?
-            #scan_times.append(scan_start  - rdate_jd_out)
-            scan_times.append(scan_start + 0.5*scan_dur - rdate_jd_out)
-            scan_time_ints.append(scan_dur)
-            while (jj < len(jds) and np.floor(round(jds[jj],ROUND_SCAN_INT)*comp_fac) <= np.ceil(comp_fac*scan_stop)):
-                jj += 1
-            stop_vis.append(jj-1)
-        else:
-            continue
-
-    if jj < len(jds):
-        if len(scan_arr) == 0:
-            print("len(scan_arr) == 0")
-        else:
-            print(scan_arr[-1])
-            print(round(scan_arr[-1][0],ROUND_SCAN_INT),round(scan_arr[-1][1],ROUND_SCAN_INT))
-        print(jj, len(jds), round(jds[jj], ROUND_SCAN_INT))
-        print("WARNING!!!: in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
-        #raise Exception("in save_uvfits NX table, didn't get to all entries when computing scan start/stop!")
-
-    time_nx = fits.Column(name="TIME", format="1D", unit='DAYS', array=np.array(scan_times))
-    timeint_nx = fits.Column(name="TIME INTERVAL", format="1E", unit='DAYS', array=np.array(scan_time_ints))
-    sourceid_nx = fits.Column(name="SOURCE ID",format="1J", unit='', array=np.ones(len(scan_times)))
-    subarr_nx = fits.Column(name="SUBARRAY",format="1J", unit='', array=np.ones(len(scan_times)))
-    freqid_nx = fits.Column(name="FREQ ID",format="1J", unit='', array=np.ones(len(scan_times)))
-    startvis_nx = fits.Column(name="START VIS",format="1J", unit='', array=np.array(start_vis)+1)
-    endvis_nx = fits.Column(name="END VIS",format="1J", unit='', array=np.array(stop_vis)+1)
-    cols = fits.ColDefs([time_nx, timeint_nx, sourceid_nx, subarr_nx, freqid_nx, startvis_nx, endvis_nx])
-
-    tbhdu = fits.BinTableHDU.from_columns(cols)
-
-    # header information
-    tbhdu.header.append(("EXTNAME","AIPS NX"))
-    tbhdu.header.append(("EXTVER",1))
-
-    hdulist.append(tbhdu)
-
-    # Write final HDUList to file
-    #hdulist.writeto(fname, clobber=True)#this is deprecated and changed to overwrite
-    hdulist.writeto(fname, overwrite=True)
-
-    return 0
 
 def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False):
     """Load apriori cal tables
@@ -497,7 +30,7 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
         raise Exception("datastruct must be in EHTIM format in load_caltable!")
     tarr = datastruct.antenna_info
     source = datastruct.obs_info.src
-    mjd = int(np.min(datastruct.data['time'] - MJD_0))
+    mjd = int(np.min(datastruct.data['time'] - const.MJD_0))
     ra = datastruct.obs_info.ra
     dec = datastruct.obs_info.dec
     rf = datastruct.obs_info.ref_freq
@@ -512,7 +45,7 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
 
             datatable = []
             for time in np.linspace(0.,24.,100):
-                datatable.append(np.array((time, 1.0, 1.0), dtype=DTCAL))
+                datatable.append(np.array((time, 1.0, 1.0), dtype=const.DTCAL))
 
         else: # getting SEFDS from files
             # AIPS can only handle 8-character source name so "source" may
@@ -534,10 +67,10 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
                         print(f'which is probably due to AIPS source name truncation; using the full name {filename_source} from the filename...')
                         source = filename_source
             elif len(filenames) == 0:
-                print(f'No file matching {pattern} exists! Skipping...')
+                logging.warning(f'No file matching {pattern} exists! Skipping...')
                 continue
             else:
-                print(f'More than one file matching pattern {pattern}. Skipping...')
+                logging.warning(f'More than one file matching pattern {pattern}. Skipping...')
                 continue
 
             datatable = []
@@ -570,10 +103,10 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
                 if rscale==0. and lscale==0.:
                     continue
                 else:
-                    datatable.append(np.array((time, rscale, lscale), dtype=DTCAL))
+                    datatable.append(np.array((time, rscale, lscale), dtype=const.DTCAL))
                 #ANDREW HACKY WAY TO MAKE IT WORK WITH ONLY ONE ENTRY
                 if onerowonly:
-                    datatable.append(np.array((1.1*time, rscale, lscale), dtype=DTCAL))
+                    datatable.append(np.array((1.1*time, rscale, lscale), dtype=const.DTCAL))
 
         datatables[site] = np.array(datatable)
 
@@ -602,21 +135,42 @@ def xyz_2_latlong(obsvecs):
     return out
 
 def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True, frotcal=True, elev_function='astropy', interp_dt=1., \
-        elev_interp_kind='cubic', err_scale=1., skip_fluxcal=False, keep_absolute_phase=True, station_frot=STATION_FROT):
-    """apply a calibration table to a uvfits file
-       Args:
-        caltable (Caltable) : a caltable object
-        datastruct (Datastruct) :  input data structure in EHTIM format
-        filename_out (str) :  uvfits output file name
-        interp (str) : kind of interpolation to perform for gain tables
-        extrapolate (bool) : toggle extrapolation for gain tables and elevation computation
-        frotcal (bool): whether apply field rotation angle correction
-        elev_function (str): 'astropy' or 'ehtim' for calculating elevation
-        interp_dt (float) : time resolution for interpolation
-        elev_interp_kind (str) : kind of interpolation to perform for elevation computation
-        err_scale (float) : scaling factor for error
-        skip_fluxcal (bool): toggle whether SEFDs should be applied (i.e. flux calibration)
-        keep_absolute_phase (bool): toggle whether absolute phase of LL* visibilities should be kept
+        elev_interp_kind='cubic', err_scale=1., skip_fluxcal=False, keep_absolute_phase=True, station_frot=const.STATION_FROT):
+    """
+    Apply a calibration table to a uvfits file.
+
+    Parameters
+    ----------
+    caltable : Caltable
+        Calibration table object.
+    datastruct : Datastruct
+        Input data structure in EHTIM format.
+    filename_out : str
+        Output uvfits file name.
+    interp : str, optional
+        Kind of interpolation to perform for gain tables. Default is 'linear'.
+    extrapolate : bool, optional
+        Toggle extrapolation for gain tables and elevation computation. Default is True.
+    frotcal : bool, optional
+        Toggle whether field rotation angle correction is to be applied. Default is True.
+    elev_function : str, optional
+        Choose whether to use 'astropy' or 'ehtim' for calculating elevation. Default is 'astropy'.
+    interp_dt : float, optional
+        Time resolution for interpolation (seconds). Default is 1.
+    elev_interp_kind : str, optional
+        Kind of interpolation to perform for elevation computation. Default is 'cubic'.
+    err_scale : float, optional
+        Scaling factor for error. Default is 1.
+    skip_fluxcal : bool, optional
+        Toggle whether SEFDs should be applied (i.e. apriori amplitude calibration). Default is False.
+    keep_absolute_phase : bool, optional
+        Toggle whether absolute phase of LL* visibilities should be kept. Default is True.
+    station_frot : dict, optional
+        Dictionary of station field rotation parameters. Default is STATION_FROT.
+
+    Returns
+    -------
+    None
     """
 
     if datastruct.dtype != "EHTIM":
@@ -645,7 +199,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
 
     if not station_frot:
         logging.warning("Empty dict passed for station mount information! Using default values...")
-        station_frot = STATION_FROT
+        station_frot = const.STATION_FROT
 
     #FIND MAX RANGE OF MJD TIMES FOR INTERPOLATION
     if (frotcal==True)&(interp_dt>0):
@@ -699,7 +253,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             caltable.data[site]
         except KeyError:
             skipsites.append(site)
-            print ("No Calibration  Data for %s !" % site)
+            logging.warning(f"No SEFD information found for {site}!")
             continue
 
         if skip_fluxcal: #if we don't do flux calibration don't waste time on serious interpolating
@@ -733,8 +287,8 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         t1 = bl_obs['t1'][0].decode() # INI: bytes to str
         t2 = bl_obs['t2'][0].decode()
         coub=coub+1
-        print('Calibrating {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
-        time_mjd = bl_obs['time'] - MJD_0 #dates are in mjd in Datastruct
+        logging.info('Calibrating {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
+        time_mjd = bl_obs['time'] - const.MJD_0 #dates are in mjd in Datastruct
         if frotcal==True:
             gmst = gmst_function(time_mjd)
             thetas = np.mod((gmst - ra), 2*np.pi)
@@ -833,7 +387,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     xyz = np.array([[tarr[i]['x'],tarr[i]['y'],tarr[i]['z']] for i in np.arange(len(tarr))])
 
     # uvfits format output data table
-    bl_arr = np.empty((len(datatable)), dtype=BLTYPE)
+    bl_arr = np.empty((len(datatable)), dtype=const.BLTYPE)
     for i in range(len(datatable)):
         entry = datatable[i]
         t1num = entry['t1']
@@ -851,7 +405,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             entry['rl'] = np.conj(lr)
             entry['lr'] = np.conj(rl)
             datatable[i] = entry
-        bl_arr[i] = np.array((entry['time'],entry['t1'],entry['t2']),dtype=BLTYPE)
+        bl_arr[i] = np.array((entry['time'],entry['t1'],entry['t2']),dtype=const.BLTYPE)
     _, unique_idx_anttime, idx_anttime = np.unique(bl_arr, return_index=True, return_inverse=True)
     _, unique_idx_freq, idx_freq = np.unique(datatable['freq'], return_index=True, return_inverse=True)
 
