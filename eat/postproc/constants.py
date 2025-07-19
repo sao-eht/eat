@@ -12,6 +12,7 @@ BLTYPE = [('time','f8'),('t1','a32'),('t2','a32')]
 DTCAL = [('time','f8'), ('rscale','c16'), ('lscale','c16')]
 
 MJD_0 = 2400000.5
+SECONDS_IN_DAY = 86400.0  # Number of seconds in a day
 
 # Comment out the following legacy constants not being used anywhere currently
 # ----------------------------------------------------------------------------

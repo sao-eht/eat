@@ -1,5 +1,5 @@
-# INI: This script contains routines for performing a priori flux calibration
-# adapted from previous years' scripts by Maciek, CK, Lindy, and others.
+# INI: This script contains routines for performing a priori flux calibration.
+# Adapted from previous years' scripts by Maciek, CK, Lindy, and others.
 
 import numpy as np
 import datetime
@@ -19,15 +19,48 @@ logging.basicConfig(level=loglevel,
                     format='%(asctime)s %(levelname)s:: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
-
-
 def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False):
-    """Load apriori cal tables
     """
+    Load calibration table data for amplitude and field rotation corrections.
 
-    # load metadata from the UVFITS file pre-converted to EHTIM-type datastruct
+    This function loads calibration data (such as SEFDs) for each antenna site from text files,
+    or generates mock SEFDs if `skip_fluxcal` is True. The data are used to construct a `Caltable`
+    object for further processing.
+
+    Parameters
+    ----------
+    datastruct : object
+        EHTIM-type data structure containing observation metadata and data.
+    tabledir : str
+        Directory path containing calibration table files for each antenna site.
+    sqrt_gains : bool, optional
+        If True, take the square root of the gain values when loading calibration data.
+        Default is False.
+    skip_fluxcal : bool, optional
+        If True, skip loading SEFD files and generate mock SEFDs with value 1.0 for all times.
+        Default is False.
+
+    Returns
+    -------
+    caltable : Caltable or bool
+        Returns a `Caltable` object containing calibration data if successful.
+        Returns False if no SEFD files are available and `skip_fluxcal` is False.
+
+    Raises
+    ------
+    Exception
+        If `datastruct` is not in EHTIM format or if the calibration table file format is unknown.
+
+    Notes
+    -----
+    - Handles AIPS source name truncation by matching patterns in filenames.
+    - If only one row of calibration data is present, duplicates it with a slightly offset time.
+    - Skips corrupted or missing calibration files and logs warnings.
+    """
     if datastruct.dtype != "EHTIM":
         raise Exception("datastruct must be in EHTIM format in load_caltable!")
+    
+    # Load observation info from ehtim-style datastruct
     tarr = datastruct.antenna_info
     source = datastruct.obs_info.src
     mjd = int(np.min(datastruct.data['time'] - const.MJD_0))
@@ -38,16 +71,15 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
 
     datatables = {}
     for s in range(0, len(tarr)):
+        site = tarr[s]['site'].decode() # bytes to str
 
-        site = tarr[s]['site'].decode() # INI: bytes to str to avoid type errors downstream
-
-        if skip_fluxcal: #mocking SEFDs equal to 1.0 spread across the day
-
+        # If skip_fluxcal is True, generate mock SEFDs equal to unity
+        if skip_fluxcal:
             datatable = []
             for time in np.linspace(0.,24.,100):
                 datatable.append(np.array((time, 1.0, 1.0), dtype=const.DTCAL))
 
-        else: # getting SEFDS from files
+        else:
             # AIPS can only handle 8-character source name so "source" may
             # be truncated.  Therefore, we match a pattern (note the "*")
             # and proceed only if there is one match
@@ -60,15 +92,18 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
                     print(f'Skipping corrupted file: {filenames[0]}')
                     continue
 
-                filename_source = filenames[0].replace(tabledir+'/', '').replace(f'_{site}.txt', '')
-                if source != filename_source:
-                    print('WARNING: name of source in filename is different from the one in the EHTIM datastruct')
-                    if filename_source.startswith(source):
-                        print(f'which is probably due to AIPS source name truncation; using the full name {filename_source} from the filename...')
-                        source = filename_source
+                sourcename_file = filenames[0].replace(tabledir+'/', '').replace(f'_{site}.txt', '')
+
+                if source != sourcename_file:
+                    logging.warning(f'Source name in filename ({sourcename_file}) is different from the one in datastruct ({source}).')
+                    if sourcename_file.startswith(source):
+                        logging.warning(f'This is likely due to AIPS source name truncation. Using the one in the filename...')
+                        source = sourcename_file
+
             elif len(filenames) == 0:
                 logging.warning(f'No file matching {pattern} exists! Skipping...')
                 continue
+
             else:
                 logging.warning(f'More than one file matching pattern {pattern}. Skipping...')
                 continue
@@ -84,9 +119,9 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
             for row in data:
                 time = (float(row[0]) - mjd) * 24.0 # time is given in mjd
 
-    #            # Maciek's old convention had a square root
-    #           rscale = np.sqrt(float(row[1])) # r
-    #           lscale = np.sqrt(float(row[2])) # l
+                # Maciek's old convention had a square root
+                # rscale = np.sqrt(float(row[1])) # r
+                # lscale = np.sqrt(float(row[2])) # l
 
                 if len(row) == 3:
                     rscale = float(row[1])
@@ -114,23 +149,47 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
         caltable=False
     else: #other cases, either we want flux and we do have SEFDs, or we want to skip fluxcal
         caltable = Caltable(ra, dec, rf, bw, datatables, tarr, source=source, mjd=mjd, timetype='UTC')
+
     return caltable
 
-def xyz_2_latlong(obsvecs):
-    """Compute the (geocentric) latitude and longitude of a site at geocentric position x,y,z
-       The output is in radians
+def convert_xyz_to_latlong(obsvecs):
     """
+    Converts Cartesian coordinates (x, y, z) to latitude and longitude.
+
+    Parameters
+    ----------
+    obsvecs : array_like
+        Array of shape (N, 3) or (3,) representing N vectors or a single vector
+        in Cartesian coordinates (x, y, z).
+
+    Returns
+    -------
+    out : ndarray
+        Array of shape (N, 2) or (2,) containing latitude and longitude pairs
+        in radians for each input vector. The first column is latitude, the second is longitude.
+
+    Notes
+    -----
+    Latitude is computed as arctan2(z, sqrt(x^2 + y^2)).
+    Longitude is computed as arctan2(y, x).
+    """
+
     if len(obsvecs.shape)==1:
         obsvecs=np.array([obsvecs])
+
     out = []
     for obsvec in obsvecs:
         x = obsvec[0]
         y = obsvec[1]
         z = obsvec[2]
-        lon = np.array(np.arctan2(y,x))
+
         lat = np.array(np.arctan2(z, np.sqrt(x**2+y**2)))
+        lon = np.array(np.arctan2(y,x))
+
         out.append([lat,lon])
+
     out = np.array(out)
+    
     #if out.shape[0]==1: out = out[0]
     return out
 
@@ -174,40 +233,43 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     """
 
     if datastruct.dtype != "EHTIM":
-        raise Exception("datastruct must be in EHTIM format in apply_caltable_uvfits!")
+        raise Exception("datastruct must be in EHTIM format to proceed with apriori calibration! Exiting...")
 
     if not (caltable.tarr == datastruct.antenna_info).all():
-        raise Exception("The telescope array in the Caltable is not the same as in the Datastruct")
+        raise Exception("Mismatch between antenna information in caltable and datastruct! Exiting...")
 
-    # interpolate the calibration table
+    # declare variables
     rinterp = {}
     linterp = {}
     skipsites = []
 
-    #PREPARE INTERPOLATION DATA
-    xyz={}
-    latitude={}
-    longitude={}
-    ra = caltable.ra*np.pi*2./24.#rad
-    dec = caltable.dec*np.pi*2./360.#rad
+    xyz = {}
+    latitude = {}
+    longitude = {}
+
+    ra = caltable.ra * 2.*np.pi/24. # convert hours to radians
+    dec = caltable.dec * 2.*np.pi/360. # convert degrees to radians
     sourcevec = np.array([np.cos(dec), 0, np.sin(dec)])
-    PAR={}
-    ELE={}
-    OFF={}
-    elevfit={}
-    gmst_function= lambda time_mjd: Time(time_mjd, format='mjd').sidereal_time('mean','greenwich').hour*2.*np.pi/24.
+
+    PAR = {}
+    ELE = {}
+    OFF = {}
+
+    elevfit = {}
+    gmst_function = lambda time_mjd: Time(time_mjd, format='mjd').sidereal_time('mean','greenwich').hour * 2.*np.pi/24.
 
     if not station_frot:
         logging.warning("Empty dict passed for station mount information! Using default values...")
         station_frot = const.STATION_FROT
 
-    #FIND MAX RANGE OF MJD TIMES FOR INTERPOLATION
-    if (frotcal==True)&(interp_dt>0):
-        dt_mjd = interp_dt*1./24./60./60. #interp_dt in sec
-        mjd_max=-1
-        mjd_min=1e10
+    # Make fine time grids for interpolation from info obtained from caltable
+    if frotcal and interp_dt > 0:
+        dt_mjd = interp_dt / const.SECONDS_IN_DAY # convert seconds to days
+
+        mjd_max = -1
+        mjd_min = 1e10
         for s in range(0, len(caltable.tarr)):
-            site = caltable.tarr[s]['site'].decode() # INI: bytes to str
+            site = caltable.tarr[s]['site'].decode() # bytes to str
             try:
                 #sometimes station reported but no calibration
                 time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
@@ -217,52 +279,56 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                     mjd_max = mjd_max_foo
                 if (mjd_min_foo < mjd_min):
                     mjd_min = mjd_min_foo
-            except KeyError: continue
-        #MAKE TIME GRIDS FOR INTERPOLATION
-        time_mjd_fake = np.arange(mjd_min,mjd_max,dt_mjd)
-        gmst_fake = gmst_function(time_mjd_fake)
-        datetimes_fake = Time(time_mjd_fake, format='mjd').to_datetime()
-        strtime_fake = [str(round_time(x)) for x in datetimes_fake]
-        thetas_fake = np.mod((gmst_fake - ra), 2.*np.pi)
+            except KeyError:
+                continue
+
+        time_mjd_vec = np.arange(mjd_min, mjd_max+dt_mjd, dt_mjd) # INI: create a time vector for interpolation with one additional element!!!
+
+        datetimes_vec = Time(time_mjd_vec, format='mjd').to_datetime()
+        strtime_vec = [str(round_time(x)) for x in datetimes_vec]
+
+        gmst_vec = gmst_function(time_mjd_vec)
+        thetas_vec = np.mod((gmst_vec - ra), 2.*np.pi)
 
     for s in range(0, len(caltable.tarr)):
-        site = caltable.tarr[s]['site'].decode() # INI: bytes to str
-        xyz_foo = np.asarray((caltable.tarr[s]['x'],caltable.tarr[s]['y'],caltable.tarr[s]['z']))
-        xyz[site] = xyz_foo
-        latlong = xyz_2_latlong(xyz_foo)
-        latitude[site] = latlong[0][0]#rad
-        longitude[site] = latlong[0][1]#rad
+        site = caltable.tarr[s]['site'].decode() # bytes to str
+
+        xyz[site] = np.asarray((caltable.tarr[s]['x'],caltable.tarr[s]['y'],caltable.tarr[s]['z']))
+        latlong = convert_xyz_to_latlong(xyz[site])
+        latitude[site] = latlong[0][0] # rad
+        longitude[site] = latlong[0][1] # rad
+
         PAR[site] = station_frot[site][0]
         ELE[site] = station_frot[site][1]
         OFF[site] = station_frot[site][2]
 
         # This is only if we interpolate elevation
-        if (frotcal==True)&(interp_dt>0):
-            if elev_function=='ehtim':
-                elev_fake_foo = get_elev_2(earthrot(xyz[site], thetas_fake), sourcevec)#ehtim
+        if frotcal and interp_dt > 0:
+            if elev_function == 'ehtim':
+                elev_vec = get_elev_ehtim(earthrot(xyz[site], thetas_vec), sourcevec)  # ehtim
             else:
-                elev_fake_foo = get_elev(ra, dec, xyz[site], strtime_fake)##astropy
+                elev_vec = get_elev_astropy(ra, dec, xyz[site], strtime_vec)  # astropy
 
-            # INI: extrapolate elevation to values outside the range; NOT IN OLDER VERSIONS OF AMPLITUDE CALIBRATION SCRIPT
+            # Allow extrapolation of elevation angles to values outside the timerange obtained from caltable.
+            # This is necessary since the timerange obtained from datastruct may spill over the timerange obtained from caltable.
             if extrapolate:
-                elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo, kind=elev_interp_kind, fill_value='extrapolate')
+                elevfit[site] = scipy.interpolate.interp1d(time_mjd_vec, elev_vec, kind=elev_interp_kind, fill_value='extrapolate')
             else:
-                elevfit[site] = scipy.interpolate.interp1d(time_mjd_fake, elev_fake_foo, kind=elev_interp_kind)
+                elevfit[site] = scipy.interpolate.interp1d(time_mjd_vec, elev_vec, kind=elev_interp_kind)
 
         try:
             caltable.data[site]
         except KeyError:
             skipsites.append(site)
-            logging.warning(f"No SEFD information found for {site}!")
+            logging.warning(f"No SEFD information found for {site}! Skipping this site...")
             continue
 
-        if skip_fluxcal: #if we don't do flux calibration don't waste time on serious interpolating
+        # If skip_fluxcal is True, we do not load SEFDs, but create mock ones; otherwise we load the SEFDs from the caltable
+        if skip_fluxcal:
             rinterp[site] = scipy.interpolate.interp1d([0],[1],kind='zero',fill_value='extrapolate')
             linterp[site] = scipy.interpolate.interp1d([0],[1],kind='zero',fill_value='extrapolate')
-
-        else: #default option, create interpolating station based SEFD gains
-            time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd
-           
+        else:
+            time_mjd = caltable.data[site]['time']/24.0 + caltable.mjd # convert time to mjd           
             if extrapolate:
                 rinterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['rscale'], kind=interp, fill_value='extrapolate')
                 linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'], kind=interp, fill_value='extrapolate')
@@ -271,7 +337,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                 linterp[site] = scipy.interpolate.interp1d(time_mjd, caltable.data[site]['lscale'], kind=interp)
 
 
-    #-------------------------------------------
+    #------------------------- Get info from datastruct ------------------
     # sort by baseline
     data =  datastruct.data
     idx = np.lexsort((data['t2'], data['t1']))
@@ -279,44 +345,53 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     for key, group in it.groupby(data[idx], lambda x: set((x['t1'], x['t2'])) ):
         bllist.append(np.array([obs for obs in group]))
 
-    # apply the calibration
-
+    # Apply the calibration
     datatable = []
-    coub=0
+    blcount=0
     for bl_obs in bllist:
-        t1 = bl_obs['t1'][0].decode() # INI: bytes to str
+        t1 = bl_obs['t1'][0].decode() # bytes to str
         t2 = bl_obs['t2'][0].decode()
-        coub=coub+1
-        logging.info('Calibrating {}-{} baseline, {}/{}'.format(t1,t2,coub,len(bllist)))
-        time_mjd = bl_obs['time'] - const.MJD_0 #dates are in mjd in Datastruct
-        if frotcal==True:
+        blcount=blcount+1
+        logging.info(f'Calibrating {t1}-{t2} baseline, {blcount}/{len(bllist)}')
+
+        time_mjd = bl_obs['time'] - const.MJD_0 # dates are in mjd in Datastruct
+        logging.info(f"Time (MJD) for {t1}-{t2} baseline: {time_mjd[0]} to {time_mjd[-1]}")
+
+        if frotcal:
             gmst = gmst_function(time_mjd)
             thetas = np.mod((gmst - ra), 2*np.pi)
-            hangle1 = gmst + longitude[t1] - ra #HOUR ANGLE FIRST TELESCOPE
-            hangle2 = gmst + longitude[t2] - ra #HOUR ANGLE SECOND TELESCOPE
-            par1I_t1 = np.sin(hangle1)
+
+            hangle1 = gmst + longitude[t1] - ra # HOUR ANGLE T1
+            hangle2 = gmst + longitude[t2] - ra # HOUR ANGLE T2
+            
+            # Calculate parallactic and elevation angles
+            par1I_t1 = np.sin(hangle1) # numerators
             par1I_t2 = np.sin(hangle2)
-            par1R_t1 = np.cos(dec)*np.tan(latitude[t1]) - np.sin(dec)*np.cos(hangle1)
+            par1R_t1 = np.cos(dec)*np.tan(latitude[t1]) - np.sin(dec)*np.cos(hangle1) # denominators
             par1R_t2 = np.cos(dec)*np.tan(latitude[t2]) - np.sin(dec)*np.cos(hangle2)
-            parangle1 = np.angle(par1R_t1 + 1j*par1I_t1 ) #PARALACTIC ANGLE T1
-            parangle2 = np.angle(par1R_t2 + 1j*par1I_t2 ) #PARALACTIC ANGLE T2
-            if interp_dt<=0:
-                if elev_function=='ehtim':
-                    elev1 = get_elev_2(earthrot(xyz[t1], thetas), sourcevec)
-                    elev2 = get_elev_2(earthrot(xyz[t2], thetas), sourcevec)
+
+            parangle1 = np.angle(par1R_t1 + 1j*par1I_t1) # PARALLACTIC ANGLE T1
+            parangle2 = np.angle(par1R_t2 + 1j*par1I_t2) # PARALLACTIC ANGLE T2
+
+            if interp_dt <= 0:
+                if elev_function == 'ehtim':
+                    elev1 = get_elev_ehtim(earthrot(xyz[t1], thetas), sourcevec)
+                    elev2 = get_elev_ehtim(earthrot(xyz[t2], thetas), sourcevec)
                 else:
                     datetimes = Time(time_mjd, format='mjd').to_datetime()
                     strtime = [str(round_time(x)) for x in datetimes]
-                    elev1 = get_elev(ra, dec, xyz[t1], strtime) #ELEVATION T1
-                    elev2 = get_elev(ra, dec, xyz[t2], strtime) #ELEVATION T2
+                    elev1 = get_elev_astropy(ra, dec, xyz[t1], strtime) # ELEVATION T1
+                    elev2 = get_elev_astropy(ra, dec, xyz[t2], strtime) # ELEVATION T2
             else:
+                # Apply scipy interpolation for elevation calculation
                 elev1 = elevfit[t1](time_mjd)
                 elev2 = elevfit[t2](time_mjd)
 
+            # Compute feed rotation angles from the station mount parameters obtained from station_frot
             fran1 = PAR[t1]*parangle1 + ELE[t1]*elev1 + OFF[t1]
             fran2 = PAR[t2]*parangle2 + ELE[t2]*elev2 + OFF[t2]
             
-            #Keeping absolute phase of the LL* visibilities
+            # Decide whether to keep the absolute phase of the LL* visibilities
             if keep_absolute_phase:
                 shift1 = 1j*fran1
                 shift2 = 1j*fran2
@@ -330,7 +405,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                 fran_R2 = np.exp(1j*fran2)
                 fran_L2 = np.exp(-1j*fran2)
             
-
+        # The following is done regardless of whether frotcal is True or False
         if t1 in skipsites:
             rscale1 = lscale1 = np.array(1.)
         else:
@@ -340,6 +415,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             else:
                 rscale1 = rinterp[t1](time_mjd)*fran_R1
                 lscale1 = linterp[t1](time_mjd)*fran_L1
+
         if t2 in skipsites:
             rscale2 = lscale2 = np.array(1.)
         else:
@@ -351,12 +427,12 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
                 lscale2 = linterp[t2](time_mjd)*fran_L2
 
 
-#        if force_singlepol == 'R':
-#            lscale1 = rscale1
-#            lscale2 = rscale2
-#        if force_singlepol == 'L':
-#            rscale1 = lscale1
-#            rscale2 = lscale2
+        # if force_singlepol == 'R':
+        #   lscale1 = rscale1
+        #   lscale2 = rscale2
+        # if force_singlepol == 'L':
+        #   rscale1 = lscale1
+        #   rscale2 = lscale2
 
         rrscale = rscale1 * rscale2.conj()
         llscale = lscale1 * lscale2.conj()
@@ -447,7 +523,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     save_uvfits(datastruct_out, filename_out)
     return
 
-def get_elev(ra_source, dec_source, xyz_antenna, time):
+def get_elev_astropy(ra_source, dec_source, xyz_antenna, time):
     #this one is by Michael Janssen
     """
     given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
@@ -469,27 +545,35 @@ def get_elev(ra_source, dec_source, xyz_antenna, time):
     elevation        = trans_to_altaz.alt
     return elevation.rad
 
-def round_time(t,round_s=1.):
-
-    """rounding time to given accuracy
-
-    Args:
-        t: time
-        round_s: delta time to round to in seconds
-
-    Returns:
-        round_t: rounded time
+def round_time(t: datetime.datetime, round_s: float = 1.) -> datetime.datetime:
     """
-    t0 = datetime.datetime(t.year,1,1)
-    foo = t - t0
-    foo_s = foo.days*24*3600 + foo.seconds + foo.microseconds*(1e-6)
-    foo_s = np.round(foo_s/round_s)*round_s
-    days = np.floor(foo_s/24/3600)
-    seconds = np.floor(foo_s - 24*3600*days)
-    microseconds = int(1e6*(foo_s - days*3600*24 - seconds))
-    round_t = t0+datetime.timedelta(days,seconds,microseconds)
-    return round_t
+    Round a datetime object to the nearest specified number of seconds.
 
+    Parameters
+    ----------
+    t : datetime.datetime
+        The datetime object to be rounded.
+    round_s : float, optional
+        The number of seconds to round to (default is 1.0).
+
+    Returns
+    -------
+    datetime.datetime
+        The rounded datetime object.
+    """
+    t0 = datetime.datetime(t.year, 1, 1)
+
+    foo = t - t0
+    foo_s = foo.days * 24 * 3600 + foo.seconds + foo.microseconds * (1e-6)
+    foo_s = np.round(foo_s / round_s) * round_s
+
+    days = np.floor(foo_s / 24 / 3600)
+    seconds = np.floor(foo_s - 24 * 3600 * days)
+    microseconds = int(1e6 * (foo_s - days * 3600 * 24 - seconds))
+
+    round_t = t0 + datetime.timedelta(days, seconds, microseconds)
+    
+    return round_t
 
 def earthrot(vecs, thetas):
     """Rotate a vector / array of vectors about the z-direction by theta / array of thetas (radian)
@@ -517,7 +601,7 @@ def earthrot(vecs, thetas):
 
     return rotvec
 
-def get_elev_2(obsvecs, sourcevec):
+def get_elev_ehtim(obsvecs, sourcevec):
     """Return the elevation of a source with respect to an observer/observers in radians
        obsvec can be an array of vectors but sourcevec can ONLY be a single vector
     """

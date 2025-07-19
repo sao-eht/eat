@@ -4,7 +4,7 @@ import os
 import sys
 import glob
 import argparse
-from hops2uvfits import convert_uvfits_to_datastruct
+from eat.io.uvfits import convert_uvfits_to_datastruct
 from eat.postproc import cal_amplitude_farotate as caf
 from eat.postproc.utils import read_station_mounts
 import logging
@@ -82,7 +82,9 @@ def main(args):
         logging.info(f"Expt no: {tok[1]}")
         logging.info(f"Source: {tok[2]}")
 
-        # convert uvfits to ehtim data structure
+        # Convert uvfits to ehtim data structure.
+        # Internally, this reads a UVFITS file, loads it into a "UVFITS" type Datastruct object,
+        # and then converts it to an "EHTIM" type Datastruct object.
         datastruct_ehtim = convert_uvfits_to_datastruct(uvfitsfile)
 
         # ensure source names are consistent between ehtim data structure and the input uvfits filenames

@@ -14,6 +14,7 @@ from astropy.time import Time, TimeDelta
 from astropy.io import fits
 import datetime as datetime
 from eat.io import vex
+from eat.io.datastructures import Uvfits_data, Obs_info, Antenna_info, Datastruct
 import logging
 
 # Configure logging
@@ -25,6 +26,12 @@ logging.basicConfig(level=loglevel,
 MJD_0 = 2400000.5
 RDATE_DEGPERDY = 360.98564497330 # TODO: def. from AIPS; get the actual value?
 ROUND_SCAN_INT = 20 # decimal precision for the scan start & stop times (fractional day)
+DTARR = [('site', 'a32'), ('x','f8'), ('y','f8'), ('z','f8')]
+DTPOL = [('time','f8'),('freq','f8'),('tint','f8'),
+            ('t1','a32'),('t2','a32'),
+            ('u','f8'),('v','f8'),
+            ('rr','c16'),('ll','c16'),('rl','c16'),('lr','c16'),
+            ('rrweight','f8'),('llweight','f8'),('rlweight','f8'),('lrweight','f8')]
 
 def get_info(observation='EHT2017',path_vex='vex/'):
     '''
@@ -1000,3 +1007,199 @@ def save_uvfits(datastruct, fname):
     hdulist.writeto(fname, overwrite=True)
 
     return 0
+
+def load_hops_uvfits(filename):
+    """
+    Reads a UVFITS file and returns its data in a Datastruct object.
+    Parameters
+    ----------
+    filename : str
+        Path to the UVFITS file to be read.
+    Returns
+    -------
+    Datastruct
+        An object containing the parsed UVFITS data, including observation info,
+        antenna info, and visibility data.
+    Raises
+    ------
+    Exception
+        If the observing frequency/bandwidth or number of channels cannot be found.
+    Notes
+    -----
+    - The function expects specific HDU tables and header keywords to be present in the UVFITS file.
+    - Scan times are calculated as midpoints based on scan start and duration.
+    - Visibility data is converted from light seconds to lambda units using the reference frequency.
+    """
+    # Read the uvfits file
+    logging.debug(f"Reading uvfits file: {filename}")
+    hdulist = fits.open(filename)
+    header = hdulist[0].header
+    data = hdulist[0].data
+
+    # Load the telescope array data
+    tnames = hdulist['AIPS AN'].data['ANNAME']
+    tnums = hdulist['AIPS AN'].data['NOSTA'] - 1
+    xyz = hdulist['AIPS AN'].data['STABXYZ']
+    antennainfo = Antenna_info(tnames, tnums, xyz)
+
+    # Load the various observing header parameters
+    if 'OBSRA' not in header.keys(): header['OBSRA'] = header['CRVAL6']
+    ra = header['OBSRA'] * 12./180.
+    if 'OBSDEC' not in header.keys(): header['OBSDEC'] = header['CRVAL7']
+    dec = header['OBSDEC']
+    src = header['OBJECT']
+
+    rf = hdulist['AIPS AN'].header['FREQ']
+
+    if header['CTYPE4'] == 'FREQ':
+        ch1_freq = header['CRVAL4'] + hdulist['AIPS FQ'].data['IF FREQ'][0][0]
+        ch_bw = header['CDELT4']
+    else: raise Exception('Cannot find observing frequency/bandwidth!')
+
+    if header['CTYPE5'] == 'IF':
+        nchan = header['NAXIS5']
+    else: raise Exception('Cannot find number of channels!')
+
+    num_ifs = len(hdulist['AIPS FQ'].data['IF FREQ'][0])
+    if (num_ifs>1):
+        ch_spacing = hdulist['AIPS FQ'].data['IF FREQ'][0][1] - hdulist['AIPS FQ'].data['IF FREQ'][0][0]
+    else: raise Exception('Cannot find uvfits channel spacing in AIPS FREQ table!')
+
+    # load the scan information
+    
+    try: 
+        refdate_str = hdulist['AIPS AN'].header['RDATE'] # in iso
+        refdate = Time(refdate_str, format='isot', scale='utc').jd
+    except ValueError: 
+        logging.warning('ValueError in reading AIPS AN RDATE! Using PRIMARY DATE-OBS value')
+        refdate_str = hdulist['PRIMARY'].header['DATE-OBS'] # in iso
+        refdate = Time(refdate_str, format='isot', scale='utc').jd
+
+    try: scan_starts = hdulist['AIPS NX'].data['TIME'] #in days since reference date
+    except KeyError: scan_starts=[]
+    try: scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
+    except KeyError: scan_durs=[]
+    scan_arr = []
+    
+    for kk in range(len(scan_starts)):
+        scan_start = scan_starts[kk]
+        scan_dur = scan_durs[kk]
+        # TODO AIPS MEMO 117 says scan_times should be midpoint!, but AIPS data looks likes it's at the start?
+        #scan_arr.append([scan_start + refdate,
+        #                  scan_start + scan_dur + refdate])
+        scan_arr.append([scan_start - 0.5*scan_dur + refdate,
+                         scan_start + 0.5*scan_dur + refdate])
+
+    scan_arr = np.array(scan_arr)
+    obsinfo = Obs_info(src, ra, dec, rf, ch_bw, ch_spacing, ch1_freq, nchan, scan_arr)
+
+    # Load the random group parameters and the visibility data
+    # Convert uv in lightsec to lambda by multiplying by rf
+    try:
+        u = data['UU---SIN'] * rf
+        v = data['VV---SIN'] * rf
+    except KeyError:
+        u = data['UU'] * rf
+        v = data['VV'] * rf
+    baselines = data['BASELINE']
+    jds = data['DATE'].astype('d') + data['_DATE'].astype('d')
+
+
+    try: tints = data['INTTIM']
+    except KeyError: tints = np.array([1]*np.shape(data)[0], dtype='float32')
+    obsdata = data['DATA']
+
+    alldata = Uvfits_data(u,v,baselines,jds, tints, obsdata)
+
+    return Datastruct(obsinfo, antennainfo, alldata)
+
+def convert_uvfits_to_datastruct(filename):
+    """
+    Converts a UVFITS file to a Datastruct object compatible with EHTIM.
+    This function loads a UVFITS file, extracts relevant header and data parameters,
+    and organizes them into a Datastruct object. It processes telescope array information,
+    baseline data, observation times, and visibility data for all polarization products.
+    The output Datastruct contains all necessary metadata and data arrays for further analysis.
+    Parameters
+    ----------
+    filename : str
+        Path to the UVFITS file to be converted.
+    Returns
+    -------
+    datastruct_out : Datastruct
+        Datastruct object containing the parsed UVFITS data, including observation info,
+        telescope array information, and a datatable of visibilities and weights.
+    Notes
+    -----
+    - The function assumes the existence of supporting types and functions such as
+      `load_hops_uvfits`, `DTARR`, `DTPOL`, and `Datastruct`.
+    - Flags from the UVFITS file are not currently extracted.
+    - The function is tailored for EHTIM data structures and may require adaptation
+      for other use cases.
+    """
+    
+    # Load the uvfits file to a UVFITS format datasctruct
+    datastruct = load_hops_uvfits(filename)
+
+    # get the various necessary header parameters
+    ch1_freq = datastruct.obs_info.ch_1
+    ch_spacing = datastruct.obs_info.ch_spacing
+    nchan = datastruct.obs_info.nchan
+
+    # put the array data in a telescope array format
+    tnames = datastruct.antenna_info.antnames
+    tnums = datastruct.antenna_info.antnums
+    xyz = datastruct.antenna_info.xyz
+
+    tarr = [np.array((tnames[i], xyz[i][0], xyz[i][1], xyz[i][2]),
+            dtype=DTARR) for i in range(len(tnames))]
+    tarr = np.array(tarr)
+
+    # put the random group data and vis data into a data array
+    # Convert uv in lightsec to lambda by multiplying by rf
+    u = datastruct.data.u
+    v = datastruct.data.v
+    baseline = datastruct.data.bls
+    jds = datastruct.data.jds
+    tints = datastruct.data.tints
+    obsdata = datastruct.data.datatable
+
+    # Sites - add names
+    t1 = baseline.astype(int)//256 # python3
+    t2 = baseline.astype(int) - t1*256
+    t1 = t1 - 1
+    t2 = t2 - 1
+    t1 = np.array([tarr[i]['site'] for i in t1])
+    t2 = np.array([tarr[i]['site'] for i in t2])
+
+    # Obs Times
+    #mjd = int(np.min(jds) - MJD_0)
+    #times = (jds - MJD_0 - mjd) * 24.0
+
+    # Get vis data
+    rr = obsdata[:,0,0,:,0,0,0] + 1j*obsdata[:,0,0,:,0,0,1]
+    ll = obsdata[:,0,0,:,0,1,0] + 1j*obsdata[:,0,0,:,0,1,1]
+    rl = obsdata[:,0,0,:,0,2,0] + 1j*obsdata[:,0,0,:,0,2,1]
+    lr = obsdata[:,0,0,:,0,3,0] + 1j*obsdata[:,0,0,:,0,3,1]
+
+    rrweight = obsdata[:,0,0,:,0,0,2]
+    llweight = obsdata[:,0,0,:,0,1,2]
+    rlweight = obsdata[:,0,0,:,0,2,2]
+    lrweight = obsdata[:,0,0,:,0,3,2]
+
+    # Make a datatable
+    # TODO check that the jd not cut off by precision
+    datatable = np.empty((len(jds)*nchan), dtype=DTPOL)
+    idx = 0
+    for i in range(len(jds)):
+        for j in range(nchan):
+            freq = j*ch_spacing + ch1_freq
+            datatable[idx] = np.array((jds[i], freq, tints[i], t1[i], t2[i], u[i], v[i], rr[i,j], ll[i,j], rl[i,j], lr[i,j], \
+                              rrweight[i,j], llweight[i,j], rlweight[i,j], lrweight[i,j]), dtype=DTPOL)
+
+            idx += 1
+
+    datastruct_out = Datastruct(datastruct.obs_info, tarr, datatable, dtype="EHTIM")
+
+    #TODO get flags from uvfits?
+    return datastruct_out

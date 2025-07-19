@@ -148,9 +148,80 @@ class Uvfits_data(object):
         self.tints = tints
         self.datatable = datatable
 
+class Obs_info(object):
+    """
+    Obs_info stores observational metadata for a given source.
+    Parameters
+    ----------
+    src : str
+        Name of the observed source.
+    ra : float
+        Right ascension of the source (in degrees or appropriate units).
+    dec : float
+        Declination of the source (in degrees or appropriate units).
+    ref_freq : float
+        Reference frequency for the observation (in Hz).
+    ch_bw : float
+        Channel bandwidth (in Hz).
+    ch_spacing : float
+        Spacing between channels (in Hz).
+    ch_1 : float
+        Frequency of the first channel (in Hz).
+    nchan : int
+        Number of frequency channels.
+    scan_array : array-like
+        Array containing scan information for the observation.
+    Attributes
+    ----------
+    src : str
+        Name of the observed source.
+    ra : float
+        Right ascension of the source.
+    dec : float
+        Declination of the source.
+    ref_freq : float
+        Reference frequency for the observation.
+    ch_bw : float
+        Channel bandwidth.
+    ch_spacing : float
+        Channel spacing.
+    ch_1 : float
+        Frequency of the first channel.
+    nchan : int
+        Number of channels.
+    scans : array-like
+        Scan information array.
+    """
+    def __init__(self, src, ra, dec, ref_freq, ch_bw, ch_spacing, ch_1, nchan, scan_array):
+        self.src = src
+        self.ra = ra
+        self.dec = dec
+        self.ref_freq = ref_freq
+        self.ch_bw = ch_bw
+        self.ch_spacing = ch_spacing
+        self.ch_1 = ch_1
+        self.nchan = nchan
+        self.scans = scan_array
+
 class Antenna_info(object):
     """
     Antenna metadata class to store information about antennas.
+    Parameters
+    ----------
+    antnames : list of str
+        List of antenna names.
+    antnums : list of int
+        List of antenna numbers or identifiers.
+    xyz : array-like, shape (N, 3)
+        Array containing the (x, y, z) coordinates for each antenna.
+    Attributes
+    ----------
+    antnames : list of str
+        Names of the antennas.
+    antnums : list of int
+        Numbers or identifiers of the antennas.
+    xyz : array-like
+        (x, y, z) coordinates of the antennas.
     """
     def __init__(self, antnames, antnums, xyz):
         self.antnames =  antnames
