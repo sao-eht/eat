@@ -9,14 +9,13 @@ import numpy as np
 import os, datetime
 import scipy.interpolate
 import itertools as it
-import matplotlib.pyplot as plt
-from astropy import units as u
-from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
 from astropy.time import Time, TimeDelta
 from eat.io import vex
 import eat.postproc.constants as const
 from eat.io.datastructures import Caltable, Uvfits_data, Antenna_info, Datastruct
 from eat.io.uvfits import save_uvfits
+from eat.postproc.utils import get_elev_astropy_deg, isfloat, time2datetimeyear, ALMAtime2STANDARDtime
+from eat.postproc.utils import get_elev_numpy, get_elev_astropy, convert_xyz_to_latlong, earthrot, round_time
 from numpy.polynomial import Polynomial
 import logging
 
@@ -34,29 +33,6 @@ sourL = []
 antL0 = []
 exptL0 = []
 bandL0 = ['b1', 'b2', 'b3', 'b4']
-
-def compute_elev(ra_source, dec_source, xyz_antenna, time):
-    """
-    Given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
-    and given the position of the telescope from the vex file [Geocentric coordinates (m)]
-    and the time of the observation (e.g. '2012-7-13 23:00:00') [UTC:yr-m-d],
-    returns the elevation of the telescope.
-    Note that every parameter can be an array (e.g. the time)
-
-    Written by Michael Janssen
-    """
-    #angle conversions:
-    ra_src_deg       = Angle(ra_source, unit=u.hour)
-    ra_src_deg       = ra_src_deg.degree * u.deg
-    dec_src_deg      = Angle(dec_source, unit=u.deg)
-
-    source_position  = ICRS(ra=ra_src_deg, dec=dec_src_deg)
-    antenna_position = EarthLocation(x=xyz_antenna[0]*u.m, y=xyz_antenna[1]*u.m, z=xyz_antenna[2]*u.m)
-    altaz_system     = AltAz(location=antenna_position, obstime=time)
-    trans_to_altaz   = source_position.transform_to(altaz_system)
-    elevation        = trans_to_altaz.alt
-    
-    return elevation.degree
 
 def extract_dpfu_gfit_from_antab(filename, az2z):
     """
@@ -148,89 +124,6 @@ def extract_dpfu_gfit_from_all_antab(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
         dict_gfit = {**dict_gfit, **dict_gfit_loc}
     
     return dict_dpfu, dict_gfit
-
-def isfloat(value):
-    """
-    Check if the given value can be converted to a float.
-    Parameters
-    ----------
-    value : any
-        The value to check.
-    Returns
-    -------
-    bool
-        True if the value can be converted to a float, False otherwise.
-    Examples
-    --------
-    >>> isfloat('3.14')
-    True
-    >>> isfloat('abc')
-    False
-    >>> isfloat(10)
-    True
-    >>> isfloat(None)
-    False
-    """
-
-    try:
-        float(value)
-        return True
-    except ValueError:
-        return False
-
-def time2datetimeyear(year, day, hour):
-    """
-    Convert strings representing year, day, and hour to a datetime object.
-
-    Parameters
-    ----------
-    year : str
-        The year as a string.
-    day : str
-        The day of the year as a string.
-    hour : str
-        The time in 'HH:MM:SS' format as a string.
-
-    Returns
-    -------
-    datetime.datetime
-        A datetime object representing the specified date and time.
-    """
-    
-    day = int(day)
-
-    hms = hour.split(':')
-    h = int(hms[0])%24
-    m = int(hms[1])
-    s = int(hms[2])
-    
-    datet = (datetime.datetime(int(year), 1, 1, h, m, s) + datetime.timedelta(days=day-1))    
-    
-    return datet
-
-def ALMAtime2STANDARDtime(atime):
-    """
-    Convert ALMA time format to standard time format.
-    Parameters
-    ----------
-    atime : str
-        Time in ALMA format (HH:MM.SS).
-    Returns
-    -------
-    datetime.timedelta
-        Time in standard format as a timedelta object.
-    """
-    h = int(atime.split(':')[0])
-    m = int(atime.split(':')[1].split('.')[0])
-    #s = round(60*(float(atime.split(':')[1].split('.')[1])/100))
-    sec = (atime.split(':')[1].split('.')[1])
-    frac_min = float(sec)/10**(len(sec))
-    sec_with_frac = 60*frac_min
-    s = np.floor(sec_with_frac)
-    us = int((sec_with_frac - s)*1e6)
-    dt = datetime.timedelta(hours = h, minutes=m,seconds = s, microseconds=us)
-
-    return dt
 
 def group_tsys_blocks(filename):
     """
@@ -614,7 +507,7 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
             Z2SMT = {v: k for k, v in SMT2Z.items()} # to access the keys of ant_locat easily
             for station in stations_in_scan:
                 if station in polygain_stations:
-                    elevloc[station] = compute_elev(dict_ra[source[scanind]], dict_dec[source[scanind]], ant_locat[Z2SMT[station]], datet[scanind] + TimeDelta(100., format='sec'))
+                    elevloc[station] = get_elev_astropy_deg(dict_ra[source[scanind]], dict_dec[source[scanind]], ant_locat[Z2SMT[station]], datet[scanind] + TimeDelta(100., format='sec'))
             elev.append(elevloc)
 
             # append list of stations in the scan to stations list
@@ -954,47 +847,6 @@ def load_caltable_ds(datastruct, tabledir, sqrt_gains=False, skip_fluxcal=False)
 
     return caltable
 
-def convert_xyz_to_latlong(obsvecs):
-    """
-    Converts Cartesian coordinates (x, y, z) to latitude and longitude.
-
-    Parameters
-    ----------
-    obsvecs : array_like
-        Array of shape (N, 3) or (3,) representing N vectors or a single vector
-        in Cartesian coordinates (x, y, z).
-
-    Returns
-    -------
-    out : ndarray
-        Array of shape (N, 2) or (2,) containing latitude and longitude pairs
-        in radians for each input vector. The first column is latitude, the second is longitude.
-
-    Notes
-    -----
-    Latitude is computed as arctan2(z, sqrt(x^2 + y^2)).
-    Longitude is computed as arctan2(y, x).
-    """
-
-    if len(obsvecs.shape)==1:
-        obsvecs=np.array([obsvecs])
-
-    out = []
-    for obsvec in obsvecs:
-        x = obsvec[0]
-        y = obsvec[1]
-        z = obsvec[2]
-
-        lat = np.array(np.arctan2(z, np.sqrt(x**2+y**2)))
-        lon = np.array(np.arctan2(y,x))
-
-        out.append([lat,lon])
-
-    out = np.array(out)
-    
-    #if out.shape[0]==1: out = out[0]
-    return out
-
 def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', extrapolate=True, frotcal=True, elev_function='astropy', interp_dt=1., \
         elev_interp_kind='cubic', err_scale=1., skip_fluxcal=False, keep_absolute_phase=True, station_frot=const.STATION_FROT):
     """
@@ -1015,7 +867,7 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     frotcal : bool, optional
         Toggle whether field rotation angle correction is to be applied. Default is True.
     elev_function : str, optional
-        Choose whether to use 'astropy' or 'ehtim' for calculating elevation. Default is 'astropy'.
+        Choose whether to use 'astropy' or 'numpy' for calculating elevation. Default is 'astropy'.
     interp_dt : float, optional
         Time resolution for interpolation (seconds). Default is 1.
     elev_interp_kind : str, optional
@@ -1049,8 +901,8 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     latitude = {}
     longitude = {}
 
-    ra = caltable.ra * 2.*np.pi/24. # convert hours to radians
-    dec = caltable.dec * 2.*np.pi/360. # convert degrees to radians
+    ra = caltable.ra * 15 * const.DEG2RAD # convert hours to radians
+    dec = caltable.dec * const.DEG2RAD # convert degrees to radians
     sourcevec = np.array([np.cos(dec), 0, np.sin(dec)])
 
     PAR = {}
@@ -1106,8 +958,8 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
 
         # This is only if we interpolate elevation
         if frotcal and interp_dt > 0:
-            if elev_function == 'ehtim':
-                elev_vec = get_elev_ehtim(earthrot(xyz[site], thetas_vec), sourcevec)  # ehtim
+            if elev_function == 'numpy':
+                elev_vec = get_elev_numpy(earthrot(xyz[site], thetas_vec), sourcevec)  # numpy
             else:
                 elev_vec = get_elev_astropy(ra, dec, xyz[site], strtime_vec)  # astropy
 
@@ -1175,9 +1027,9 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
             parangle2 = np.angle(par1R_t2 + 1j*par1I_t2) # PARALLACTIC ANGLE T2
 
             if interp_dt <= 0:
-                if elev_function == 'ehtim':
-                    elev1 = get_elev_ehtim(earthrot(xyz[t1], thetas), sourcevec)
-                    elev2 = get_elev_ehtim(earthrot(xyz[t2], thetas), sourcevec)
+                if elev_function == 'numpy':
+                    elev1 = get_elev_numpy(earthrot(xyz[t1], thetas), sourcevec)
+                    elev2 = get_elev_numpy(earthrot(xyz[t2], thetas), sourcevec)
                 else:
                     datetimes = Time(time_mjd, format='mjd').to_datetime()
                     strtime = [str(round_time(x)) for x in datetimes]
@@ -1323,94 +1175,3 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
     # save final file
     save_uvfits(datastruct_out, filename_out)
     return
-
-def get_elev_astropy(ra_source, dec_source, xyz_antenna, time):
-    #this one is by Michael Janssen
-    """
-    given right ascension and declination of a sky source [ICRS: ra->(deg,arcmin,arcsec) and dec->(hour,min,sec)]
-    and given the position of the telescope from the vex file [Geocentric coordinates (m)]
-    and the time of the observation (e.g. '2012-7-13 23:00:00') [UTC:yr-m-d],
-    returns the elevation of the telescope.
-    Note that every parameter can be an array (e.g. the time)
-    """
-    from astropy import units as u
-    from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle
-    #angle conversions:
-    ra_src      = Angle(ra_source, unit=u.rad)
-    dec_src      = Angle(dec_source, unit=u.rad)
-
-    source_position  = ICRS(ra=ra_src, dec=dec_src)
-    antenna_position = EarthLocation(x=xyz_antenna[0]*u.m, y=xyz_antenna[1]*u.m, z=xyz_antenna[2]*u.m)
-    altaz_system     = AltAz(location=antenna_position, obstime=time)
-    trans_to_altaz   = source_position.transform_to(altaz_system)
-    elevation        = trans_to_altaz.alt
-    return elevation.rad
-
-def round_time(t: datetime.datetime, round_s: float = 1.) -> datetime.datetime:
-    """
-    Round a datetime object to the nearest specified number of seconds.
-
-    Parameters
-    ----------
-    t : datetime.datetime
-        The datetime object to be rounded.
-    round_s : float, optional
-        The number of seconds to round to (default is 1.0).
-
-    Returns
-    -------
-    datetime.datetime
-        The rounded datetime object.
-    """
-    t0 = datetime.datetime(t.year, 1, 1)
-
-    foo = t - t0
-    foo_s = foo.days * 24 * 3600 + foo.seconds + foo.microseconds * (1e-6)
-    foo_s = np.round(foo_s / round_s) * round_s
-
-    days = np.floor(foo_s / 24 / 3600)
-    seconds = np.floor(foo_s - 24 * 3600 * days)
-    microseconds = int(1e6 * (foo_s - days * 3600 * 24 - seconds))
-
-    round_t = t0 + datetime.timedelta(days, seconds, microseconds)
-    
-    return round_t
-
-def earthrot(vecs, thetas):
-    """Rotate a vector / array of vectors about the z-direction by theta / array of thetas (radian)
-    """
-    if len(vecs.shape)==1:
-        vecs = np.array([vecs])
-    if np.isscalar(thetas):
-        thetas = np.array([thetas for i in range(len(vecs))])
-
-    # equal numbers of sites and angles
-    if len(thetas) == len(vecs):
-        rotvec = np.array([np.dot(np.array(((np.cos(thetas[i]),-np.sin(thetas[i]),0),(np.sin(thetas[i]),np.cos(thetas[i]),0),(0,0,1))), vecs[i])
-                       for i in range(len(vecs))])
-
-    # only one rotation angle, many sites
-    elif len(thetas) == 1:
-        rotvec = np.array([np.dot(np.array(((np.cos(thetas[0]),-np.sin(thetas[0]),0),(np.sin(thetas[0]),np.cos(thetas[0]),0),(0,0,1))), vecs[i])
-                       for i in range(len(vecs))])
-    # only one site, many angles
-    elif len(vecs) == 1:
-        rotvec = np.array([np.dot(np.array(((np.cos(thetas[i]),-np.sin(thetas[i]),0),(np.sin(thetas[i]),np.cos(thetas[i]),0),(0,0,1))), vecs[0])
-                       for i in range(len(thetas))])
-    else:
-        raise Exception("Unequal numbers of vectors and angles in earthrot(vecs, thetas)!")
-
-    return rotvec
-
-def get_elev_ehtim(obsvecs, sourcevec):
-    """Return the elevation of a source with respect to an observer/observers in radians
-       obsvec can be an array of vectors but sourcevec can ONLY be a single vector
-    """
-
-    if len(obsvecs.shape)==1:
-        obsvecs=np.array([obsvecs])
-
-    anglebtw = np.array([np.dot(obsvec,sourcevec)/np.linalg.norm(obsvec)/np.linalg.norm(sourcevec) for obsvec in obsvecs])
-    el = 0.5*np.pi - np.arccos(anglebtw)
-
-    return el

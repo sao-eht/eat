@@ -13,6 +13,7 @@ DTCAL = [('time','f8'), ('rscale','c16'), ('lscale','c16')]
 
 MJD_0 = 2400000.5
 SECONDS_IN_DAY = 86400.0  # Number of seconds in a day
+DEG2RAD = np.deg2rad(1)  # Conversion factor from degrees to radians
 
 # Comment out the following legacy constants not being used anywhere currently
 # ----------------------------------------------------------------------------

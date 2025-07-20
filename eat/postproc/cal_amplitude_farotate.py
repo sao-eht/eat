@@ -355,7 +355,6 @@ def apply_caltable_uvfits(caltable, datastruct, filename_out, interp='linear', e
         logging.info(f'Calibrating {t1}-{t2} baseline, {blcount}/{len(bllist)}')
 
         time_mjd = bl_obs['time'] - const.MJD_0 # dates are in mjd in Datastruct
-        logging.info(f"Time (MJD) for {t1}-{t2} baseline: {time_mjd[0]} to {time_mjd[-1]}")
 
         if frotcal:
             gmst = gmst_function(time_mjd)

@@ -39,7 +39,7 @@ def create_parser():
     p.add_argument('--skipfrotcorr', action='store_true', help='Toggle whether to perform field angle rotation correction')
     p.add_argument('--mixedpol', action='store_true', help='Toggle whether the input data are in mixed polarization basis')
     p.add_argument('--keepllabsphase', action='store_true', help='Toggle whether to keep absolute phase of LL* (i.e. do not rotate)')
-    p.add_argument('--elevmodule', type=str, default='astropy', choices=['astropy', 'ehtim'], help="Python module to use to compute elevation")
+    p.add_argument('--elevmodule', type=str, default='astropy', choices=['astropy', 'numpy'], help="Python module to use to compute elevation")
     p.add_argument('--elevinterpkind', type=str, default='cubic', help="kind of interpolation to perform (scipy-compatible)")
     p.add_argument('--interpolatedt', type=float, default=1., help="Interpolation resolution for integration time dt in seconds")
     p.add_argument('--errorscale', type=float, default=1., help="Error scaling factor")
