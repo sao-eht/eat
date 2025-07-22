@@ -234,13 +234,13 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
 
                     # check if the line contains a valid station code
                     if parts[1] not in AZ2Z:
-                        logging.warning(f"Station {parts[1]} not found in {AZ2Z}. Skipping SEFD generation for {parts[1]}.")
+                        logging.warning(f"Station {parts[1]} in ANTAB ({track}, {band}, {expt}) not found in {AZ2Z} derived from data. Skipping SEFD generation for {parts[1]}.")
                         skip_block = True
                         break
 
                     # If this station has already been processed in the current ANTAB file, skip this block
                     if parts[1] in stations_in_current_antab:
-                        logging.warning(f"Skipping recurring Tsys block for station {parts[1]} ({AZ2Z[parts[1]]}), which has already been processed for this ANTAB file.")
+                        logging.warning(f"Skipping recurring Tsys block in ANTAB for station {parts[1]} ({AZ2Z[parts[1]]}), which has already been processed for this ANTAB file.")
                         skip_block = True
                         break
                     stations_in_current_antab.add(parts[1])
@@ -419,7 +419,7 @@ def ad_hoc_fixes(df,ant,sour):
     return df
 
 def ad_dummy_values(df,dmjd=0.001):
-    logging.info('Adding dummy boundary points to SEFDs...')
+    logging.info(f'Adding dummy boundary points to SEFDs at +/- {dmjd} days ({dmjd*const.SECONDS_IN_DAY} s) ...')
     first = df.head(1).copy()
     last = df.tail(1).copy()
     first['mjd'] = list(map(lambda x: x-dmjd,first['mjd']))
@@ -563,78 +563,65 @@ def extract_scans_from_all_vex(fpath, dict_gfit, year='2021', SMT2Z=SMT2Z, track
                 
     return tracks
 
-def match_scans_with_Tsys(Tsys, scans, pad_seconds=0.0):
+def match_scans_with_Tsys(Tsys: pd.DataFrame,
+                          scans: pd.DataFrame,
+                          pad_seconds: float = 0.0) -> pd.DataFrame:
     """
     Match system temperature (Tsys) data with scans.
+
     Parameters
     ----------
-    Tsys : pandas.DataFrame
-        DataFrame containing Tsys data with a 'datetime' column.
-    scans : pandas.DataFrame
-        DataFrame containing scan data with 'scan_no_tot', 'time_min', 'time_max', and 'source' columns.
+    Tsys : DataFrame
+        Must contain columns 'datetime' and 'station'.
+    scans : DataFrame
+        Must contain 'scan_no_tot', 'time_min', 'time_max', 'source';
+        optional gain columns 'gainA', 'gainB', ...
     pad_seconds : float, optional
-        Number of seconds to pad the scan start and end times. Default is 0.0 seconds.
+        Expand each scan window on both sides by this many seconds.
+
     Returns
     -------
-    pandas.DataFrame
-        DataFrame with Tsys data matched to scans, including additional columns for 'scan_no_tot', 'source', and 't_scan'.
-    Notes
-    -----
-    - Negative labels are used for Tsys from ANTAB corresponding to timestamps that fall between scans.
+    DataFrame
+        Same schema as the original function:
+        - all original Tsys rows that fall **inside** a scan
+        - extra columns: scan_no_tot, source, t_scan, gainX …
+        - chronological order
     """
-    #create scan labels to match Tsys with scans
-    bins_labels = [None]*(2*scans.shape[0]-1)
-    bins_labels[1::2] = [-x for x in scans['scan_no_tot'][1:]]
-    bins_labels[::2] = scans['scan_no_tot'].tolist()
+    # Pre-sort the two input DataFrames
+    scans = scans.sort_values('time_min', ignore_index=True)
+    Tsys  = Tsys.sort_values('datetime',  ignore_index=True)
 
-    first_scanno = scans['scan_no_tot'].iloc[0]
-    if first_scanno==0:
-        first_scanno=10000
-    bins_labels = [-first_scanno] + bins_labels
+    # Convert scan start end times and the Tsys datetime values to nanoseconds
+    pad = pd.to_timedelta(pad_seconds, unit='s')
+    start_ns = (scans['time_min'] - pad).values.astype('datetime64[ns]').astype('int64')
+    end_ns   = (scans['time_max'] + pad).values.astype('datetime64[ns]').astype('int64')
+    t_ns = Tsys['datetime'].values.astype('datetime64[ns]').astype('int64')
 
-    dtmin = datetime.timedelta(seconds=pad_seconds) 
-    dtmax = datetime.timedelta(seconds=pad_seconds) 
-    binsT = [None] * (2*scans.shape[0])
-    binsT[::2] = [x - dtmin for x in scans.time_min]
-    binsT[1::2] = [x + dtmax for x in scans.time_max]
+    # Map Tsys datetimes to scan numbers
+    idx = np.searchsorted(start_ns, t_ns, side='right') - 1 # with side='right', subtract 1 so that we get the index of t_ns in start_ns, not the "insertion location"
+    valid = (idx >= 0) & (t_ns <= end_ns[idx]) # valid indices where Tsys falls within the scan time range
 
-    #add bin for time before the first scan
-    min_time = min(scans.time_min) - datetime.timedelta(seconds = 1600.)
-    binsT = [min_time] + binsT
+    # Initialize scan_label with -1 (for Tsys timestamps outside of any scan) and the values from scan_ids for valid indices
+    scan_ids = scans['scan_no_tot'].to_numpy()
+    scan_label = np.full_like(idx, -1, dtype=int)
+    scan_label[valid] = scan_ids[idx[valid]]
 
-    #add scan indexed label to Tsys 
-    ordered_labels = pd.cut(Tsys.datetime, binsT, labels=bins_labels)
+    # Station Y quirk (keep everything, flip to positive)
+    keep_mask = valid | (list(Tsys.station.unique()) == ['Y'])
+    if list(Tsys.station.unique()) == ['Y']:
+        scan_label = np.abs(scan_label) # emulate old behaviour
 
-    if list(Tsys.station.unique())==['Y']:
-        Tsys = Tsys.assign(scan_no_tot=np.abs(np.asarray(list(ordered_labels))))
-    else:
-        Tsys = Tsys.assign(scan_no_tot=list(ordered_labels))
+    # Build the output DataFrame with only the rows where Tsys falls within a scan
+    out = Tsys.loc[keep_mask].copy()
+    out['scan_no_tot'] = scan_label[keep_mask]
 
-    DictSource = dict(zip(list(scans.scan_no_tot), list(scans.source)))
-    DictTmin = dict(zip(list(scans.scan_no_tot), list(scans.time_min)))
+    # Add relevant columns from scans DataFrame to the matched Tsys DataFrame
+    gain_cols = [c for c in scans.columns if re.fullmatch(r'gain[A-Z]', c)]
+    meta_cols = ['scan_no_tot', 'source', 'time_min', *gain_cols]
+    meta = scans[meta_cols].rename(columns={'time_min': 't_scan'})
 
-
-    # Initialize a dictionary to store gain columns
-    DictGains = {}
-
-    # Filter columns that match the pattern 'gainX' where X is exactly one capital letter
-    gain_columns = [col for col in scans.columns if re.match(r'^gain[A-Z]$', col)]
-
-    # Store the results in dictionaries with the gain_columns as keys
-    for col in gain_columns:
-        DictGains[col] = dict(zip(list(scans.scan_no_tot), list(scans[col])))
-
-    #select only the data taken during scans, not in between scans
-    Tsys = Tsys[Tsys['scan_no_tot'] >= 0]
-    Tsys = Tsys.assign(source=Tsys['scan_no_tot'].map(DictSource))
-    for col in gain_columns:
-        Tsys = Tsys.assign(**{col: Tsys['scan_no_tot'].map(DictGains[col])})
-
-    # Add t_scan col to the DataFrame
-    Tsys = Tsys.assign(t_scan=Tsys['scan_no_tot'].map(DictTmin))
-    Tsys = Tsys.sort_values('datetime').reset_index(drop=True)
-    
-    return Tsys
+    out = out.merge(meta, on='scan_no_tot', how='left', copy=False)
+    return out.sort_values('datetime', ignore_index=True)
 
 def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0, pad_seconds=0.0):
 
