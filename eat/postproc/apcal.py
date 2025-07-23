@@ -248,8 +248,9 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
                     rowdict['station'] = AZ2Z[parts[1]] # get station code
                     logging.info(f"Tsys found for station {rowdict['station']}")
 
-                    match = re.search(r'timeoff=\s*([\d.]+)', line)
+                    match = re.search(r'timeoff=\s*([-+]?\d+(?:\.\d+)?)', line)
                     if match:
+                        logging.info(f"Time offset found in Tsys line: {match.group(1)} seconds")
                         timeoff = float(match.group(1))
                     else:
                         timeoff = 0.0
