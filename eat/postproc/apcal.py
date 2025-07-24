@@ -278,7 +278,10 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
                 # append this row
                 row = pd.DataFrame([rowdict], columns=cols)
                 if not row.dropna().empty:
-                    Tsys = pd.concat([Tsys, row], ignore_index=True)
+                    if Tsys.empty:
+                        Tsys = row
+                    else:
+                        Tsys = pd.concat([Tsys, row], ignore_index=True)
 
     # finalize types & sort
     Tsys['expt'] = Tsys['expt'].astype(int)
