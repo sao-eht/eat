@@ -579,10 +579,11 @@ def match_scans_with_Tsys(Tsys: pd.DataFrame,
     scan_label = np.full_like(idx, -1, dtype=int)
     scan_label[valid] = scan_ids[idx[valid]]
 
-    # Station Y quirk (keep everything, flip to positive)
-    keep_mask = valid | (list(Tsys.station.unique()) == ['Y'])
-    if list(Tsys.station.unique()) == ['Y']:
-        scan_label = np.abs(scan_label) # emulate old behaviour
+    # # Station Y quirk (keep everything, flip to positive)
+    # keep_mask = valid | (list(Tsys.station.unique()) == ['Y'])
+    # if list(Tsys.station.unique()) == ['Y']:
+    #     scan_label = np.abs(scan_label) # emulate old behaviour
+    keep_mask = valid
 
     # Build the output DataFrame with only the rows where Tsys falls within a scan
     out = Tsys.loc[keep_mask].copy()
@@ -594,6 +595,93 @@ def match_scans_with_Tsys(Tsys: pd.DataFrame,
     meta = scans[meta_cols].rename(columns={'time_min': 't_scan'})
 
     out = out.merge(meta, on='scan_no_tot', how='left', copy=False)
+
+    # Start filling in missing Tsys values for timestamps/scans that have no Tsys data
+    # Expand scans so each row has a single station
+    scans_exp = scans[['scan_no_tot', 'time_min', 'time_max', 'stations']].explode('stations', ignore_index=True).rename(columns={'stations': 'station'})
+
+    # Build the full set of expected pairs from scans and the set of pairs we already have in `out`
+    pairs_scans = set(map(tuple, scans_exp[['scan_no_tot', 'station']].to_numpy()))
+    pairs_have = set(map(tuple, out[['scan_no_tot', 'station']].dropna().to_numpy()))
+
+    # Find missing pairs
+    missing_pairs = pairs_scans - pairs_have
+
+    # Choose which Tsys columns to interpolate
+    tsys_cols = [c for c in Tsys.columns if c.startswith('Tsys')]
+
+    synthetic_rows = []
+    # columns from scans dataframe to copy over to synthetic rows
+    scan_meta = scans.set_index('scan_no_tot')
+    gaincols = [col for col in scan_meta.columns if re.match(r'gain[A-Z]$', col)] # gain columns to copy from scans dataframe
+
+    for sid, st in missing_pairs:
+        # Grab scan window and midpoint time
+        s_min  = scan_meta.at[sid, 'time_min']
+        s_max  = scan_meta.at[sid, 'time_max']
+        t_mid  = s_min + (s_max - s_min) / 2
+
+        # All Tsys rows for that station
+        ts_df = Tsys[Tsys['station'] == st].sort_values('datetime')
+        if ts_df.empty:
+            # No data at all for this station
+            continue
+
+        # Convert to numpy ints for safe comparisons
+        times_ns = ts_df['datetime'].to_numpy('datetime64[ns]').astype('int64')
+        tmid_ns  = np.int64(pd.Timestamp(t_mid).value)
+
+        pos = np.searchsorted(times_ns, tmid_ns)
+
+        # Perform constant extrapolation if outside range
+        if pos == 0:
+            vals = ts_df.iloc[0][tsys_cols].to_numpy()
+        elif pos >= len(times_ns):
+            vals = ts_df.iloc[-1][tsys_cols].to_numpy()
+        else:
+            # Perform linear interpolation between pos-1 and pos
+            row0 = ts_df.iloc[pos - 1]
+            row1 = ts_df.iloc[pos]
+            t0   = row0['datetime'].value
+            t1   = row1['datetime'].value
+            alpha = (tmid_ns - t0) / (t1 - t0) if t1 != t0 else 0.0
+            v0 = row0[tsys_cols].to_numpy(dtype=float)
+            v1 = row1[tsys_cols].to_numpy(dtype=float)
+            vals = v0 + alpha * (v1 - v0)
+
+        # Build synthetic row
+        row_dict = {
+            'datetime':   t_mid,
+            'mjd': Time(t_mid.to_pydatetime(), scale='utc').mjd,
+            'station':    st,
+            'scan_no_tot': sid,
+            'filled':     True
+        }
+
+        # Copy over the Tsys values
+        for c, v in zip(tsys_cols, vals):
+            row_dict[c] = v
+
+        # Other columns to copy from scans
+        row_dict['expt'] = scan_meta.at[sid, 'expt']
+        for gain_col in gaincols:
+            row_dict[gain_col] = scan_meta.at[sid, gain_col]
+        row_dict['source'] = scan_meta.at[sid, 'source']
+        if 't_scan' in out.columns:
+            row_dict['t_scan'] = scan_meta.at[sid, 'time_min']
+
+        # Fill in band/track information if available
+        for extra_col in ['band', 'track']:
+            if extra_col in Tsys.columns:
+                use_idx = 0 if pos == 0 else (len(ts_df) - 1 if pos >= len(ts_df) else pos-1)
+                row_dict[extra_col] = ts_df.iloc[use_idx][extra_col]
+
+        synthetic_rows.append(row_dict)
+
+    # Append synthetic rows to out DataFrame
+    if synthetic_rows:
+        out = pd.concat([out, pd.DataFrame(synthetic_rows)], ignore_index=True)
+    
     return out.sort_values('datetime', ignore_index=True)
 
 def global_match_scans_with_Tsys(Tsys_full, scans, antL=antL0, pad_seconds=0.0):
