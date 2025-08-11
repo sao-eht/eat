@@ -394,9 +394,9 @@ def params(b=None, pol=None, quiet=None, cf=None):
     dtvec = ap*np.arange(nap) - (frt-start).total_seconds() + 0.5*ap
     trot = np.exp(-1j * rate * dtvec * 2*np.pi*ref_freq) # reverse rotation due to rate to first order
     # frequency matrix (channel, spectrum) and rotator
-    fedge = np.array([1e-6 * ch.ref_freq for ch in cinfo])
+    fedge = np.array([ch.ref_freq / 1e6 for ch in cinfo])
     flip = np.array([-1 if ch.refsb == 'L' else 1 for ch in cinfo])
-    bw = np.array([0.5e-6 * short2int(ch.sample_rate) for ch in cinfo])
+    bw = np.array([short2int(ch.sample_rate) / 2e6 for ch in cinfo])
     (foffset, dfvec, frot) = (dict(), dict(), dict())
     nlags120 = nlags//2 # guess
     foffset[230] = np.array([(f*np.arange(0.5, nlags)*bwn/nlags)[::f] for (f, bwn) in zip(flip, bw)])
@@ -472,8 +472,8 @@ def params(b=None, pol=None, quiet=None, cf=None):
     pc_rem = getcodes(p.cf_rem.get('pc_phases', default), clabel) + \
              getcodes(cf_getpol(p.cf_rem, 'pc_phases', pol1, default), clabel)
     # do not understand this sign convention
-    sbd_rot = np.exp(1j * 1e-3*(sbd_rem - sbd_ref)[:,None] * df_sbd * 2*np.pi)
-    mbd_rot = np.exp(1j * 1e-3*(mbd_rem - mbd_ref)[:,None] * df_mbd * 2*np.pi)
+    sbd_rot = np.exp(1j * (sbd_rem - sbd_ref)[:,None] * df_sbd * 2*np.pi / 1e3)
+    mbd_rot = np.exp(1j * (mbd_rem - mbd_ref)[:,None] * df_mbd * 2*np.pi / 1e3)
     pc_rot = np.exp(1j * (pc_rem - pc_ref)*np.pi/180.)[:,None]
     p.pre_rot = sbd_rot * mbd_rot * pc_rot
     return p
@@ -562,8 +562,8 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
     if center[1] is not None:
         rate_off += center[1]
     print("rotation subtracted from data: %.3f [ns], %.3f [ps/s]" % (delay_off, rate_off))
-    frot = np.exp(-1j * 1e-3*delay_off * p.dfvec[kind].reshape((nchan, -1)) * 2*np.pi)
-    trot = np.exp(-1j * 1e-6*rate_off * p.dtvec * 2*np.pi*p.ref_freq)
+    frot = np.exp(-1j * delay_off * p.dfvec[kind].reshape((nchan, -1)) * 2*np.pi / 1e3)
+    trot = np.exp(-1j * rate_off * p.dtvec * 2*np.pi*p.ref_freq / 1e6)
     v = v * trot[:,None,None] * frot[None,:,:]
 
     v = v[slice(*segment)] # apply time segment cut
@@ -912,7 +912,7 @@ def delayscan(fringefile, res=4, dt=1, df=None, delayrange=(-1e4, 1e4), pol=None
 
     # single-channel spacing [Hz] and decimated spectral point spacing [MHz]
     sb_spacing = np.diff(sorted(b.t203.contents.channels[i].ref_freq for i in range(nchan)))[nchan//2]
-    spec_spacing = df * 1e-6 * sb_spacing / nspec
+    spec_spacing = df * sb_spacing / nspec / 1e6
     delay = 1e9 * fqch / (spec_spacing * 1e6) # ns
     dres = delay[1] - delay[0]
     print(dres)
@@ -1102,7 +1102,7 @@ def adhoc(b, pol=None, window_length=None, polyorder=None, snr=None, baseline=No
         # rfdict = {'X':0.163} # ps/s (ALMA fixed after Rev7) # remove after 2017 analyses
         rfdict = {} # make sure to add LO offsets if using this flag
         ratefix = rfdict.get(p.baseline[1], 0) - rfdict.get(p.baseline[0], 0)
-        ratefix_phase = 2*np.pi * dfvec[None,:] * dtvec[:,None] * ratefix*1e-6
+        ratefix_phase = 2*np.pi * dfvec[None,:] * dtvec[:,None] * ratefix / 1e6
         v = v * np.exp(-1j * ratefix_phase[:,jidx]) # take bowl effect out of visibs before adhoc phasing
     else:
         ratefix_phase = np.zeros((nap, len(sorted_freqs)), dtype=float)
@@ -1484,9 +1484,11 @@ def rl_segmented(a, site, restarts={}, boundary=19,
     b['ref_pol'] = b.polarization.str.get(0)
     b['rem_pol'] = b.polarization.str.get(1)
     p = b.pivot_table(aggfunc='first', index=['start', 'stop', 'site'] + index + ['ref_pol'],
-                      columns='rem_pol', values=['mbd_unwrap', 'mbd_err']).dropna()
+                      columns='rem_pol', values=['mbd_unwrap', 'mbd_err', 'snr']).dropna()
     p.reset_index(index + ['ref_pol'], inplace=True)
     p['LR'] = p.mbd_unwrap.R - p.mbd_unwrap.L
+    p['snr_R'] = p.snr.R
+    p['snr_L'] = p.snr.L
     ambiguity = b.iloc[0].ambiguity
     p['LR_wrap'] = np.remainder(p.LR + 0.5*ambiguity, ambiguity) - 0.5*ambiguity
     p['LR_err'] = np.sqrt(p.mbd_err.R**2 + p.mbd_err.L**2)
