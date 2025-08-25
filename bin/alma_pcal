@@ -46,10 +46,18 @@ def offset(phi):
 def load(file):
     """Read an alist file and prepare phases phase-cal
 
-    Read an alist file, apply filter to select the userful rows, and
+    Read an alist file, apply filter to select the useful rows, and
     then access the corel (per-channel) phases for performing
     phase-cal.
     """
+    # read alist file and get all the fedges from an ALMA autocorrelation row
+    raw_alist = hops.read_alist(file)
+    util.add_path(raw_alist)
+    aa_idx = raw_alist[raw_alist.baseline == 'AA'].index[0]
+    par = hu.params(raw_alist.loc[aa_idx].path)
+    master_cols = par.fedge.astype(float, copy=False)
+
+    # Read alist file again and pre-process it extensively this time
     a = util.noauto(hops.read_alist(file))
     if not args.no_fix:
         util.fix(a) # fix various polconvert errors
@@ -71,7 +79,7 @@ def load(file):
     d_nu = 1e6 * np.diff(np.sort(par.fedge))[0] # par.fedge in MHz
     a['d_nu'] = d_nu
 
-    # Access corel (per-channel) visibility
+    # Access corel (per-channel) visibility and align to master_cols
     dflist = []
     for i, f in a.path.items():
         par = hu.params(f)
@@ -91,18 +99,18 @@ def load(file):
             print("WARNING: ALMA (or args.reference) is not the reference", file=sys.stderr)
 
         # construct temp dataframe
-        # TODO: add metadata from a to tempdf here and avoid concatenating at the very end
-        tempdf = pd.DataFrame(vis[np.newaxis,:], columns=par.fedge)
-       
-        #tempdf = pd.concat((a[a['path']==f][extractcols], tempdf), axis=1) # add metadata from DataFrame a
+        tempdf = pd.DataFrame([vis], columns=np.asarray(par.fedge, dtype=float))
+        # align to the fixed master columns; fill missing channels with complex NaN
+        tempdf = tempdf.reindex(columns=master_cols, fill_value=np.nan + 0j)
+
         dflist.append(tempdf)
 
-    df = pd.concat(dflist)
-    df = df.reset_index(drop=True)
-    df = df.sort_index(axis=1)
+    # Concatenate all scans; columns already aligned & sorted by master_cols
+    df = pd.concat(dflist, ignore_index=True)
 
-    # assign chan_ids to frequency columns in df using chan_id information from par.cf and par.fedge
-    par = hu.params(a.iloc[0].path)
+    # assign chan_ids to frequency columns in df using chan_id information from an ALMA autocorrelation row
+    aa_idx = raw_alist[raw_alist.baseline == 'AA'].index[0]
+    par = hu.params(raw_alist.loc[aa_idx].path)
     freqs_refbl = par.fedge
 
     chanstr_cf = par.cf.actions()['chan_ids']
@@ -112,7 +120,7 @@ def load(file):
     df.columns = [chan_ids[freqs_cf.index(min(freqs_cf, key=lambda x: abs(x - freq)))] for freq in freqs_refbl]
 
     # add metadata from a to df
-    extractcols  = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas', 'd_nu'] # metadata cols to extract from DataFrame a
+    extractcols = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas', 'd_nu'] # metadata cols to extract from DataFrame a
     return pd.concat([a[extractcols], df], axis=1)
 
 
