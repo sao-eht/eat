@@ -2111,10 +2111,11 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
     if circ=='auto':
 
         # circle for 50 uas
-        r = 1 / ((2*np.pi/360) * 50e-6 / 3600) / 1e9
-        cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
-        plt.text(0+.3, r+0.25, r'(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
-        plt.gca().add_artist(cir)
+        if 180e3 < df.ref_freq.iloc[0] < 360e3:
+            r = 1 / ((2*np.pi/360) * 50e-6 / 3600) / 1e9
+            cir = plt.Circle((0, 0), r, color='k', ls='--', lw=1.5, alpha=0.25, fc='none')
+            plt.text(0+.3, r+0.25, r'(50 $\mu$as)$^{-1}$', ha='center', alpha=0.5, zorder=200)
+            plt.gca().add_artist(cir)
 
         # circle for 20 uas
         if 330e3 < df.ref_freq.iloc[0] < 360e3:
@@ -2135,6 +2136,10 @@ def uvplot(df, source=None, color=None, threshold=6.5, bltrans=lambda bl: bl, fl
         plt.ylim(-9.5, 9.5)
         plt.xticks(list(range(-8, 9, 2)))
         plt.yticks(list(range(-8, 9, 2)))
+    else:
+        r = np.max(plt.axis())
+        plt.xlim(-r, r)
+        plt.ylim(-r, r)
 
     if flip:
         plt.xlim(plt.xlim()[::-1])
