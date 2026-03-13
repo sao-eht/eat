@@ -159,7 +159,7 @@ if args.filter is not None:
     # keep = reduce(np.bitwise_and, ((a[key] == np.array(val, dtype=a[key].dtype)[()] for key, val in
     #     zip(args.filter[::2], args.filter[1::2]))))
     # new version to allow for multiple matches, e.g. polarization RL,LR (no spaces)
-    keep = reduce(np.bitwise_and, (a[key].isin(np.array(val, dtype=a[key].dtype)) for key, val in
+    keep = reduce(np.bitwise_and, (a[key].isin(pd.Series(val).astype(a[key].dtype)) for key, val in
         zip(args.filter[::2], (val.split(',') for val in args.filter[1::2]))))
     a = a[keep]
 
