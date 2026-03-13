@@ -1387,7 +1387,7 @@ def main(args):
     for idx, scandir in enumerate(tqdm.tqdm(scandirs, desc='Processing scan directories')):
 
         # process scandir to get station codes and expt numbers
-        pattern = r"^[a-zA-Z0-9+-]+\.[a-zA-Z0-9]{6}$"
+        pattern = r"^[a-zA-Z0-9+-_]+\.[a-zA-Z0-9]{6}$"
         rootfilename = next((entry.name for entry in os.scandir(scandir) if entry.is_file() and re.match(pattern, entry.name)), None)
         if rootfilename is None:
             logging.warning(f"No valid root file (ovex) found in scan directory {scandir}. Skipping scan...")
