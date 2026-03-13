@@ -7,7 +7,10 @@ from __future__ import print_function
 # if 'zip' in dir(builtins):
 #     zip = builtins.zip
 #     range = builtins.range
-from pkg_resources import parse_version
+try:
+    from packaging.version import parse as parse_version
+except ImportError:
+    from pkg_resources import parse_version
 import pandas as pd
 try:
     assert(parse_version(pd.__version__) >= parse_version('0.15.1dev'))
