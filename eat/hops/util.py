@@ -537,7 +537,7 @@ def findfringe(fringefile=None, kind=None, res=4, showx=6, showy=6, center=(None
         if flip:
             v = v[:,:,::-1] # test flip frequency order of spectral points
     elif kind==120: # original correlator output
-        if replacedata:
+        if replacedata is not None:
             v = replacedata
         else:
             v = pop120(b)[:,p.startidx:p.stopidx,:]   # visib array (nchan, nap, nspec/2)
