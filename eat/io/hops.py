@@ -185,6 +185,7 @@ fsumm_v5_pandasargs = dict(
 
 fsumm_v6_pandasargs = dict(
     sep=r'\s+',
+    na_values=['-nan'],
     comment='*',
     header=None,
     dtype={15:str},
