@@ -20,7 +20,7 @@ if args.output == '-':
     import sys
     out = sys.stdout
 else:
-    out = open(args.output, 'w')
+    out = open(args.output, 'wb')
 
 out.write(pdf.pdfdata)
 
