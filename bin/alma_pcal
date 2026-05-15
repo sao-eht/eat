@@ -265,9 +265,9 @@ pcf   = df.groupby('baseline')[chans].sum(numeric_only=False).apply(np.angle, de
 pcr   = rr.groupby('baseline')[chans].sum(numeric_only=False).apply(np.angle, deg=True)
 pcl   = ll.groupby('baseline')[chans].sum(numeric_only=False).apply(np.angle, deg=True)
 
-pcf[:] = fix_nan_v2(pcf.apply(unwrap, axis=1).apply(offset, axis=1).values)
-pcr[:] = fix_nan_v2(pcr.apply(unwrap, axis=1).apply(offset, axis=1).values)
-pcl[:] = fix_nan_v2(pcl.apply(unwrap, axis=1).apply(offset, axis=1).values)
+pcf[:] = fix_nan_v2(pcf.apply(unwrap, axis=1).apply(offset, axis=1).to_numpy(copy=True))
+pcr[:] = fix_nan_v2(pcr.apply(unwrap, axis=1).apply(offset, axis=1).to_numpy(copy=True))
+pcl[:] = fix_nan_v2(pcl.apply(unwrap, axis=1).apply(offset, axis=1).to_numpy(copy=True))
 
 slopes = derivative(pcf.values)
 # d_nu   = 58.59375e6 # hard wire separation between channels
