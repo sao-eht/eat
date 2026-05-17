@@ -100,7 +100,7 @@ restarts = {'X':[util.tt2dt(d, year=2017) for d in ['101-003000']]  # clear R-L 
               + [util.tt2dt(d, year=2022) for d in ['078-121000']], # probable jump in R-L in b3 between 078-1203 and 078-1211
             'N':[util.tt2dt(d, year=2022) for d in ['086-031500']], # should double check NOEMA
             'K':[util.tt2dt(d, year=2022) for d in ['078-062400']], # small R-L jump in b4 between 078-0616 and 078-0625
-            'A':[util.tt2dt(d, year=2022) for d in ['079-180000', '086-080000']]  # X-Y delay jumps in ALMA in mixed-pol (not currently calibrated) b1+b2
+            # 'A':[util.tt2dt(d, year=2022) for d in ['079-180000', '086-080000']]  # X-Y delay jumps in ALMA in mixed-pol (not currently calibrated) b1+b2
 }
 
 def getpolarization(f):
