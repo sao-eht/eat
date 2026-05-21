@@ -123,11 +123,11 @@ def extract_metadata_from_ovex(
     scandirs : list
         List of directories containing scan data.
     az2z_file : str
-        Path to the file where azimuth-to-Z metadata will be stored.
+        Path to the file where station code mapping (2-letter to 1-letter codes) will be stored.
     smt2z_file : str
-        Path to the file where station-to-Z metadata will be stored.
+        Path to the file where station name to 1-letter code mapping will be stored.
     track2expt_file : str
-        Path to the file where track-to-experiment metadata will be stored.
+        Path to the file where track to expt_no mapping will be stored.
 
     Returns
     -------
@@ -149,16 +149,25 @@ def extract_metadata_from_ovex(
         else:
             with open(os.path.join(scandir, rootfilename)) as f:
                 logging.info(f"Processing root file {rootfilename}...")
-                contents = f.read()                
-                # extract track name and HOPS expt_no from root file
+                contents = f.read()
+
+                # extract the $EXPER block to scope expt/track regex
+                exper_block_match = re.search(r'(?m)^\$EXPER;\s*\n(.*?)(?=^\$|\Z)', contents, re.DOTALL)
+                exper_block = exper_block_match.group(1) if exper_block_match else ''             
+
+                # extract track name and HOPS expt from $EXPER block
                 pattern = r'def (\w+);.*?(?:exper_num = (\d+);.*?exper_name = \1;|exper_name = \1;.*?exper_num = (\d+);)'
-                match = re.search(pattern, contents, re.DOTALL)
+                match = re.search(pattern, exper_block, re.DOTALL)
                 if match and match.group(1) not in track2expt.keys():
                     track2expt[match.group(1)] = match.group(2) or match.group(3)
 
-                # extract station codes from root file
+                # extract the $SITE block to scope the station code regex
+                site_block_match = re.search(r'(?m)^\$SITE;\s*\n(.*?)(?=^\$|\Z)', contents, re.DOTALL)
+                site_block = site_block_match.group(1) if site_block_match else ''              
+
+                # extract station codes from $SITE block
                 pattern = r'def (\w+);.*?site_name = \1;.*?site_ID = (\w+);.*?mk4_site_ID = (\w+);'
-                matches = re.findall(pattern, contents, re.DOTALL)               
+                matches = re.findall(pattern, site_block, re.DOTALL)
                 if matches:
                     for m in matches:
                         if m[0] not in smt2z.keys():
