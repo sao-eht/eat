@@ -114,8 +114,9 @@ def extract_dpfu_gfit_from_all_antab(folder_path, AZ2Z=AZ2Z, bandL=bandL0):
         A dictionary containing GFIT values from all ANTAB files.
     """
     dict_dpfu = {}; dict_gfit = {}
-    list_files = [f for f in os.listdir(folder_path) if f[0] == 'e' and any(f'_{band}_' in f for band in bandL)]
-
+    list_files = [f for f in os.listdir(folder_path) if any(f'_{band}_' in f for band in bandL)]
+    if not list_files:
+        logging.warning(f"No ANTAB files found in {folder_path} for bands {bandL}. DPFU and GFIT dicts will be empty.")
     for f in list_files:
         fpath = os.path.join(folder_path, f)
         logging.info(f"Extracting DPFU and GFIT coeffs from {fpath}")
@@ -194,7 +195,9 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
         with one row per timestamp in every TSYS block.
     """
     # find all ANTAB files for our bands
-    list_files = [f for f in os.listdir(antabpath) if f.startswith('e') and any(f'_{band}_' in f for band in bandL)]
+    list_files = [f for f in os.listdir(antabpath) if any(f'_{band}_' in f for band in bandL)]
+    if not list_files:
+        logging.warning(f"No ANTAB files found in {antabpath} for bands {bandL}. Tsys DataFrame will be empty.")
 
     cols = ['datetime','mjd','Tsys_star_R','Tsys_star_L','band','station','track','expt']
     Tsys = pd.DataFrame(columns=cols)
@@ -206,7 +209,12 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
             logging.warning(f"Track {track} not in track2expt; skipping {path}")
             continue
         expt = track2expt[track]
-        year = f"20{track[1:3]}"
+        year_match = re.search(r'(\d{2})', track)
+        if year_match:
+            year = f"20{year_match.group(1)}"
+        else:
+            logging.warning(f"Cannot extract year from track name '{track}'. Skipping {path}")
+            continue        
         logging.info(f"Extracting TSYS from {path}")
 
         # get Tsys blocks from file
