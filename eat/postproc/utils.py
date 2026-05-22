@@ -293,23 +293,37 @@ def time2datetimeyear(
     day : str
         The day of the year as a string.
     hour : str
-        The time in 'HH:MM:SS' format as a string.
+        The time as a string, either in 'HH:MM:SS' format
+        or 'HH:MM.frac' (fractional minutes) format (e.g. '23:20.500').
 
     Returns
     -------
     datetime.datetime
         A datetime object representing the specified date and time.
     """
-    
+
     day = int(day)
 
     hms = hour.split(':')
     h = int(hms[0]) % 24
-    m = int(hms[1])
-    s = int(hms[2])
-    
-    datet = (datetime.datetime(int(year), 1, 1, h, m, s) + datetime.timedelta(days=day-1))    
-    
+
+    if len(hms) == 3:
+        # Standard HH:MM:SS format
+        m = int(hms[1])
+        s = int(hms[2])
+        us = 0
+    elif len(hms) == 2:
+        # Could be HH:MM.fractional_minutes (e.g. 23:20.500)
+        total_min = float(hms[1])
+        m = int(total_min)
+        total_sec = 60 * (total_min - m)
+        s = int(total_sec)
+        us = int((total_sec - s) * 1e6)
+    else:
+        raise ValueError(f"Unrecognized time format: {hour}")
+
+    datet = (datetime.datetime(int(year), 1, 1, h, m, s, us) + datetime.timedelta(days=day-1))
+
     return datet
 
 def ALMAtime2STANDARDtime(atime: str) -> datetime.timedelta:
