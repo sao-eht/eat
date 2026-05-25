@@ -189,9 +189,10 @@ def derivative(y, dx=1.0):
                            np.reshape(m1, (-1,1))),
                           axis=1) / dx
 
-def mkcf(baselines, code, data):
+def mkcf(baselines, code, data, chans=None):
     sites = [b[1] for b in baselines]
-    chans = string.ascii_letters[:data.shape[1]]
+    if chans is None:
+        chans = string.ascii_letters[:data.shape[1]]
     return ["""if station {}
   {} {}
     {}
@@ -274,8 +275,8 @@ df = load(args.filename)
 rr = df[df.polarization.str[1] == 'R'] # support mixed products: RR, XR, YR
 ll = df[df.polarization.str[1] == 'L']
 
-nchan = string.ascii_letters.find(df.columns[-1]) + 1
-chans = list(string.ascii_letters[:nchan])
+chans = [c for c in df.columns if len(c) == 1 and c in string.ascii_letters]
+chans_str = ''.join(chans)
 
 # at some point, pandas.core.groupby.GroupBy.mean() no longer considers numpy.complex128 to be numeric type (?!!)
 # update: previous issue may be related to change in numeric_only default handling in 1.3.0
@@ -308,12 +309,12 @@ if args.controlcodes:
         f = args.outfile[0]
     f.write("* {}\n\n".format(statline))
     if args.average:
-        f.write("\n".join(mkcf(pcr.index.values, "pc_phases", pcf.values) +
-                          mkcf(pcf.index.values, "delay_offs",  delays)))
+        f.write("\n".join(mkcf(pcr.index.values, "pc_phases",   pcf.values, chans_str) +
+                          mkcf(pcf.index.values, "delay_offs",   delays,     chans_str)))
     else:
-        f.write("\n".join(mkcf(pcr.index.values, "pc_phases_r", pcr.values) +
-                          mkcf(pcl.index.values, "pc_phases_l", pcl.values) +
-                          mkcf(pcf.index.values, "delay_offs",  delays)))
+        f.write("\n".join(mkcf(pcr.index.values, "pc_phases_r", pcr.values, chans_str) +
+                          mkcf(pcl.index.values, "pc_phases_l", pcl.values, chans_str) +
+                          mkcf(pcf.index.values, "delay_offs",   delays,     chans_str)))
     if need_open_close:
         f.close()
 else:
