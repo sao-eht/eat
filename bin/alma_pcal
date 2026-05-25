@@ -22,6 +22,14 @@ from scipy import interpolate
 from eat.io   import hops, util
 from eat.hops import util as hu
 
+import logging
+
+# Configure logging
+loglevel = getattr(logging, 'INFO', None)
+logging.basicConfig(level=loglevel,
+                    format='%(asctime)s %(levelname)s:: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
 #==============================================================================
 # Helper functions
 
@@ -51,9 +59,16 @@ def load(file):
     phase-cal.
     """
     # read alist file and get all the fedges from an ALMA autocorrelation row
+    ref_autocorr = args.reference * 2  # e.g. 'AA' for reference='A'
     raw_alist = hops.read_alist(file)
     util.add_path(raw_alist)
-    aa_idx = raw_alist[raw_alist.baseline == 'AA'].index[0]
+    aa_rows = raw_alist[raw_alist.baseline == ref_autocorr]
+    if len(aa_rows) == 0:
+        logging.error("No autocorrelation rows (baseline '%s') for reference station '%s' found in '%s'.\n"
+                      "Pick a different reference station with --reference.",
+                      ref_autocorr, args.reference, file)
+        sys.exit(1)
+    aa_idx = aa_rows.index[0]
     par = hu.params(raw_alist.loc[aa_idx].path)
     master_cols = par.fedge.astype(float, copy=False)
 
@@ -74,6 +89,14 @@ def load(file):
     a = a.reset_index(drop=True)
     util.add_path(a)
 
+    if len(a) == 0:
+        logging.error("No rows remain in '%s' after filtering. Filters applied:\n"
+                      "SNR > 50\n"
+                      "baseline contains '%s'\n"
+                      "polarization in {LL, RR, XR, XL, YR, YL}.\n",
+                      file, args.reference)
+        sys.exit(1)
+
     # grab channel separation, needed since alist amb is insufficient precision
     par = hu.params(a.iloc[0].path)
     d_nu = 1e6 * np.diff(np.sort(par.fedge))[0] # par.fedge in MHz
@@ -91,12 +114,12 @@ def load(file):
         # compute vis
         vis = v * np.exp(-1j * p)
 
-        # if ALMA (or ref) is not the reference, reverse baseline label and negate vis
         b = a.baseline[i]
         if b[1] == args.reference:
+            logging.warning("Reference station %s is not the first in the baseline label.\n"
+                            "Reversing baseline label and conjugating visibilities.", args.reference)
             a.loc[i, 'baseline'] = b[::-1]
             vis = np.conj(vis)
-            print("WARNING: ALMA (or args.reference) is not the reference", file=sys.stderr)
 
         # construct temp dataframe
         tempdf = pd.DataFrame([vis], columns=np.asarray(par.fedge, dtype=float))
@@ -109,7 +132,7 @@ def load(file):
     df = pd.concat(dflist, ignore_index=True)
 
     # assign chan_ids to frequency columns in df using chan_id information from an ALMA autocorrelation row
-    aa_idx = raw_alist[raw_alist.baseline == 'AA'].index[0]
+    aa_idx = raw_alist[raw_alist.baseline == ref_autocorr].index[0]
     par = hu.params(raw_alist.loc[aa_idx].path)
     freqs_refbl = par.fedge
 
@@ -235,11 +258,12 @@ parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="
 args = parser.parse_args()
 
 if len(args.outfile) > 5:
-    print("At most 4 output files are supported")
-    exit(1)
+    logging.error("At most 5 output files are supported (%d were given).", len(args.outfile))
+    sys.exit(1)
 elif args.controlcodes and len(args.outfile) != 1:
-    print("Only 1 output file is supported when \"--controlcodes\" is set")
-    exit(1)
+    logging.error("Only 1 output file is supported when --controlcodes is set (%d were given).",
+                  len(args.outfile))
+    sys.exit(1)
 
 #------------------------------------------------------------------------------
 # Get data, perform phase cal, and compute delay offsets
@@ -315,7 +339,7 @@ else:
                 mkcsv(b[j], v[j], p+'_'+j+x)
     else:
         for i, f in enumerate(args.outfile):
-            mkcsv(b[k[i]], d[k[i]], f)
+            mkcsv(b[k[i]], v[k[i]], f)
 
 if args.graph:
     k = pcf.index.values
