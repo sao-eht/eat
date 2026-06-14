@@ -200,7 +200,7 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
         logging.warning(f"No ANTAB files found in {antabpath} for bands {bandL}. Tsys DataFrame will be empty.")
 
     cols = ['datetime','mjd','Tsys_star_R','Tsys_star_L','band','station','track','expt']
-    Tsys = pd.DataFrame(columns=cols)
+    rows = []
 
     for fname in list_files:
         path = os.path.join(antabpath, fname)
@@ -284,14 +284,10 @@ def extract_Tsys_from_antab(antabpath, AZ2Z=AZ2Z, track2expt=track2expt, bandL=b
                 rowdict['Tsys_star_L'] = L
 
                 # append this row
-                row = pd.DataFrame([rowdict], columns=cols)
-                if not row.dropna().empty:
-                    if Tsys.empty:
-                        Tsys = row
-                    else:
-                        Tsys = pd.concat([Tsys, row], ignore_index=True)
+                rows.append(rowdict.copy())
 
     # finalize types & sort
+    Tsys = pd.DataFrame(rows, columns=cols).dropna()
     Tsys['expt'] = Tsys['expt'].astype(int)
     Tsys = Tsys.sort_values('datetime').reset_index(drop=True)
     return Tsys
