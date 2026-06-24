@@ -51,6 +51,7 @@ setup(
              "bin/generate_polcal_table.py",
              "bin/hops2uvfits.py",
              "bin/import_uvfits.py",
+             "bin/link_hops_scans.py",
              "bin/mksnr",
              "bin/noauto",
              "bin/ovex2codes",
