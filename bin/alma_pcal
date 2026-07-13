@@ -22,14 +22,6 @@ from scipy import interpolate
 from eat.io   import hops, util
 from eat.hops import util as hu
 
-import logging
-
-# Configure logging
-loglevel = getattr(logging, 'INFO', None)
-logging.basicConfig(level=loglevel,
-                    format='%(asctime)s %(levelname)s:: %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-
 #==============================================================================
 # Helper functions
 
@@ -59,50 +51,34 @@ def load(file):
     phase-cal.
     """
     # read alist file and get all the fedges from an ALMA autocorrelation row
-    ref_autocorr = args.reference * 2  # e.g. 'AA' for reference='A'
-    raw_alist = hops.read_alist(file)
-    util.add_path(raw_alist)
-    aa_rows = raw_alist[raw_alist.baseline == ref_autocorr]
-    if len(aa_rows) == 0:
-        logging.error("No autocorrelation rows (baseline '%s') for reference station '%s' found in '%s'.\n"
-                      "Pick a different reference station with --reference.",
-                      ref_autocorr, args.reference, file)
-        sys.exit(1)
-    aa_idx = aa_rows.index[0]
-    par = hu.params(raw_alist.loc[aa_idx].path)
-    master_cols = par.fedge.astype(float, copy=False)
+    a = hops.read_alist(file)
+    util.add_path(a)
+    ref_idx = a[a.baseline == args.reference + args.reference].index[0]
+    ref_par = hu.params(a.loc[ref_idx].path)
+    ref_fedge = ref_par.fedge.astype(float, copy=False)
 
     # Read alist file again and pre-process it extensively this time
-    a = util.noauto(hops.read_alist(file))
+    a = util.noauto(a)
     if not args.no_fix:
         util.fix(a) # fix various polconvert errors
+
+    # flip baselines put args.reference in index 0
+    flipidx = (a.baseline.str[1] == args.reference)
+    hu.flip(a, flipidx)
 
     # Apply row filtering
     a = a[a.snr > 50]
     a = a[a.baseline.str.contains(args.reference)] # must contain ALMA (or ref station)
-    a = a[(a.polarization == 'LL')|
-          (a.polarization == 'RR')|
-          (a.polarization == 'XR')|
-          (a.polarization == 'XL')|
-          (a.polarization == 'YR')|
-          (a.polarization == 'YL')]
+    if not args.keep_cross:
+        a = a[~a.polarization.isin({'RL', 'LR', 'XY', 'YX'})]
     a = a.reset_index(drop=True)
-    util.add_path(a)
-
-    if len(a) == 0:
-        logging.error("No rows remain in '%s' after filtering. Filters applied:\n"
-                      "SNR > 50\n"
-                      "baseline contains '%s'\n"
-                      "polarization in {LL, RR, XR, XL, YR, YL}.\n",
-                      file, args.reference)
-        sys.exit(1)
 
     # grab channel separation, needed since alist amb is insufficient precision
     par = hu.params(a.iloc[0].path)
     d_nu = 1e6 * np.diff(np.sort(par.fedge))[0] # par.fedge in MHz
     a['d_nu'] = d_nu
 
-    # Access corel (per-channel) visibility and align to master_cols
+    # Access corel (per-channel) visibility and align to ref_fedge
     dflist = []
     for i, f in a.path.items():
         par = hu.params(f)
@@ -114,33 +90,29 @@ def load(file):
         # compute vis
         vis = v * np.exp(-1j * p)
 
-        b = a.baseline[i]
-        if b[1] == args.reference:
-            logging.warning("Reference station %s is not the first in the baseline label.\n"
-                            "Reversing baseline label and conjugating visibilities.", args.reference)
-            a.loc[i, 'baseline'] = b[::-1]
+        # if ALMA (or ref) is not the reference in type212, reverse baseline label and negate vis
+        if par.baseline[1] == args.reference:
             vis = np.conj(vis)
 
         # construct temp dataframe
         tempdf = pd.DataFrame([vis], columns=np.asarray(par.fedge, dtype=float))
         # align to the fixed master columns; fill missing channels with complex NaN
-        tempdf = tempdf.reindex(columns=master_cols, fill_value=np.nan + 0j)
+        tempdf = tempdf.reindex(columns=ref_fedge, fill_value=np.nan + 0j)
 
         dflist.append(tempdf)
 
-    # Concatenate all scans; columns already aligned & sorted by master_cols
+    # Concatenate all scans; columns already aligned & sorted by ref_fedge
     df = pd.concat(dflist, ignore_index=True)
 
-    # assign chan_ids to frequency columns in df using chan_id information from an ALMA autocorrelation row
-    aa_idx = raw_alist[raw_alist.baseline == ref_autocorr].index[0]
-    par = hu.params(raw_alist.loc[aa_idx].path)
-    freqs_refbl = par.fedge
+    # chanstr_cf = par.cf.actions()['chan_ids']
+    # chan_ids = chanstr_cf.split()[0]
+    # freqs_cf = [float(f) for f in chanstr_cf.split()[1:]]
 
-    chanstr_cf = par.cf.actions()['chan_ids']
-    chan_ids = chanstr_cf.split()[0]
-    freqs_cf = [float(f) for f in chanstr_cf.split()[1:]]
+    # df.columns = [chan_ids[freqs_cf.index(min(freqs_cf, key=lambda x: abs(x - freq)))] for freq in ref_fedge]
 
-    df.columns = [chan_ids[freqs_cf.index(min(freqs_cf, key=lambda x: abs(x - freq)))] for freq in freqs_refbl]
+    # remap the columns from fedge back to letter codes in preparation for forming channel id codes
+    ref_freq2code = dict(zip(ref_par.fedge, ref_par.code))
+    df.columns = [ref_freq2code[freq] for freq in ref_fedge] 
 
     # add metadata from a to df
     extractcols = ['polarization', 'baseline', 'quality', 'snr', 'resid_phas', 'd_nu'] # metadata cols to extract from DataFrame a
@@ -189,10 +161,9 @@ def derivative(y, dx=1.0):
                            np.reshape(m1, (-1,1))),
                           axis=1) / dx
 
-def mkcf(baselines, code, data, chans=None):
+def mkcf(baselines, code, data):
     sites = [b[1] for b in baselines]
-    if chans is None:
-        chans = string.ascii_letters[:data.shape[1]]
+    chans = string.ascii_letters[:data.shape[1]]
     return ["""if station {}
   {} {}
     {}
@@ -255,16 +226,17 @@ parser.add_argument("-g", "--graph",        default=False, action="store_true",
                     help="graphic output")
 parser.add_argument("-r", "--reference", default='A',
                     help="use a different reference antenna from ALMA")
+parser.add_argument("-x", "--keep-cross", default=False, action="store_true",
+                    help="keep cross hands")
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
 if len(args.outfile) > 5:
-    logging.error("At most 5 output files are supported (%d were given).", len(args.outfile))
-    sys.exit(1)
+    print("At most 4 output files are supported")
+    exit(1)
 elif args.controlcodes and len(args.outfile) != 1:
-    logging.error("Only 1 output file is supported when --controlcodes is set (%d were given).",
-                  len(args.outfile))
-    sys.exit(1)
+    print("Only 1 output file is supported when \"--controlcodes\" is set")
+    exit(1)
 
 #------------------------------------------------------------------------------
 # Get data, perform phase cal, and compute delay offsets
@@ -275,8 +247,8 @@ df = load(args.filename)
 rr = df[df.polarization.str[1] == 'R'] # support mixed products: RR, XR, YR
 ll = df[df.polarization.str[1] == 'L']
 
-chans = [c for c in df.columns if len(c) == 1 and c in string.ascii_letters]
-chans_str = ''.join(chans)
+nchan = string.ascii_letters.find(df.columns[-1]) + 1
+chans = list(string.ascii_letters[:nchan])
 
 # at some point, pandas.core.groupby.GroupBy.mean() no longer considers numpy.complex128 to be numeric type (?!!)
 # update: previous issue may be related to change in numeric_only default handling in 1.3.0
@@ -309,12 +281,12 @@ if args.controlcodes:
         f = args.outfile[0]
     f.write("* {}\n\n".format(statline))
     if args.average:
-        f.write("\n".join(mkcf(pcr.index.values, "pc_phases",   pcf.values, chans_str) +
-                          mkcf(pcf.index.values, "delay_offs",   delays,     chans_str)))
+        f.write("\n".join(mkcf(pcr.index.values, "pc_phases", pcf.values) +
+                          mkcf(pcf.index.values, "delay_offs",  delays)))
     else:
-        f.write("\n".join(mkcf(pcr.index.values, "pc_phases_r", pcr.values, chans_str) +
-                          mkcf(pcl.index.values, "pc_phases_l", pcl.values, chans_str) +
-                          mkcf(pcf.index.values, "delay_offs",   delays,     chans_str)))
+        f.write("\n".join(mkcf(pcr.index.values, "pc_phases_r", pcr.values) +
+                          mkcf(pcl.index.values, "pc_phases_l", pcl.values) +
+                          mkcf(pcf.index.values, "delay_offs",  delays)))
     if need_open_close:
         f.close()
 else:
