@@ -209,6 +209,7 @@ def debias(df):
     df['amp'] = df['amp'] * snr_deb / df.snr
 
 # a number of polconvert fixes based on rootcode (correlation proc time)
+# often removes autocorrelation due to use of map function
 # optionally undo fix
 def fix(df):
     # merge source with two different names
@@ -240,6 +241,11 @@ def fix(df):
     idx2 = (df.baseline.str[1] == 'Y') & (df.root_id > '000000') & (df.root_id < '09FRZZ') & (df.expt_no == 3597) & (df.ref_freq > 228100.)
     df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'RL', 'LR':'RR', 'RL':'LL', 'RR':'LR'})
     df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LR', 'LR':'LL', 'RL':'RR', 'RR':'RL'})
+    # VLBA BT164 Haystack linear polarization labeled as circular
+    idx1 = (df.baseline.str[0] == 'B') & df.year.isin({2025, 2026}) & df.freq_code.isin({'W16', 'Q16'}) & (df.expt_no == 1234)
+    idx2 = (df.baseline.str[1] == 'B') & df.year.isin({2025, 2026}) & df.freq_code.isin({'W16', 'Q16'}) & (df.expt_no == 1234)
+    df.loc[idx1,'polarization'] = df.loc[idx1,'polarization'].map({'LL':'XL', 'LR':'XR', 'RL':'YL', 'RR':'YR'})
+    df.loc[idx2,'polarization'] = df.loc[idx2,'polarization'].map({'LL':'LX', 'LR':'LY', 'RL':'RX', 'RR':'RY'})
     
 def undofix(df):        
 # a number of polconvert fixes based on rootcode (correlation proc time)

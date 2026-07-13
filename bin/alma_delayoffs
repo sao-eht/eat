@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# evaluate R-L delay offsets for sites using ALMA as reference
+# evaluate R-L delay offsets for sites using ALMA as reference (default)
 # 2017-09-15 Lindy Blackburn
 
 from eat.io import hops, util
@@ -35,7 +35,8 @@ parser.add_argument('-c', '--controlcodes', help='construct control codes rather
 parser.add_argument('-de', '--delay_error', help='delay error systematic in [us]', type=float, default=2e-6)
 parser.add_argument('-re', '--rate_error', help='rate error systematic in [ps/s]', type=float, default=1e-3)
 parser.add_argument('-ce', '--crosspol_delay_error', help='additional systematic for cross pol delay added in quadrature', type=float, default=20e-6)
-parser.add_argument('-r', '--ref', help='reference polarization', default='L')
+parser.add_argument('-r', '--reference', help='reference station', default='A')
+parser.add_argument('-p', '--refpol', help='reference polarization', default='L')
 parser.add_argument('-m', '--mixed', help='handle and average ALMA mixed pol (ALMA must be first station)', action='store_true', default=False)
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
@@ -45,10 +46,14 @@ a = util.noauto(hops.read_alist(args.filename))
 if not args.no_fix:
     util.fix(a) # fix various polconvert errors
 
+# set reference
+flipidx = (a.baseline.str[1] == args.reference)
+hu.flip(a, flipidx)
+
 # try to get the total maximum number of channels for lexical channel labels (hu.doff2cf)
 nchan = a.freq_code.str[1:].astype(int).max()
 
-a = a[(a.snr > 9) & (a.baseline.str[0] == 'A')]
+a = a[(a.snr > 9) & (a.baseline.str[0] == args.reference)]
 
 # add delay and rate errors, with systematic limits on resolution
 util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_error,
@@ -57,7 +62,7 @@ util.add_delayerr(a, mbd_systematic=args.delay_error, rate_systematic=args.rate_
 # handle mixed pols
 if args.mixed:
     a['ref_pol'] = a.polarization.str.get(0)
-    a['polarization'] = a.polarization.map({'XL':'LL', 'YL':'LL', 'XR':'RR', 'YR':'RR'})
+    a['polarization'] = a.polarization.replace({'XL':'LL', 'YL':'LL', 'XR':'RR', 'YR':'RR'})
     index="ref_freq expt_no scan_id scan_no source timetag ref_pol".split()
 else:
     index="ref_freq expt_no scan_id scan_no source timetag".split()
@@ -78,7 +83,7 @@ else:
 
 if args.controlcodes:
     out.write('* ' + statline + '\n')
-    cflines = offs.apply(hu.doff2cf, axis=1, args=(nchan, args.ref))
+    cflines = offs.apply(hu.doff2cf, axis=1, args=(nchan, args.refpol))
     out.write(''.join(cflines))
 else:
     offs["start stop site LR_delay LR_delay_err".split()].to_csv(out, float_format='%+9.7f', index=False)
