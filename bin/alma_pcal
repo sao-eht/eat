@@ -43,7 +43,7 @@ def offset(phi):
         else         : break
     return phi
 
-def load(file):
+def load(file, cf=None):
     """Read an alist file and prepare phases phase-cal
 
     Read an alist file, apply filter to select the useful rows, and
@@ -54,7 +54,7 @@ def load(file):
     a = hops.read_alist(file)
     util.add_path(a)
     ref_idx = a[a.baseline == args.reference + args.reference].index[0]
-    ref_par = hu.params(a.loc[ref_idx].path)
+    ref_par = hu.params(a.loc[ref_idx].path, cf=cf)
     ref_fedge = ref_par.fedge.astype(float, copy=False)
 
     # Read alist file again and pre-process it extensively this time
@@ -74,21 +74,21 @@ def load(file):
     a = a.reset_index(drop=True)
 
     # grab channel separation, needed since alist amb is insufficient precision
-    par = hu.params(a.iloc[0].path)
+    par = hu.params(a.iloc[0].path, cf=cf)
     d_nu = 1e6 * np.diff(np.sort(par.fedge))[0] # par.fedge in MHz
     a['d_nu'] = d_nu
 
     # Access corel (per-channel) visibility and align to ref_fedge
     dflist = []
     for i, f in a.path.items():
-        par = hu.params(f)
+        par = hu.params(f, cf=cf)
 
         # perform quick adhoc phase correction and obtain a single averaged value
-        v = hu.adhoc(f, roundrobin=False).vcorr.mean(axis=0)
-        p = np.angle(np.mean(v))
+        v = hu.adhoc(f, roundrobin=False, use_chan_ids=False).vcorr.mean(axis=0)
+        phase = np.angle(np.mean(v))
 
         # compute vis
-        vis = v * np.exp(-1j * p)
+        vis = v * np.exp(-1j * phase)
 
         # if ALMA (or ref) is not the reference in type212, reverse baseline label and negate vis
         if par.baseline[1] == args.reference:
@@ -228,6 +228,7 @@ parser.add_argument("-r", "--reference", default='A',
                     help="use a different reference antenna from ALMA")
 parser.add_argument("-x", "--keep-cross", default=False, action="store_true",
                     help="keep cross hands")
+parser.add_argument('-cf', '--controlfile', help='use control file (for defined chan_ids)', default=None)
 parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
@@ -243,7 +244,7 @@ elif args.controlcodes and len(args.outfile) != 1:
 if args.datadir is not None:
     hu.set_datadir(args.datadir)
 
-df = load(args.filename)
+df = load(args.filename, cf=args.controlfile)
 rr = df[df.polarization.str[1] == 'R'] # support mixed products: RR, XR, YR
 ll = df[df.polarization.str[1] == 'L']
 
