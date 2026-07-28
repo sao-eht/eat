@@ -24,7 +24,9 @@ parser.add_argument('-o', '--outdir', help='output directory for adhoc files (on
 parser.add_argument('-q', '--quiet', help='do not print cfcodes to stdout (they are saved in adhoc_codes)', action='store_true', default=False)
 parser.add_argument('-c', '--cohtime', help='coherence timescale to use for deciding INTTIME', default=None, type=float)
 parser.add_argument('-t', '--threshold', help='SNR threshold for detection', default=7.0, type=float)
-parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
+parser.add_argument('-cf', '--controlfile', help='use control file for fourfit parameters', default=None)
+# remove no-fix option, fixes not needed for adhoc phasing routine can cause disconnect between alist/fringe file data
+# parser.add_argument('-nf', '--no-fix', help='do not apply alist fixes', action="store_true")
 args = parser.parse_args()
 
 """
@@ -50,7 +52,7 @@ be different in case of a scan_offset ?
 if args.outdir is not None and not os.path.exists(args.outdir):
     os.makedirs(args.outdir)
 
-def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
+def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime, cf=None):
     """use reference site to make adhoc phases to other stations in data frame
 
     Args:
@@ -79,7 +81,7 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
         # generate adhoc phases which are connected to ref station
         for (bl, rows) in wref.groupby('baseline'):
             # print(rows["timetag baseline polarization snr".split()])
-            p = hu.params(rows.iloc[-1].path, quiet=True) # representative params using maximum length row
+            p = hu.params(rows.iloc[-1].path, quiet=True, cf=cf) # representative params using maximum length row
             ttrem = p.baseline.replace(ttref, "")
             segment[ttrem] = [p.start, p.stop] # ad-hoc phased times for REM station
             print(p.timetag + ' ' + p.baseline)
@@ -94,7 +96,7 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
             cfcodes.append(ah.cfcode.strip())
         # trim other baselines to cover ad-hoc time
         for (bl, rows) in noref.groupby('baseline'):
-            p = hu.params(rows.iloc[-1].path, quiet=True) # params for last (maximum length row)
+            p = hu.params(rows.iloc[-1].path, quiet=True, cf=cf) # params for last (maximum length row)
             if bl[0] in segment and bl[1] in segment: # trim if both sites were ad-hoc phased
                 start = max(segment[bl[0]][0], segment[bl[1]][0])
                 stop  = min(segment[bl[0]][1], segment[bl[1]][1])
@@ -113,9 +115,9 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime):
 
 hu.set_datadir(args.datadir)
 a = util.noauto(hops.read_alist(args.filename))
-if not args.no_fix:
-    util.fix(a) # fix various polconvert errors
+# if not args.no_fix:
+#     util.fix(a) # fix various polconvert errors
 
 # adhocref(a, outdir=args.outdir, timeoffset=-1.)
 # the original timeoffset was used to address a fourfit indexing bug, which is fixed in current build
-adhocref(a, outdir=args.outdir, timeoffset=0.)
+adhocref(a, outdir=args.outdir, timeoffset=0., cf=args.controlfile)
