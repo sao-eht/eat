@@ -862,10 +862,10 @@ def save_uvfits(datastruct, fname):
     col6 = fits.Column(name='STAXOF', format='1E', unit='METERS', array=np.zeros(nsta)) #zero = no axis  offset
     col7 = fits.Column(name='POLTYA', format='1A', array=np.array(['R' for i in range(nsta)], dtype='|S1')) #RCP
     col8 = fits.Column(name='POLAA', format='1E', unit='DEGREES', array=np.zeros(nsta)) #feed orientation A
-    col9 = fits.Column(name='POLCALA', format='2E', array=np.zeros((nsta,2))) #zero = no pol cal info TODO should have extra dim for nif
+    col9 = fits.Column(name='POLCALA', format='0E', array=np.zeros((nsta,0))) #no pol cal info (NOPCAL=0); use format='%dE'%(2*nchan) if adding D-terms
     col10 = fits.Column(name='POLTYB', format='1A', array=np.array(['L' for i in range(nsta)], dtype='|S1')) #LCP
     col11 = fits.Column(name='POLAB', format='1E', unit='DEGREES', array=90*np.ones(nsta)) #feed orientation A
-    col12 = fits.Column(name='POLCALB', format='2E', array=np.zeros((nsta,2))) #zero = no pol cal info
+    col12 = fits.Column(name='POLCALB', format='0E', array=np.zeros((nsta,0))) #no pol cal info (NOPCAL=0)
 
     # create table
     tbhdu = fits.BinTableHDU.from_columns(fits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12]), name='AIPS AN')
@@ -897,7 +897,8 @@ def save_uvfits(datastruct, fname):
     head['DEGPDY'] = RDATE_DEGPERDY
     head['UT1UTC'] = rdate_offset_out   #difference between UT1 and UTC ?
     head['DATUTC'] = 0.e0
-    head['TIMESYS'] = 'UTC'
+    head['TIMSYS'] = 'UTC'  # AIPS Memo 117 canonical spelling
+    head['TIMESYS'] = 'UTC' # variant spelling used by some readers
 
     head['FREQ']= ref_freq
     head['POLARX'] = 0.e0
