@@ -936,40 +936,46 @@ class mk4_sdata(Mk4StructureBase):
 # library calls
 ################################################################################
 
+#shared library extensions to try, in order (Linux .so, macOS .dylib)
+MK4IOB_EXTS = ('.so', '.dylib')
+
 def mk4io_load():
     """locate and load the mk4 c-library"""
     #first try to find the library using LD_LIBRARY_PATH
     ld_lib_path = os.getenv('LD_LIBRARY_PATH')
     possible_path_list = ld_lib_path.split(':')
     for a_path in possible_path_list:
-        libpath = os.path.join(a_path, 'hops', 'libmk4iob.so')
-        altlibpath = os.path.join(a_path, 'libmk4iob.so')
-        if os.path.isfile(libpath):
-            #found the library, go ahead and load it up
-            dfio = ctypes.cdll.LoadLibrary(libpath)
-            return dfio
-        elif os.path.isfile(altlibpath):
-            #found the library, go ahead and load it up
-            dfio = ctypes.cdll.LoadLibrary(altlibpath)
-            return dfio
+        for ext in MK4IOB_EXTS:
+            libpath = os.path.join(a_path, 'hops', 'libmk4iob' + ext)
+            altlibpath = os.path.join(a_path, 'libmk4iob' + ext)
+            if os.path.isfile(libpath):
+                #found the library, go ahead and load it up
+                dfio = ctypes.cdll.LoadLibrary(libpath)
+                return dfio
+            elif os.path.isfile(altlibpath):
+                #found the library, go ahead and load it up
+                dfio = ctypes.cdll.LoadLibrary(altlibpath)
+                return dfio
 
 
     #next try to find the library using the environmental variable HOPS_PREFIX
     prefix = os.getenv('HOPS_PREFIX')
     if prefix != None:
-        path = os.path.join(prefix, 'lib','hops', 'libmk4iob.so')
-        if os.path.isfile(path):
-            dfio = ctypes.cdll.LoadLibrary(path)
-            return dfio
+        for ext in MK4IOB_EXTS:
+            path = os.path.join(prefix, 'lib','hops', 'libmk4iob' + ext)
+            if os.path.isfile(path):
+                dfio = ctypes.cdll.LoadLibrary(path)
+                return dfio
 
     #failing that, try to find it using the HOPS_ROOT and HOPS_ARCH env's
     root = os.getenv('HOPS_ROOT')
     arch = os.getenv('HOPS_ARCH')
     if root != None and arch != None:
-        path = os.path.join(root, arch,'lib','hops', 'libmk4iob.so')
-        if os.path.isfile(path):
-            dfio = ctypes.cdll.LoadLibrary(path)
-            return dfio
+        for ext in MK4IOB_EXTS:
+            path = os.path.join(root, arch,'lib','hops', 'libmk4iob' + ext)
+            if os.path.isfile(path):
+                dfio = ctypes.cdll.LoadLibrary(path)
+                return dfio
 
     #failed to find the library
     return None
