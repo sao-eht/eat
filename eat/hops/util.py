@@ -324,6 +324,7 @@ def params(b=None, pol=None, quiet=None, cf=None):
         delay: unwrapped mbd [us]
         rate: residual delay rate [us/s]
         amplitude: correlation coefficient estimate [10^-4]
+        resid_phas: residual phase
         snr: signal-to-noise of scan-average visibility amplitude
         T: processed time [s]
         ap: accumulation period spacing [s]
@@ -373,6 +374,7 @@ def params(b=None, pol=None, quiet=None, cf=None):
     rate = b.t208.contents.resid_rate # us/scantimes
     snr = b.t208.contents.snr
     amplitude = b.t208.contents.amplitude
+    resid_phas = b.t208.contents.resphase
     # time vector and rotator
     (start, stop) = (mk4time(b.t205.contents.start), mk4time(b.t205.contents.stop)) # t212 bounds
     frt = mk4time(b.t200.contents.frt) # probably straight from OVEX
@@ -408,8 +410,8 @@ def params(b=None, pol=None, quiet=None, cf=None):
     frot[120] = np.exp(-1j * delay * dfvec[120] * 2*np.pi) # assuming nlags120 = nlags230/2
     frot[212] = np.exp(-1j * delay * dfvec[212] * 2*np.pi) # note type_212 is already rotated in data
     p = Namespace(name=name, ref_freq=ref_freq, nchan=nchan, nap=nap, nspec=nspec, nlags=nlags, days=days,
-        code=clabel, pol=fixstr(cinfo[0].refpol + cinfo[0].rempol), sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, snr=snr, T=T,
-        ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot, frt=frt, frtoff=frtoff,
+        code=clabel, pol=fixstr(cinfo[0].refpol + cinfo[0].rempol), sbd=sbd, mbd=mbd, delay=delay, rate=rate, amplitude=amplitude, resid_phas=resid_phas, snr=snr,
+        T=T, ap=ap, dtvec=dtvec, trot=trot, fedge=fedge, bw=bw, foffset=foffset, dfvec=dfvec, frot=frot, frt=frt, frtoff=frtoff,
         baseline=fixstr(b.t202.contents.baseline), source=fixstr(b.t201.contents.source), start=start, stop=stop, utc_central=utc_central,
         scan_name=fixstr(b.t200.contents.scan_name), scantime=scantime, timetag=util.dt2tt(scantime),
         scantag=util.dt2tt(scantime + datetime.timedelta(seconds=b.t200.contents.start_offset)),
@@ -1189,14 +1191,12 @@ if station %s and scan %s * from %s per %.1f s
                      timetag=p.timetag, filename=adhoc_filename, cfcode=cf, string=outstring, ratefix_phase=ratefix_phase)
 
 # close in place alist fringe solution based on mbd errors
-# assume R-L has been delay corrected
-def closefringe(a):
+# return model of station delays and rates
+# add additional columns with closed delay and rate model
+# assume R-L has been delay corrected by default
+def closefringe(a, fit_crossdelay=False):
 
-    # dishes and reverse index of lookup for single dish station code
-    dishes = sorted(set(itertools.chain(*a.baseline)))
-    idish = {f:i for i, f in enumerate(dishes)}
-
-    # missing columns
+    # fill in required columns if needed
     if 'mbd_unwrap' not in a.columns:
         util.unwrap_mbd(a)
     if 'mbd_err' not in a.columns:
@@ -1210,15 +1210,26 @@ def closefringe(a):
         model = par[idx1] - par[idx2]
         return (alldata - model) / allerr
 
-    # indices for unique dishes/dishes
-    a['idish0'] = [idish[bl[0]] for bl in a.baseline]
-    a['idish1'] = [idish[bl[1]] for bl in a.baseline]
+    # dishes and reverse index of lookup for single dish station code
+    dishes = sorted(set(itertools.chain(*a.baseline)))
+    idish = {f:i for i, f in enumerate(dishes)}
+    # similar for individual feeds when requested (fit_crossdelay)
+    feeds = set(itertools.chain(*(zip(c, d) for (c, d) in zip(a.baseline, a.polarization))))
+    ifeed = {f:i for i, f in enumerate(feeds)}
 
-    # column for storing fit result
-    a['offset_delay'] = 0.
-    a['offset_rate'] = 0.
-    a['sigmas_delay'] = 0.
-    a['sigmas_rate'] = 0.
+    # indices for unique dishes/dishes
+    if(fit_crossdelay):
+        a['idelay0'] = [ifeed[(bl[0], pol[0])] for (bl, pol) in zip(a.baseline, a.polarization)]
+        a['idelay1'] = [ifeed[(bl[1], pol[1])] for (bl, pol) in zip(a.baseline, a.polarization)]
+    else:
+        a['idelay0'] = [idish[bl[0]] for bl in a.baseline]
+        a['idelay1'] = [idish[bl[1]] for bl in a.baseline]
+    a['irate0'] = [idish[bl[0]] for bl in a.baseline]
+    a['irate1'] = [idish[bl[1]] for bl in a.baseline]
+
+    # new columns
+    for col in "ref_delay rem_delay offset_delay offset_rate sigmas_delay sigmas_rate closed_sbdelay closed_mbdelay closed_rate".split():
+        a[col] = 0.
     a['success'] = True
 
     def closescan(scan):
@@ -1227,41 +1238,46 @@ def closefringe(a):
         if len(idx) < 2:
             return
         b = a.loc[idx]
-        # initial guess
-        rates = np.zeros(len(dishes))
-        delays = np.zeros(len(dishes))
+
         # f_scale will be the deviation [in sigma] where the loss function kicks in
         # it should be a function of the SNR of the detection ideally..
         # but it looks like scipy just supports a single float
-        ret = least_squares(errfunc, np.zeros(len(dishes)),
-                                args=(b.idish0, b.idish1, b.mbd_unwrap, b.mbd_err),
+        # we have some extra parameters here if not fitting crosspol delay, which is fine
+        ret = least_squares(errfunc, np.zeros(len(feeds)),
+                                args=(b.idelay0, b.idelay1, b.mbd_unwrap, b.mbd_err),
                                 loss='soft_l1', f_scale=8, verbose=0, max_nfev=5000)
         fit_mbd = ret.x
         success_mbd = ret.success
         ret = least_squares(errfunc, np.zeros(len(dishes)),
-                                args=(b.idish0, b.idish1, b.delay_rate, b.rate_err),
+                                args=(b.irate0, b.irate1, b.delay_rate, b.rate_err),
                                 loss='soft_l1', f_scale=8, verbose=0, max_nfev=5000)
         fit_rate = ret.x
         success_rate = ret.success
-        cdelay = fit_mbd[b.idish0] - fit_mbd[b.idish1]
-        crate = fit_rate[b.idish0] - fit_rate[b.idish1]
+
+        cdelay = fit_mbd[b.idelay0] - fit_mbd[b.idelay1]
+        a.loc[idx,'ref_delay'] = fit_mbd[b.idelay0]
+        a.loc[idx, 'rem_delay'] = fit_mbd[b.idelay1]
+
+        crate = fit_rate[b.irate0] - fit_rate[b.irate1]
+        a.loc[idx, 'ref_rate'] = fit_rate[b.irate0]
+        a.loc[idx, 'rem_rate'] = fit_rate[b.irate1]
+
         a.loc[idx,'offset_delay'] = cdelay - b.mbd_unwrap
         a.loc[idx,'offset_rate'] = crate - b.delay_rate
         a.loc[idx,'sigmas_delay'] = np.abs(cdelay - b.mbd_unwrap) / b.mbd_err
         a.loc[idx,'sigmas_rate'] = np.abs(crate - b.delay_rate) / b.rate_err
-        a.loc[idx,'mbd_unwrap'] = cdelay
-        a.loc[idx,'delay_rate'] = crate
+        a.loc[idx,'closed_sbdelay'] = cdelay
+        amb = a.loc[idx,'ambiguity']
+        a.loc[idx,'closed_mbdelay'] = np.remainder(cdelay + 0.5*amb, amb) - 0.5*amb
+        a.loc[idx,'closed_rate'] = crate
         a.loc[idx,'success'] = success_mbd and success_rate
 
-    g = a.groupby('timetag')
-    scans = sorted(set(a.timetag))
+    g = a.groupby('scan_id')
+    scans = sorted(set(a.scan_id))
 
     # loop over all scans and overwrite with new solution
     for scan in scans:
         closescan(scan)
-
-    a['sbdelay'] = a.mbd_unwrap # set sbdelay to the closed unwrapped mbd
-    util.rewrap_mbd(a)
 
 # helper class for embedded PDF in ipython notebook
 class PDF(object):
