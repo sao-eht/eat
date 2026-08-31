@@ -74,9 +74,9 @@ def adhocref(df, ref=None, outdir=None, timeoffset=0., tcoh=args.cohtime, cf=Non
         ttref = ref or hu.pickref(ttrows) # reference station for this scan
         if ttref is None: # unable to find reference station, do not adhoc phase this scan
             continue
-        # we are sorting by baseline, length here in order to filter by maximum length later on in the script
-        wref = ttrows[(ttrows.baseline.str.contains(ttref)) & (ttrows.snr > args.threshold)].sort_values(['baseline', 'length'])
-        noref = ttrows[~ttrows.baseline.str.contains(ttref)].sort_values(['baseline', 'length'])
+        # sort by (baseline, length, snr, polarization) to ensure deterministic selection of representative row
+        wref = ttrows[(ttrows.baseline.str.contains(ttref)) & (ttrows.snr > args.threshold)].sort_values(['baseline', 'length', 'snr', 'polarization'])
+        noref = ttrows[~ttrows.baseline.str.contains(ttref)].sort_values(['baseline', 'length', 'snr', 'polarization'])
         segment = dict()
         # generate adhoc phases which are connected to ref station
         for (bl, rows) in wref.groupby('baseline'):
