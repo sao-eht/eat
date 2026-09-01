@@ -19,6 +19,9 @@ from astropy.time import Time
 import numpy as np
 from eat.io import mk4
 
+# Filename pattern for fringefiles -- baseline.freqgroup.index.rootcode
+FRINGEFILE_PATTERN = re.compile(r"^[A-Za-z0-9]{2}\.[^.]+\.\d+\.[A-Za-z0-9]{6}$")
+
 #reference date
 RDATE = '2017-04-04'
 rdate_tt = Time(RDATE, format='isot', scale='utc')
@@ -250,7 +253,7 @@ def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, re
     for filename in glob.glob(scandir + '/*'):
         # skip type 1, type 3, and uvfits files while collecting baseline names
         fn = os.path.basename(filename)
-        if os.path.splitext(fn)[-1] != ".uvfits" and fn.count('.')==3:
+        if FRINGEFILE_PATTERN.match(fn):
             baselineNames.append(fn.split(os.extsep)[0])
     baselineNames = list(set(baselineNames))
     baselineNames.sort()
@@ -268,7 +271,7 @@ def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, re
             continue
 
         # remove type 1 and 2 files and uvfits files with the same basename
-        bl_flist = [f for f in glob.glob(os.path.join(scandir, f'{baselineName}*')) if f.split(os.extsep)[-1] != "uvfits" and os.path.basename(f).count('.')==3]
+        bl_flist = [f for f in glob.glob(os.path.join(scandir, f'{baselineName}*')) if FRINGEFILE_PATTERN.match(os.path.basename(f))]
         logging.info(f"Converting {len(bl_flist)} fringefiles corresponding to baseline {baselineName} in scan {os.path.basename(scandir)}...")
         for index, filename in enumerate(bl_flist):
             logging.info(f"Reading fringe file {index}: {filename}")
@@ -1394,11 +1397,11 @@ def main(args):
             logging.warning(f"No valid root file (ovex) found in scan directory {scandir}. Skipping scan...")
             continue
 
-        # process scandir only if at least one type 2 file (i.e. fringe file) with 3 dots in the filename exists
+        # process scandir only if at least one type 2 file (i.e. fringe file) is present
         contains_fringefiles = False
         with os.scandir(scandir) as entries:
             for entry in entries:
-                if entry.is_file() and entry.name.count('.') == 3:
+                if entry.is_file() and FRINGEFILE_PATTERN.match(entry.name):
                     contains_fringefiles = True
                     break
         if not contains_fringefiles:
