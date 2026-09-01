@@ -2008,7 +2008,8 @@ def pickref(df, nosma=True, nopdb=True, threshold=6., tcoh=6., full=False):
         sites.discard('R')
     if nopdb:
         sites.discard('N')
-    score = {site: merged[merged.baseline.str.contains(site)].usefuldof.sum() for site in sites}
+    # iterate sites in a sorted order whenever two sites end up tied.
+    score = {site: merged[merged.baseline.str.contains(site)].usefuldof.sum() for site in sorted(sites)}
     ref = max(score, key=score.get) if len(score) > 0 else None
     return (merged, score, ref) if full else ref
 
