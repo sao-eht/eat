@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
 # convert hops fringe files to uvfits (Aug 2024)
+# parallelized rewrite (Sep 2026)
 
 import argparse
 import glob
 import os
 import sys
-import tqdm
 import logging
+import logging.handlers
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import re
 import ast
 
@@ -21,6 +24,9 @@ from eat.io import mk4
 
 # Filename pattern for fringefiles -- baseline.freqgroup.index.rootcode
 FRINGEFILE_PATTERN = re.compile(r"^[A-Za-z0-9]{2}\.[^.]+\.\d+\.[A-Za-z0-9]{6}$")
+
+# Filename pattern for the scandir's root (ovex) file
+ROOTFILE_PATTERN = re.compile(r"^[a-zA-Z0-9+-_]+\.[a-zA-Z0-9]{6}$")
 
 #reference date
 RDATE = '2017-04-04'
@@ -60,6 +66,12 @@ scanuvfits_pattern = 'merged_all_baselines.uvfits' # scan uvfits filename patter
 
 # conversion table for re-labelling XY => LR
 polconv_hack_table = str.maketrans('XY', 'LR')
+
+# logging format shared by the main process and every worker process (via the
+# centralized queue below). The log output is identical to that of the sequential
+# script regardless of how many processes are involved
+_LOG_FORMAT = '%(asctime)s %(levelname)s:: %(message)s'
+_LOG_DATEFMT = '%Y-%m-%d %H:%M:%S'
 
 #######################################################################
 ##########################  Recompute uv points #######################
@@ -248,17 +260,19 @@ def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, re
         int : 0 if successful
     """
 
-    ### get list of unique baselines from all fringe files (type 2) in scandir
-    baselineNames = []
+    # get list of unique baselines from all fringe files (type 2) in scandir, grouping matching
+    # filenames by baseline in this single directory listing so that there is no need to re-glob
+    # the directory once per baseline below (bl_files_by_name)
+    bl_files_by_name = {}
     for filename in glob.glob(scandir + '/*'):
         # skip type 1, type 3, and uvfits files while collecting baseline names
         fn = os.path.basename(filename)
         if FRINGEFILE_PATTERN.match(fn):
-            baselineNames.append(fn.split(os.extsep)[0])
-    baselineNames = list(set(baselineNames))
-    baselineNames.sort()
+            bl = fn.split(os.extsep)[0]
+            bl_files_by_name.setdefault(bl, []).append(filename)
+    baselineNames = sorted(bl_files_by_name.keys())
     logging.debug(f"Unique baselines in scan {os.path.basename(scandir)}: {baselineNames}")
-    
+
     ########### loop through baselines and create per-baseline uvfits files ###########
     for baselineName in baselineNames:
         nap = 0
@@ -270,8 +284,8 @@ def convert_fringefiles_to_bluvfits(scandir, rot_rate=False, rot_delay=False, re
         if baselineName[0] == baselineName[1]:
             continue
 
-        # remove type 1 and 2 files and uvfits files with the same basename
-        bl_flist = [f for f in glob.glob(os.path.join(scandir, f'{baselineName}*')) if FRINGEFILE_PATTERN.match(os.path.basename(f))]
+        # files matching this baseline were already collected above in bl_files_by_name
+        bl_flist = bl_files_by_name[baselineName]
         logging.info(f"Converting {len(bl_flist)} fringefiles corresponding to baseline {baselineName} in scan {os.path.basename(scandir)}...")
         for index, filename in enumerate(bl_flist):
             logging.info(f"Reading fringe file {index}: {filename}")
@@ -650,11 +664,10 @@ def load_hops_uvfits(filename):
     else: raise Exception('Cannot find uvfits channel spacing in AIPS FREQ table!')
 
     # load the scan information
-    
-    try: 
+    try:
         refdate_str = hdulist['AIPS AN'].header['RDATE'] # in iso
         refdate = Time(refdate_str, format='isot', scale='utc').jd
-    except ValueError: 
+    except ValueError:
         logging.warning('ValueError in reading AIPS AN RDATE! Using PRIMARY DATE-OBS value')
         refdate_str = hdulist['PRIMARY'].header['DATE-OBS'] # in iso
         refdate = Time(refdate_str, format='isot', scale='utc').jd
@@ -664,7 +677,7 @@ def load_hops_uvfits(filename):
     try: scan_durs = hdulist['AIPS NX'].data['TIME INTERVAL']
     except KeyError: scan_durs=[]
     scan_arr = []
-    
+
     for kk in range(len(scan_starts)):
         scan_start = scan_starts[kk]
         scan_dur = scan_durs[kk]
@@ -758,15 +771,23 @@ def convert_uvfits_to_datastruct(filename):
 
     # Make a datatable
     # TODO check that the jd not cut off by precision
+    freqs = ch1_freq + np.arange(nchan) * ch_spacing
     datatable = np.empty((len(jds)*nchan), dtype=DTPOL)
-    idx = 0
-    for i in range(len(jds)):
-        for j in range(nchan):
-            freq = j*ch_spacing + ch1_freq
-            datatable[idx] = np.array((jds[i], freq, tints[i], t1[i], t2[i], u[i], v[i], rr[i,j], ll[i,j], rl[i,j], lr[i,j], \
-                              rrweight[i,j], llweight[i,j], rlweight[i,j], lrweight[i,j]), dtype=DTPOL)
-
-            idx += 1
+    datatable['time'] = np.repeat(jds, nchan)
+    datatable['freq'] = np.tile(freqs, len(jds))
+    datatable['tint'] = np.repeat(tints, nchan)
+    datatable['t1'] = np.repeat(t1, nchan)
+    datatable['t2'] = np.repeat(t2, nchan)
+    datatable['u'] = np.repeat(u, nchan)
+    datatable['v'] = np.repeat(v, nchan)
+    datatable['rr'] = rr.reshape(-1)
+    datatable['ll'] = ll.reshape(-1)
+    datatable['rl'] = rl.reshape(-1)
+    datatable['lr'] = lr.reshape(-1)
+    datatable['rrweight'] = rrweight.reshape(-1)
+    datatable['llweight'] = llweight.reshape(-1)
+    datatable['rlweight'] = rlweight.reshape(-1)
+    datatable['lrweight'] = lrweight.reshape(-1)
 
     datastruct_out = Datastruct(datastruct.obs_info, tarr, datatable, dtype="EHTIM")
 
@@ -779,7 +800,7 @@ def construct_bl_list(datatable_merge, tkeys):
         datatable_merge:  merged uvfits data table
         tkeys: dictionary of index -> baseline code
        Returns:
-        unique_entries_sorted: unique time-baseline entries
+        unique_keys: structured array of unique (time, t1, t2) entries, sorted
         unique_entry_indexes: data table index of unique entries
         inverse_indexes: index of corresponding unique entry from original table
 
@@ -794,54 +815,46 @@ def construct_bl_list(datatable_merge, tkeys):
 
     """
 
-    bl_dict_table = dict()
-    bl_set = set()
-    for i in range(len(datatable_merge)):
-        entry = datatable_merge[i]
-        t1num = entry['t1']
-        t2num = entry['t2']
-        rl = entry['rl']
-        lr = entry['lr']
-        if tkeys[entry['t2']] < tkeys[entry['t1']]: # reorder telescopes if necessary
-            #print entry['t1'], tkeys[entry['t1']], entry['t2'], tkeys[entry['t2']]
-            entry['t1'] = t2num
-            entry['t2'] = t1num
-            entry['u'] = -entry['u']
-            entry['v'] = -entry['v']
-            entry['rr'] = np.conj(entry['rr'])
-            entry['ll'] = np.conj(entry['ll'])
-            entry['rl'] = np.conj(lr)
-            entry['lr'] = np.conj(rl)
-            datatable_merge[i] = entry
-        bl_size = len(bl_set)
-        tmp_entry = (entry['time'],entry['t1'],entry['t2'])
-        bl_set.add( tmp_entry )
-        if bl_size < len(bl_set): #added a unique entry to the set, so expand our lists
-            bl_dict_table[ tmp_entry ] = i
+    # Determine the order of telescopes for each baseline and swap if necessary.
+    t1arr = datatable_merge['t1']
+    t2arr = datatable_merge['t2']
+    site_order = np.array(sorted(tkeys.keys()))
+    rank_of_sorted_pos = np.array([tkeys[s] for s in site_order])
+    tk1 = rank_of_sorted_pos[np.searchsorted(site_order, t1arr)]
+    tk2 = rank_of_sorted_pos[np.searchsorted(site_order, t2arr)]
+    swap = tk2 < tk1
 
-    #now sort the dictionary we have constructed by the key entries (time, t1, and t2)
-    #and retrieve the sorted unique list of entries
-    unique_entries_sorted = sorted( bl_dict_table.keys() )
+    old_t1 = t1arr.copy()
+    old_t2 = t2arr.copy()
+    old_u = datatable_merge['u'].copy()
+    old_v = datatable_merge['v'].copy()
+    old_rr = datatable_merge['rr'].copy()
+    old_ll = datatable_merge['ll'].copy()
+    old_rl = datatable_merge['rl'].copy()
+    old_lr = datatable_merge['lr'].copy()
 
-    #now create the table of indexes with the proper order
-    unique_entry_indexes = []
-    for entry in unique_entries_sorted:
-        index = bl_dict_table[entry]
-        unique_entry_indexes.append(index)
+    datatable_merge['t1'] = np.where(swap, old_t2, old_t1)
+    datatable_merge['t2'] = np.where(swap, old_t1, old_t2)
+    datatable_merge['u'] = np.where(swap, -old_u, old_u)
+    datatable_merge['v'] = np.where(swap, -old_v, old_v)
+    datatable_merge['rr'] = np.where(swap, np.conj(old_rr), old_rr)
+    datatable_merge['ll'] = np.where(swap, np.conj(old_ll), old_ll)
+    datatable_merge['rl'] = np.where(swap, np.conj(old_lr), old_rl)
+    datatable_merge['lr'] = np.where(swap, np.conj(old_rl), old_lr)
 
-    #now create a look up table into the list of unique entries
-    bl_dict_table2 = dict()
-    for n in range(len(unique_entries_sorted)):
-        bl_dict_table2[ unique_entries_sorted[n] ] = n
+    # Construct the keys array for uniquely identifying baselines at each timestamp
+    tk1_final = np.where(swap, tk2, tk1)
+    tk2_final = np.where(swap, tk1, tk2)
+    keys_arr = np.empty(len(datatable_merge), dtype=[('time', 'f8'), ('t1', 'i8'), ('t2', 'i8')])
+    keys_arr['time'] = datatable_merge['time']
+    keys_arr['t1'] = tk1_final
+    keys_arr['t2'] = tk2_final
 
-    #now we need to go through and construct the inverse indexes
-    inverse_indexes = []
-    for i in range(len(datatable_merge)):
-        entry = datatable_merge[i]
-        tmp_entry = (entry['time'],entry['t1'],entry['t2'])
-        inverse_indexes.append( bl_dict_table2[tmp_entry] )
+    unique_keys, unique_entry_indices, inverse_indices = np.unique(keys_arr, return_index=True, return_inverse=True)
+    inverse_indices = np.asarray(inverse_indices).reshape(-1)
 
-    return unique_entries_sorted, unique_entry_indexes, inverse_indexes
+    # NOTE: merge_hops_uvfits (the only caller as of now) discards the unique_keys return value.
+    return unique_keys, unique_entry_indices, inverse_indices
 
 def merge_hops_uvfits(fitsFiles):
     """load and merge all uvfits files in a data directory
@@ -989,9 +1002,15 @@ def merge_hops_uvfits(fitsFiles):
     v = datatable_merge['v'][unique_idx_anttime]
     jds = datatable_merge['time'][unique_idx_anttime]
 
-    t1num = [tkeys[scope] + 1 for scope in datatable_merge['t1'][unique_idx_anttime]]
-    t2num = [tkeys[scope] + 1 for scope in datatable_merge['t2'][unique_idx_anttime]]
-    bls = 256*np.array(t1num) + np.array(t2num)
+    # vectorized (time, t1, t2) -> station-number lookup; mask over the small set of station names
+    t1_scope = datatable_merge['t1'][unique_idx_anttime]
+    t2_scope = datatable_merge['t2'][unique_idx_anttime]
+    t1num = np.empty(len(t1_scope), dtype=np.int64)
+    t2num = np.empty(len(t2_scope), dtype=np.int64)
+    for site, k in tkeys.items():
+        t1num[t1_scope == site] = k + 1
+        t2num[t2_scope == site] = k + 1
+    bls = 256*t1num + t2num
     tints = datatable_merge['tint'][unique_idx_anttime]
 
 
@@ -999,15 +1018,12 @@ def merge_hops_uvfits(fitsFiles):
     outdat = np.zeros((nap, 1, 1, nchan, nsubchan, nstokes, 3))
     outdat[:,:,:,:,:,:,2] = -1.0
 
+    # for duplicate (row_dat_idx, row_freq_idx) pairs, the last matching row in datatable_merge wins
     vistypes = ['rr','ll','rl','lr']
-    for i in range(len(datatable_merge)):
-        row_freq_idx = idx_freq[i]
-        row_dat_idx = idx_anttime[i]
-
-        for j in range(len(vistypes)):
-            outdat[row_dat_idx,0,0,row_freq_idx,0,j,0] = np.real(datatable_merge[i][vistypes[j]])
-            outdat[row_dat_idx,0,0,row_freq_idx,0,j,1] = np.imag(datatable_merge[i][vistypes[j]])
-            outdat[row_dat_idx,0,0,row_freq_idx,0,j,2] = datatable_merge[i][vistypes[j]+'weight']
+    for j, vistype in enumerate(vistypes):
+        outdat[idx_anttime,0,0,idx_freq,0,j,0] = np.real(datatable_merge[vistype])
+        outdat[idx_anttime,0,0,idx_freq,0,j,1] = np.imag(datatable_merge[vistype])
+        outdat[idx_anttime,0,0,idx_freq,0,j,2] = datatable_merge[vistype+'weight']
 
     # return data for saving
     obsinfo_out = Obs_info(src, ra, dec, ref_freq, ch_bw, ch_spacing, ch1_freq, nchan, scan_arr)
@@ -1337,14 +1353,158 @@ def read_dict_from_file(fpath):
             contents = f.read()
             if contents:
                 return ast.literal_eval(contents)
-            
     return {}
 
 def write_dict_to_file(fpath, dictionary):
     with open(fpath, 'w') as f:
         f.write(str(dictionary))
-
     return
+
+#######################################################################
+####################  Parallel orchestration ##########################
+#######################################################################
+# Wrap the sequential script above in a process pool; the numeric/IO functions
+# above are called unchanged from worker processes. No change in behaviour
+# based on whether they are invoked sequentially or from a pool.
+
+def _init_worker_logging(log_queue, loglevel):
+    """ProcessPoolExecutor initializer. Routes this worker's logging through
+    log_queue instead of directly to a stream, so that log lines from multiple
+    concurrent worker processes never interleave/garble on the way out.
+    Only the QueueListener running in the main process ever writes to the
+    actual log stream (see _start_centralized_logging)."""
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.setLevel(loglevel)
+    root.addHandler(logging.handlers.QueueHandler(log_queue))
+
+def _start_centralized_logging(loglevel):
+    """
+    Set up centralized logging that the main process and the worker processes share. A single
+    QueueListener thread in the main process is the only thing that ever writes to the log stream.
+
+    Returns (log_queue, listener)
+    """
+    log_queue = mp.Queue(-1)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(logging.Formatter(_LOG_FORMAT, datefmt=_LOG_DATEFMT))
+    listener = logging.handlers.QueueListener(log_queue, stream_handler)
+    listener.start()
+
+    root = logging.getLogger()
+    root.setLevel(loglevel)
+    root.handlers.clear()
+    root.addHandler(logging.handlers.QueueHandler(log_queue))
+
+    return log_queue, listener
+
+def _process_scandir(scandir, args):
+    """
+    Process a single scan directory.
+
+    Returns (outname, source) on success, or (None, None) if the scandir had to be skipped (e.g. no root file,
+    no fringe files, no per-baseline uvfits produced). Any other exception (from convert_fringefiles_to_bluvfits,
+    merge_hops_uvfits, or save_uvfits) will propagate up.
+    """
+    rootfilename = None
+    contains_fringefiles = False
+    with os.scandir(scandir) as entries:
+        for entry in entries:
+            if not entry.is_file():
+                continue
+            if rootfilename is None and ROOTFILE_PATTERN.match(entry.name):
+                rootfilename = entry.name
+            if not contains_fringefiles and FRINGEFILE_PATTERN.match(entry.name):
+                contains_fringefiles = True
+            if rootfilename is not None and contains_fringefiles:
+                break
+
+    if rootfilename is None:
+        logging.warning(f"No valid root file (ovex) found in scan directory {scandir}. Skipping scan...")
+        return None, None
+
+    if not contains_fringefiles:
+        logging.warning(f"No valid fringe files found in scan directory {scandir}. Skipping...")
+        return None, None
+
+    if args.computebluvfits:
+        logging.info(f"Processing scan {scandir}...")
+        logging.info('Deleting existing per-baseline uvfits files...')
+        with os.scandir(scandir) as entries:
+            for entry in entries:
+                if entry.is_file() and entry.name.endswith(bluvfits_pattern):
+                    os.remove(entry.path)
+
+        if not args.recomputeuv:
+            logging.warning('Not recomputing uv coordinates.')
+
+        convert_fringefiles_to_bluvfits(scandir=scandir, rot_rate=args.rotrate, rot_delay=args.rotdelay, recompute_uv=args.recomputeuv,
+                               sqrt2corr=args.sqrt2corr, flip_ALMA_pol=args.flipALMApol, flip_SPT_pol=args.flipSPTpol, fix_src_name=args.fixsrcname)
+
+    # merge per-baseline uvfits files for this scan
+    logging.info(f'Merging per-baseline uvfits files in {scandir}')
+    bl_uvfits = glob.glob(scandir + f'/*{bluvfits_pattern}')
+    logging.debug(f'Found {len(bl_uvfits)} per-baseline uvfits files in {scandir}.')
+    if not len(bl_uvfits):
+        logging.warning(f"No per-baseline uvfits files found! Skipping scan {scandir}.")
+        return None, None
+
+    datastruct = merge_hops_uvfits(bl_uvfits)
+    outname = os.path.join(scandir, scanuvfits_pattern)
+    save_uvfits(datastruct, outname)
+    source = datastruct.obs_info.src
+
+    if args.discardbluvfits:
+        logging.info(f"'discardbluvfits' flag is set to {args.discardbluvfits}. Deleting per-baseline uvfits files...")
+        with os.scandir(scandir) as entries:
+            for entry in entries:
+                if entry.is_file() and entry.name.endswith(bluvfits_pattern):
+                    os.remove(entry.path)
+
+    return outname, source
+
+def _merge_source(source, source_uvfits, datadir, outdir, idtag):
+    """Merge all per-scan uvfits files for one source into the final per-source uvfits file."""
+    logging.info(f"Merging all per-scan uvfits files in {datadir} corresponding to source {source}...")
+    logging.debug(f"source_uvfits: {source_uvfits}")
+    datastruct = merge_hops_uvfits(source_uvfits)
+    outname = f"{outdir}/hops_{os.path.basename(datadir)}_{source}{idtag}.uvfits"
+    save_uvfits(datastruct, outname)
+    return outname
+
+def _run_pool_stage(executor, work_items, worker_fn, continue_on_error, stage_desc, progress_every=10):
+    """
+    Submit worker_fn(*item) for every item in work_items (a list of argument tuples) to executor and collect results.
+
+    worker_fn must be a plain top-level function so that ProcessPoolExecutor is able to pickle it.
+    Results are returned in the same order as `work_items`, not in the order of completion.
+
+    executor.shutdown will wait for running workers to finish so that no uvfits files are only partially generated.
+    """
+    futures = {executor.submit(worker_fn, *item): idx for idx, item in enumerate(work_items)}
+    results = [None] * len(work_items)
+    errors = []
+    completed = 0
+    total = len(work_items)
+
+    for fut in as_completed(futures):
+        idx = futures[fut]
+        try:
+            results[idx] = fut.result()
+        except Exception as e:
+            if not continue_on_error:
+                for other in futures:
+                    other.cancel()
+                raise
+            item_id = work_items[idx][0]
+            logging.error(f"{stage_desc}: item {idx} ({item_id!r}) failed: {e}", exc_info=True)
+            errors.append((item_id, e))
+
+        completed += 1
+        if completed % progress_every == 0 or completed == total:
+            logging.info(f"{stage_desc}: {completed}/{total} done")
+
+    return results, errors
 
 def create_parser():
     p = argparse.ArgumentParser()
@@ -1362,6 +1522,11 @@ def create_parser():
     p.add_argument('--fixsrcname', action='store_true', help='Fix source name')
     p.add_argument('--idtag', type=str, default='', help="Custom identifier tag for UVFITS files")
     p.add_argument('--loglevel', type=str, default='INFO', help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
+    p.add_argument('--workers', type=int, default=min(4, os.cpu_count() or 1),
+                    help='Number of scan directories/sources to process in parallel (default: min(4, cpu count)). ')
+    p.add_argument('--continue-on-error', action='store_true',
+                    help="Run every scan directory/source to completion even if some fail, instead of aborting "
+                         "on first failure. Default: False. The first error will cause the script to fail.")
 
     return p
 
@@ -1370,101 +1535,51 @@ def main(args):
     loglevel = getattr(logging, args.loglevel.upper(), None)
     if not isinstance(loglevel, int):
         raise ValueError(f'Invalid log level: {args.loglevel}')
-    logging.basicConfig(level=loglevel,
-                        format='%(asctime)s %(levelname)s:: %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
 
-    logging.info('Converting HOPS fringe files to UVFITS files...')
-    logging.debug(f'Arguments passed: {args}')
+    log_queue, listener = _start_centralized_logging(loglevel)
+    try:
+        logging.info('Converting HOPS fringe files to UVFITS files...')
+        logging.debug(f'Arguments passed: {args}')
 
-    # format datadir properly
-    datadir = os.path.normpath(args.datadir)
+        # Format datadir properly
+        datadir = os.path.normpath(args.datadir)
 
-    # get list of only the subdirectories under datadir and sort them; these are the individual scan directories for a given epoch
-    scandirs = sorted([os.path.join(datadir, d) for d in os.listdir(datadir) if os.path.isdir(os.path.join(datadir, d))])
-    nscandirs = len(scandirs)
+        # Get list of subdirectories under datadir and sort them i.e. the individual scan directories for a given epoch.
+        # Sorted explicitly so results below can be reassembled in a fixed, worker-completion-order-independent sequence.
+        scandirs = sorted([os.path.join(datadir, d) for d in os.listdir(datadir) if os.path.isdir(os.path.join(datadir, d))])
 
-    allscans_uvfits = np.empty(nscandirs, dtype=object)
-    allscans_sources = np.empty(nscandirs, dtype=object)
+        all_errors = []
+        with ProcessPoolExecutor(max_workers=args.workers, initializer=_init_worker_logging, initargs=(log_queue, loglevel)) as executor:
+            ################### Per scan uvfits generation in parallel ###################
+            stage1_results, stage1_errors = _run_pool_stage(executor, [(scandir, args) for scandir in scandirs], _process_scandir, args.continue_on_error, "Processing scan directories")
+            all_errors.extend(stage1_errors)
 
-    ################### loop over all scan directories and create per-scan uvfits files (two-step process creates per-baseline uvfits first) ###################
-    for idx, scandir in enumerate(tqdm.tqdm(scandirs, desc='Processing scan directories')):
+            allscans_uvfits = [outname for outname, source in stage1_results if outname is not None]
+            allscans_sources = [source for outname, source in stage1_results if outname is not None]
 
-        # process scandir to get station codes and expt numbers
-        pattern = r"^[a-zA-Z0-9+-_]+\.[a-zA-Z0-9]{6}$"
-        rootfilename = next((entry.name for entry in os.scandir(scandir) if entry.is_file() and re.match(pattern, entry.name)), None)
-        if rootfilename is None:
-            logging.warning(f"No valid root file (ovex) found in scan directory {scandir}. Skipping scan...")
-            continue
+            ################### Per source uvfits generation (merging of all per-scan uvfits files for each source) in parallel ###################
+            unique_sources = sorted(set(allscans_sources))
+            source_uvfits_by_source = {
+                source: [f for f, s in zip(allscans_uvfits, allscans_sources) if s == source]
+                for source in unique_sources
+            }
 
-        # process scandir only if at least one type 2 file (i.e. fringe file) is present
-        contains_fringefiles = False
-        with os.scandir(scandir) as entries:
-            for entry in entries:
-                if entry.is_file() and FRINGEFILE_PATTERN.match(entry.name):
-                    contains_fringefiles = True
-                    break
-        if not contains_fringefiles:
-            logging.warning(f"No valid fringe files found in scan directory {scandir}. Skipping...")
-            continue
+            stage2_work_items = [
+                (source, source_uvfits_by_source[source], datadir, args.outdir, args.idtag)
+                for source in unique_sources
+            ]
+            stage2_results, stage2_errors = _run_pool_stage(executor, stage2_work_items, _merge_source, args.continue_on_error, "Merging per-source uvfits files")
+            all_errors.extend(stage2_errors)
 
-        if args.computebluvfits:
-            # generate per-baseline uvfits files
-            logging.info(f"Processing scan {scandir}...")
+        if all_errors:
+            logging.error(f"{len(all_errors)} item(s) failed. Continued and completed with some failed scans.")
+            return 1
 
-            # remove existing per-baseline uvfits files since we are generating them anew
-            logging.info('Deleting existing per-baseline uvfits files...')
-            with os.scandir(scandir) as entries:
-                for entry in entries:
-                    if entry.is_file() and entry.name.endswith(bluvfits_pattern):
-                        os.remove(entry.path)
-
-            if not args.recomputeuv:
-                logging.warning('Not recomputing uv coordinates.')
-
-            convert_fringefiles_to_bluvfits(scandir=scandir, rot_rate=args.rotrate, rot_delay=args.rotdelay, recompute_uv=args.recomputeuv,
-                                   sqrt2corr=args.sqrt2corr, flip_ALMA_pol=args.flipALMApol, flip_SPT_pol=args.flipSPTpol, fix_src_name=args.fixsrcname)
-
-        # merge per-baseline uvfits files for each scan
-        logging.info(f'Merging per-baseline uvfits files in {scandir}')
-        bl_uvfits = glob.glob(scandir + f'/*{bluvfits_pattern}')
-        logging.debug(f'Found {len(bl_uvfits)} per-baseline uvfits files in {scandir}.')
-        if not len(bl_uvfits):
-            logging.warning(f"No per-baseline uvfits files found! Skipping scan {scandir}.")
-            continue
-        else:
-            datastruct = merge_hops_uvfits(bl_uvfits)
-            outname = os.path.join(scandir, scanuvfits_pattern)
-            save_uvfits(datastruct, outname)
-
-            allscans_uvfits[idx] = outname
-            allscans_sources[idx] = datastruct.obs_info.src
-
-        # if requested, remove baseline-specific uvfits files
-        if args.discardbluvfits:
-            logging.info(f"'discardbluvfits' flag is set to {args.discardbluvfits}. Deleting per-baseline uvfits files...")
-            with os.scandir(scandir) as entries:
-                for entry in entries:
-                    if entry.is_file() and entry.name.endswith(bluvfits_pattern):
-                        os.remove(entry.path)
-
-    ################### merge all per-scan uvfits files for each source ###################
-    # remove unassigned values, if any (happens when there are no valid cross-correlation fringe files in a given scandir and autocorrelations are not requested)
-    allscans_uvfits = allscans_uvfits[allscans_uvfits != None]
-    allscans_sources = allscans_sources[allscans_sources != None]
-    unique_sources = set(allscans_sources)
-    for source in unique_sources:
-        logging.info(f"Merging all per-scan uvfits files in {datadir} corresponding to source {source}...")
-        source_uvfits = allscans_uvfits[allscans_sources==source]
-        logging.debug(f"source_uvfits: {source_uvfits}")
-        datastruct = merge_hops_uvfits(source_uvfits)
-        
-        outname = f"{args.outdir}/hops_{os.path.basename(datadir)}_{source}{args.idtag}.uvfits"
-        save_uvfits(datastruct, outname)
-
-    logging.info("UVFITS generation complete.")
-        
-    return 0
+        logging.info("UVFITS generation complete.")
+        return 0
+    finally:
+        # Process any log records still in the queue before exiting
+        listener.stop()
 
 if __name__=='__main__':
     args = create_parser().parse_args()
