@@ -45,34 +45,6 @@ def split_corrdat(s):
     return [d for d in CORRDAT_SPLIT_REGEX.split(s) if d]
 
 
-def list_files(path, follow_symlinks=True):
-    """
-    List the basenames of regular files (after symlink resolution) directly
-    inside `path`, in arbitrary order.
-
-    Args:
-        path (str): The directory path to list files from.
-        follow_symlinks (bool): Whether to follow symlinks when checking if an entry
-            is a regular file. Defaults to True.
-
-    Returns:
-        list: A list of basenames of regular files directly inside `path`.
-    """
-    try:
-        with os.scandir(path) as it:
-            entries = list(it)
-    except OSError:
-        return []
-    out = []
-    for e in entries:
-        try:
-            if e.is_file(follow_symlinks=follow_symlinks):
-                out.append(e.name)
-        except OSError:
-            continue  # e.g. broken symlink; find -L would skip it too
-    return out
-
-
 def list_entries_raw(path):
     """
     Basenames of directory entries directly inside `path`, without any filtering.
@@ -91,20 +63,17 @@ def list_entries_raw(path):
 
 def walk_files(root):
     """
-    All regular files (after symlink resolution) recursively under `root`,
-    in arbitrary order.
+    Recursively yield all non-directory entries under `root`, in arbitrary order.
 
     Args:
-        root (str): The root directory to start the search from.
+        root (str): The directory to walk.
 
     Yields:
-        str: The full path of each regular file found under `root`.
+        str: The full path of each entry.
     """
     for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
         for name in filenames:
-            full = os.path.join(dirpath, name)
-            if os.path.isfile(full):
-                yield full
+            yield os.path.join(dirpath, name)
 
 
 def replace_last(scandir, old, new):
@@ -189,7 +158,7 @@ def main():
             if os.path.isdir(dest_scan_dir):
                 if src_scan_dir == prev_src_scan_dir:
                     dest_ext_set = set()
-                    for name in list_files(dest_scan_dir):
+                    for name in list_entries_raw(dest_scan_dir):
                         m = ROOTFILE_EXT_REGEX.search(name)
                         if m:
                             dest_ext_set.add(m.group())
@@ -216,7 +185,7 @@ def main():
 
             # Link all files in the source scan directory to the destination scan directory,
             # except for existing fringefiles (if any) in the source scan directory.
-            for name in list_files(src_scan_dir):
+            for name in list_entries_raw(src_scan_dir):
                 if name.endswith('.' + extension) and not FRINGEFILE_REGEX.search(name):
                     link(os.path.join(src_scan_dir, name),
                          os.path.join(dest_scan_dir, name))
@@ -240,7 +209,7 @@ def main():
                 if not os.path.isdir(haxp_src_scan_dir):
                     logging.warning(f"find: '{haxp_src_scan_dir}': No such file or directory")
                 else:
-                    for name in list_files(haxp_src_scan_dir):
+                    for name in list_entries_raw(haxp_src_scan_dir):
                         if not FRINGEFILE_REGEX.search(name):
                             link(os.path.join(haxp_src_scan_dir, name),
                                  os.path.join(dest_scan_dir, name))
