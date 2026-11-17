@@ -1011,7 +1011,11 @@ def merge_hops_uvfits(fitsFiles):
         t1num[t1_scope == site] = k + 1
         t2num[t2_scope == site] = k + 1
     bls = 256*t1num + t2num
-    tints = datatable_merge['tint'][unique_idx_anttime]
+
+    # each polarization product's fringe file carries its own integration time, and a product
+    # with no data in an AP has zero; the record's INTTIM is the longest over its products
+    tints = np.zeros(nap)
+    np.maximum.at(tints, idx_anttime, datatable_merge['tint'])
 
 
     #merged uvfits format data table
