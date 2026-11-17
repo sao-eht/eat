@@ -11,6 +11,7 @@ import logging
 import logging.handlers
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 import re
 import ast
 
@@ -1387,9 +1388,15 @@ def _start_centralized_logging(loglevel):
     Set up centralized logging that the main process and the worker processes share. A single
     QueueListener thread in the main process is the only thing that ever writes to the log stream.
 
-    Returns (log_queue, listener)
+    Uses a manager queue so that a worker killed mid-write (e.g. by the OOM killer) cannot make
+    listener.stop() hang.
+
+    Returns (manager, log_queue, listener). Pass manager and listener to _stop_centralized_logging.
     """
-    log_queue = mp.Queue(-1)
+    # Start the manager before the listener thread, so that the manager process is forked from a
+    # single-threaded process.
+    manager = mp.Manager()
+    log_queue = manager.Queue(-1)
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(logging.Formatter(_LOG_FORMAT, datefmt=_LOG_DATEFMT))
     listener = logging.handlers.QueueListener(log_queue, stream_handler)
@@ -1400,7 +1407,14 @@ def _start_centralized_logging(loglevel):
     root.handlers.clear()
     root.addHandler(logging.handlers.QueueHandler(log_queue))
 
-    return log_queue, listener
+    return manager, log_queue, listener
+
+def _stop_centralized_logging(manager, listener):
+    """Write out any log records still in the queue, stop the listener and shut down the manager."""
+    listener.stop()
+    # Stop routing log calls to the manager, which is about to shut down
+    logging.getLogger().handlers.clear()
+    manager.shutdown()
 
 def _process_scandir(scandir, args):
     """
@@ -1476,6 +1490,9 @@ def _merge_source(source, source_uvfits, datadir, outdir, idtag):
     save_uvfits(datastruct, outname)
     return outname
 
+# Exit status when --continue-on-error skipped some scans/sources but converted the rest
+EXIT_SOME_FAILED = 3
+
 def _run_pool_stage(executor, work_items, worker_fn, continue_on_error, stage_desc, progress_every=10):
     """
     Submit worker_fn(*item) for every item in work_items (a list of argument tuples) to executor and collect results.
@@ -1496,12 +1513,19 @@ def _run_pool_stage(executor, work_items, worker_fn, continue_on_error, stage_de
         try:
             results[idx] = fut.result()
         except Exception as e:
-            if not continue_on_error:
+            item_id = work_items[idx][0]
+            if isinstance(e, BrokenProcessPool):
+                logging.error(f"{stage_desc}: a worker process was terminated abruptly, most likely by the "
+                              "out-of-memory killer. Compare the job's MaxRSS (sacct/seff) with its memory "
+                              "request, or lower --workers.")
+            else:
+                # Log the failed item, with its traceback if --continue-on-error is set
+                logging.error(f"{stage_desc}: item {idx} ({item_id!r}) failed: {e}", exc_info=continue_on_error)
+            # A broken pool cannot run anything else, so always abort
+            if not continue_on_error or isinstance(e, BrokenProcessPool):
                 for other in futures:
                     other.cancel()
                 raise
-            item_id = work_items[idx][0]
-            logging.error(f"{stage_desc}: item {idx} ({item_id!r}) failed: {e}", exc_info=True)
             errors.append((item_id, e))
 
         completed += 1
@@ -1529,8 +1553,9 @@ def create_parser():
     p.add_argument('--workers', type=int, default=min(4, os.cpu_count() or 1),
                     help='Number of scan directories/sources to process in parallel (default: min(4, cpu count)). ')
     p.add_argument('--continue-on-error', action='store_true',
-                    help="Run every scan directory/source to completion even if some fail, instead of aborting "
-                         "on first failure. Default: False. The first error will cause the script to fail.")
+                    help="Skip scan directories/sources that fail and convert the rest, instead of aborting on the "
+                         f"first failure. Exits with {EXIT_SOME_FAILED} if any were skipped. A killed worker "
+                         "(e.g. out of memory) still aborts.")
 
     return p
 
@@ -1540,7 +1565,7 @@ def main(args):
     if not isinstance(loglevel, int):
         raise ValueError(f'Invalid log level: {args.loglevel}')
 
-    log_queue, listener = _start_centralized_logging(loglevel)
+    manager, log_queue, listener = _start_centralized_logging(loglevel)
     try:
         logging.info('Converting HOPS fringe files to UVFITS files...')
         logging.debug(f'Arguments passed: {args}')
@@ -1558,8 +1583,10 @@ def main(args):
             stage1_results, stage1_errors = _run_pool_stage(executor, [(scandir, args) for scandir in scandirs], _process_scandir, args.continue_on_error, "Processing scan directories")
             all_errors.extend(stage1_errors)
 
-            allscans_uvfits = [outname for outname, source in stage1_results if outname is not None]
-            allscans_sources = [source for outname, source in stage1_results if outname is not None]
+            # Failed scans have no result (None); skipped scans return (None, None)
+            converted = [r for r in stage1_results if r is not None and r[0] is not None]
+            allscans_uvfits = [outname for outname, source in converted]
+            allscans_sources = [source for outname, source in converted]
 
             ################### Per source uvfits generation (merging of all per-scan uvfits files for each source) in parallel ###################
             unique_sources = sorted(set(allscans_sources))
@@ -1576,14 +1603,21 @@ def main(args):
             all_errors.extend(stage2_errors)
 
         if all_errors:
-            logging.error(f"{len(all_errors)} item(s) failed. Continued and completed with some failed scans.")
-            return 1
+            if stage1_errors:
+                failed_scans = ', '.join(os.path.basename(scandir) for scandir, _ in stage1_errors)
+                logging.error(f"{len(stage1_errors)} of {len(scandirs)} scans failed; their data is missing "
+                              f"from the per-source uvfits files: {failed_scans}")
+            if stage2_errors:
+                failed_sources = ', '.join(source for source, _ in stage2_errors)
+                logging.error(f"{len(stage2_errors)} of {len(unique_sources)} sources failed; no per-source "
+                              f"uvfits file was written for: {failed_sources}")
+            return EXIT_SOME_FAILED
 
         logging.info("UVFITS generation complete.")
         return 0
     finally:
         # Process any log records still in the queue before exiting
-        listener.stop()
+        _stop_centralized_logging(manager, listener)
 
 if __name__=='__main__':
     args = create_parser().parse_args()
